@@ -13,12 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "BundleAdjustment.h"
-
 #include <sophus/ceres_manifold.hpp>
 
+#include "BundleAdjustment.h"
 #include "utils/utils.h"
-#define LOG_BA(level) CLOG(level, "mapping")
+#define LOG_MAPPING(level) CLOG(level, "mapping")
 
 namespace pd::vslam::mapping
 {
@@ -104,7 +103,7 @@ void BundleAdjustment::optimize()
   ceres::Solver::Summary summary;
   ceres::Solve(options, &_problem, &summary);
 
-  LOG_BA(DEBUG) << summary.FullReport();
+  LOG_MAPPING(DEBUG) << summary.FullReport();
   //double errorAfter = computeReprojectionError();
   //std::cout << "Before: " << errorPrev << " -->  " << errorAfter << std::endl;
 }

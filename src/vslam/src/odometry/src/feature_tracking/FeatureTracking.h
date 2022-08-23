@@ -16,6 +16,7 @@
 #ifndef VSLAM_FEATURE_TRACKING_H__
 #define VSLAM_FEATURE_TRACKING_H__
 #include "core/core.h"
+
 namespace pd::vslam
 {
 class FeatureTracking
@@ -26,10 +27,13 @@ public:
   typedef std::shared_ptr<const FeatureTracking> ConstShPtr;
   typedef std::unique_ptr<const FeatureTracking> ConstUnPtr;
 
+  FeatureTracking(size_t nFeatures = 100);
+
   std::vector<Point3D::ShPtr> track(
     FrameRgbd::ShPtr frameCur, const std::vector<FrameRgbd::ShPtr> & framesRef);
 
   void extractFeatures(FrameRgbd::ShPtr frame) const;
+
   std::vector<Point3D::ShPtr> match(
     FrameRgbd::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const;
 

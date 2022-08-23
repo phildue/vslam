@@ -14,9 +14,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "MapOptimization.h"
-
 #include "utils/utils.h"
-#define LOG_BA(level) CLOG(level, "mapping")
+#define LOG_MAPPING(level) CLOG(level, "mapping")
 
 namespace pd::vslam::mapping
 {
@@ -34,7 +33,15 @@ void MapOptimization::optimize(
       ba->setObservation(ft->point()->id(), f->id(), ft->position());
     }
   }
+
+  LOG_MAPPING(DEBUG) << "Reprojection error init: " << ba->computeError()
+                     << " Per point: " << ba->computeError() / ba->nPoints();
+
   ba->optimize();
+
+  LOG_MAPPING(DEBUG) << "Reprojection error optimized: " << ba->computeError()
+                     << " Per point: " << ba->computeError() / ba->nPoints();
+
   for (const auto & p : points) {
     p->position() = ba->getPoint(p->id());
   }

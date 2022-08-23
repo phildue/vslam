@@ -9,7 +9,8 @@ set( sources
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
   src/direct_image_alignment/SE3Alignment.cpp
   src/direct_image_alignment/RgbdAlignmentOpenCv.cpp
-  src/FeatureTracking.cpp
+  src/feature_tracking/FeatureTracking.cpp
+  src/feature_tracking/MatcherBruteForce.cpp
   src/mapping/BundleAdjustment.cpp
   src/mapping/MapOptimization.cpp
   src/mapping/Map.cpp )
@@ -22,7 +23,8 @@ set( headers
   src/iterative_closest_point/IterativeClosestPointOcv.h
   src/direct_image_alignment/SE3Alignment.h
   src/direct_image_alignment/RgbdAlignmentOpenCv.h
-  src/FeatureTracking.h
+  src/feature_tracking/FeatureTracking.h
+  src/feature_tracking/MatcherBruteForce.h
   src/mapping/BundleAdjustment.h
   src/mapping/MapOptimization.h
   src/mapping/Map.h
@@ -96,10 +98,5 @@ if(VSLAM_ODOMETRY_BUILD_TESTS)
   pd_add_test(tracking ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(descriptor_vo ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
 
 endif()

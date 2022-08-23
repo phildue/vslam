@@ -41,6 +41,8 @@ public:
   SE3d getPose(std::uint64_t frameId) const;
   Vec3d getPoint(std::uint64_t pointId) const;
   double computeError() const;
+  size_t nPoints() const { return _points.size(); }
+  size_t nPoses() const { return _poses.size(); }
 
 private:
   //compute error is not const?
