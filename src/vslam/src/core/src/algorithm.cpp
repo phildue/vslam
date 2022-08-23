@@ -156,7 +156,7 @@ MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rt, const Mat3d & Kcur)
   const Mat3d E = tx * R;
   return Kcur.inverse().transpose() * E * Kref.inverse();
 }
-MatXd computeF(FrameRgb::ConstShPtr frameRef, FrameRgb::ConstShPtr frameCur)
+MatXd computeF(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur)
 {
   const SE3d Rt = computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose());
   const Vec3d t = Rt.translation();

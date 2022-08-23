@@ -18,7 +18,6 @@
 //
 
 #include "NodeRgbdAlignment.h"
-
 #include "vslam_ros/converters.h"
 using namespace pd::vslam;
 using namespace std::chrono_literals;
@@ -175,7 +174,7 @@ void NodeRgbdAlignment::signalReplayer()
   }
 }
 
-FrameRgbd::ShPtr NodeRgbdAlignment::createFrame(
+Frame::ShPtr NodeRgbdAlignment::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
@@ -192,8 +191,11 @@ FrameRgbd::ShPtr NodeRgbdAlignment::createFrame(
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
-  return std::make_shared<FrameRgbd>(
+  auto f = std::make_shared<Frame>(
     img, depth, _camera, get_parameter("pyramid.levels").as_double_array().size(), t);
+  f->computeDerivatives();
+  f->computePcl();
+  return f;
 }
 void NodeRgbdAlignment::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {

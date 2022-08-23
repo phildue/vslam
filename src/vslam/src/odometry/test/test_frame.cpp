@@ -34,7 +34,7 @@ TEST(FrameTest, CreatePyramid)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
+  auto f = std::make_shared<Frame>(img, depth, cam, 3, 0);
   for (size_t i = 0; i < f->nLevels(); i++) {
     auto pcl = f->pcl(i, true);
     DepthMap depthReproj = algorithm::resize(depth, std::pow(0.5, i));
@@ -81,8 +81,8 @@ TEST(WarpTest, DISABLED_Warp)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
 
   for (size_t i = 0; i < f0->nLevels(); i++) {
     auto w = std::make_shared<WarpSE3>(

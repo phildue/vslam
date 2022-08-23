@@ -32,7 +32,7 @@ public:
 
   RgbdAlignmentOpenCv();
 
-  PoseWithCovariance::UnPtr align(FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const;
+  PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
 
 protected:
 };

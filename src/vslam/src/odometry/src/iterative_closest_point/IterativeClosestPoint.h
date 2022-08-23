@@ -41,8 +41,7 @@ public:
     Log::get("odometry");
   }
 
-  PoseWithCovariance::UnPtr align(
-    FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const override;
+  PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
 
 protected:
   size_t _level;

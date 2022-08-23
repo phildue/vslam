@@ -27,7 +27,7 @@
 namespace pd::vslam
 {
 class Point3D;
-class FrameRgb;
+class Frame;
 
 class Feature2D
 {
@@ -38,15 +38,14 @@ public:
   typedef std::unique_ptr<const Feature2D> ConstUnPtr;
 
   Feature2D(
-    const Vec2d & position, std::shared_ptr<FrameRgb> frame, size_t level = 0U,
-    double response = 0.0, const VecXd & descriptor = VecXd::Zero(10),
-    std::shared_ptr<Point3D> p3d = nullptr);
+    const Vec2d & position, std::shared_ptr<Frame> frame, size_t level = 0U, double response = 0.0,
+    const VecXd & descriptor = VecXd::Zero(10), std::shared_ptr<Point3D> p3d = nullptr);
 
   std::shared_ptr<const Point3D> point() const { return _point; }
   std::shared_ptr<Point3D> & point() { return _point; }
   const Vec2d & position() const { return _position; }
-  std::shared_ptr<FrameRgb> frame() { return _frame; }
-  std::shared_ptr<const FrameRgb> frame() const { return _frame; }
+  std::shared_ptr<Frame> frame() { return _frame; }
+  std::shared_ptr<const Frame> frame() const { return _frame; }
   const VecXd & descriptor() const { return _descriptor; }
   size_t level() const { return _level; }
   double response() const { return _response; }
@@ -54,7 +53,7 @@ public:
 
 private:
   const Vec2d _position;
-  const std::shared_ptr<FrameRgb> _frame;
+  const std::shared_ptr<Frame> _frame;
   const size_t _level;
   const double _response;
   const VecXd _descriptor;

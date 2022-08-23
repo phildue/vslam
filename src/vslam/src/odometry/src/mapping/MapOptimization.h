@@ -33,7 +33,7 @@ public:
   MapOptimization();
 
   void optimize(
-    const std::vector<FrameRgbd::ShPtr> & frames, const std::vector<Point3D::ShPtr> & points) const;
+    const std::vector<Frame::ShPtr> & frames, const std::vector<Point3D::ShPtr> & points) const;
 
 private:
 };

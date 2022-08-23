@@ -99,9 +99,9 @@ TEST_F(TestSE3Alignment, DISABLED_TestOnSyntheticDataTranslation)
     _img1 = warpGt->apply(_img0);
     _depth1 = warpGt->apply(_depth0);
 
-    auto fRef = std::make_shared<FrameRgbd>(
+    auto fRef = std::make_shared<Frame>(
       _img0, _depth0, _cam, 3, 0, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
-    auto fCur = std::make_shared<FrameRgbd>(
+    auto fCur = std::make_shared<Frame>(
       _img1, _depth1, _cam, 3, 1, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
 
     auto result = _aligner->align(fRef, fCur)->pose().inverse().log();
@@ -125,9 +125,9 @@ TEST_F(TestSE3Alignment, DISABLED_TestOnSyntheticDataRotation)
     _img1 = warpGt->apply(_img0);
     _depth1 = warpGt->apply(_depth0);
 
-    auto fRef = std::make_shared<FrameRgbd>(
+    auto fRef = std::make_shared<Frame>(
       _img0, _depth0, _cam, 3, 0, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
-    auto fCur = std::make_shared<FrameRgbd>(
+    auto fCur = std::make_shared<Frame>(
       _img1, _depth1, _cam, 3, 1, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
 
     auto result = _aligner->align(fRef, fCur)->pose().inverse().log();
@@ -153,9 +153,9 @@ TEST_F(TestSE3Alignment, DISABLED_TestOnSyntheticData)
     _img1 = warpGt->apply(_img0);
     _depth1 = warpGt->apply(_depth0);
 
-    auto fRef = std::make_shared<FrameRgbd>(
+    auto fRef = std::make_shared<Frame>(
       _img0, _depth0, _cam, 3, 0, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
-    auto fCur = std::make_shared<FrameRgbd>(
+    auto fCur = std::make_shared<Frame>(
       _img1, _depth1, _cam, 3, 1, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
 
     auto result = _aligner->align(fRef, fCur)->pose().inverse().log();
@@ -177,9 +177,9 @@ TEST_F(TestSE3Alignment, DISABLED_TestOnSyntheticDataTranslationAbsolute)
       transforms::euler2quaternion(0, 0, 0), {_noise[ri][0], _noise[ri][1], _noise[ri][2]});
     // SE3d
     // initialPose(transforms::euler2quaternion(0.03,0.03,0.03),{0.03,0.05,0.03});
-    auto fRef = std::make_shared<FrameRgbd>(
+    auto fRef = std::make_shared<Frame>(
       _img0, _depth0, _cam, 3, 0, PoseWithCovariance(refPose, MatXd::Identity(6, 6)));
-    auto fCur = std::make_shared<FrameRgbd>(
+    auto fCur = std::make_shared<Frame>(
       _img1, _depth1, _cam, 3, 1, PoseWithCovariance(initialPose * refPose, MatXd::Identity(6, 6)));
 
     auto result = _aligner->align(fRef, fCur)->pose().log();

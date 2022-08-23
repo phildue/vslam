@@ -18,7 +18,6 @@
 //
 
 #include "NodeMapping.h"
-
 #include "vslam_ros/converters.h"
 using namespace pd::vslam;
 using namespace std::chrono_literals;
@@ -182,7 +181,7 @@ void NodeMapping::signalReplayer()
   }
 }
 
-FrameRgbd::ShPtr NodeMapping::createFrame(
+Frame::ShPtr NodeMapping::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
@@ -199,7 +198,7 @@ FrameRgbd::ShPtr NodeMapping::createFrame(
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
-  return std::make_shared<FrameRgbd>(
+  return std::make_shared<Frame>(
     img, depth, _camera, get_parameter("pyramid.levels").as_double_array().size(), t);
 }
 void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
@@ -299,3 +298,4 @@ void NodeMapping::cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr ms
 
 #include "rclcpp_components/register_node_macro.hpp"
 RCLCPP_COMPONENTS_REGISTER_NODE(vslam_ros::NodeMapping)
+

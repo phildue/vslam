@@ -13,14 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "IterativeClosestPoint.h"
-
 #include <utils/utils.h>
+
+#include "IterativeClosestPoint.h"
 #define LOG_ODOM(level) CLOG(level, "odometry")
 namespace pd::vslam
 {
 PoseWithCovariance::UnPtr IterativeClosestPoint::align(
-  FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const
+  Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloudFrom(new pcl::PointCloud<pcl::PointXYZ>);
 

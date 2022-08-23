@@ -1,6 +1,6 @@
-#include "NodeReplayer.h"
-
 #include <filesystem>
+
+#include "NodeReplayer.h"
 namespace fs = std::filesystem;
 using namespace pd;
 using namespace pd::vslam;
@@ -40,6 +40,7 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
   _pubCamInfo = create_publisher<sensor_msgs::msg::CameraInfo>("/camera/rgb/camera_info", 100);
   _pubDepth = create_publisher<sensor_msgs::msg::Image>("/camera/depth/image", 100);
   std::vector<rosbag2_storage::TopicMetadata> meta = _reader->get_all_topics_and_types();
+  _reader->get_metadata().message_count;
   //std::cout << "Found: " <<  << " meta entries.";
   RCLCPP_INFO(
     get_logger(), "Found: %ld meta entries",

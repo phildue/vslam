@@ -34,10 +34,9 @@ public:
     double minGradient, vslam::least_squares::Solver::ShPtr solver,
     vslam::least_squares::Loss::ShPtr loss, bool includePrior = false);
 
+  PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
   PoseWithCovariance::UnPtr align(
-    FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const override;
-  PoseWithCovariance::UnPtr align(
-    const std::vector<FrameRgbd::ConstShPtr> & from, FrameRgbd::ConstShPtr to) const;
+    const std::vector<Frame::ConstShPtr> & from, Frame::ConstShPtr to) const;
 
 protected:
   const double _minGradient2;

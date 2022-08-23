@@ -14,7 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "SE3Alignment.h"
-
 #include "utils/utils.h"
 
 #define LOG_ODOM(level) CLOG(level, "odometry")
@@ -62,8 +61,7 @@ SE3Alignment::SE3Alignment(
   Log::get("odometry");
 }
 
-PoseWithCovariance::UnPtr SE3Alignment::align(
-  FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const
+PoseWithCovariance::UnPtr SE3Alignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   auto prior = _includePrior ? std::make_shared<MotionPrior>(to->pose(), from->pose()) : nullptr;
   PoseWithCovariance::UnPtr pose = std::make_unique<PoseWithCovariance>(to->pose());
@@ -106,7 +104,7 @@ PoseWithCovariance::UnPtr SE3Alignment::align(
   return pose;
 }
 PoseWithCovariance::UnPtr SE3Alignment::align(
-  const std::vector<FrameRgbd::ConstShPtr> & from, FrameRgbd::ConstShPtr to) const
+  const std::vector<Frame::ConstShPtr> & from, Frame::ConstShPtr to) const
 {
   PoseWithCovariance::UnPtr pose = std::make_unique<PoseWithCovariance>(to->pose());
   for (int level = from[0]->nLevels() - 1; level >= 0; level--) {

@@ -14,7 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Odometry.h"
-
 #include "utils/utils.h"
 #define LOG_ODOM(level) CLOG(level, "odometry")
 namespace pd::vslam
@@ -29,7 +28,7 @@ OdometryRgbd::OdometryRgbd(
 {
   Log::get("odometry");
 }
-void OdometryRgbd::update(FrameRgbd::ConstShPtr frame)
+void OdometryRgbd::update(Frame::ConstShPtr frame)
 {
   if (_map->lastFrame()) {
     try {
@@ -66,7 +65,7 @@ OdometryIcp::OdometryIcp(int level, int maxIterations, Map::ConstShPtr map)
 : _aligner(std::make_shared<IterativeClosestPoint>(level, maxIterations)), _map(map)
 {
 }
-void OdometryIcp::update(FrameRgbd::ConstShPtr frame)
+void OdometryIcp::update(Frame::ConstShPtr frame)
 {
   if (_map->lastFrame()) {
     LOG_ODOM(DEBUG) << "Processing frame";

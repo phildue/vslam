@@ -93,10 +93,10 @@ public:
     _odometry = std::make_shared<OdometryRgbd>(30, solver, loss, _map);
   }
 
-  FrameRgbd::ShPtr loadFrame(size_t fNo)
+  Frame::ShPtr loadFrame(size_t fNo)
   {
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-    return std::make_shared<FrameRgbd>(
+    return std::make_shared<Frame>(
       utils::loadImage(_datasetPath + "/" + _imgFilenames.at(fNo)),
       utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam, 3,
       _timestamps.at(fNo));

@@ -36,9 +36,9 @@ TEST(TrackingTest, Track)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  std::vector<FrameRgbd::ShPtr> frames;
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
   auto tracking = std::make_shared<FeatureTracking>();
   tracking->extractFeatures(f0);
@@ -57,9 +57,9 @@ TEST(TrackingTest, Match)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  std::vector<FrameRgbd::ShPtr> frames;
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
   auto tracking = std::make_shared<FeatureTracking>(50);
   tracking->extractFeatures(f0);
@@ -87,7 +87,7 @@ TEST(TrackingTest, Match)
     return d + xFx;
   });
   std::vector<MatcherBruteForce::Match> matches =
-    matcher.match(FrameRgbd::ConstShPtr(f0)->features(), FrameRgbd::ConstShPtr(f1)->features());
+    matcher.match(Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features());
 
   EXPECT_EQ(matches.size(), f0->features().size());
 }
@@ -98,9 +98,9 @@ TEST(TrackingTest, TrackAndOptimize)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<FrameRgbd>(img, depth, cam, 3, 0);
-  std::vector<FrameRgbd::ShPtr> frames;
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
   auto tracking = std::make_shared<FeatureTracking>();
   tracking->extractFeatures(f0);

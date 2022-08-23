@@ -201,7 +201,7 @@ Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat, double min, double max);
 Sophus::SE3d computeRelativeTransform(const Sophus::SE3d & t0, const Sophus::SE3d & t1);
 
 MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rtref2cur, const Mat3d & Kcur);
-MatXd computeF(FrameRgb::ConstShPtr frameRef, FrameRgb::ConstShPtr frameCur);
+MatXd computeF(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur);
 
 }  // namespace algorithm
 

@@ -37,13 +37,13 @@ namespace pd::vslam
 FeatureTracking::FeatureTracking(size_t nFeatures) : _nFeatures(nFeatures) { Log::get("tracking"); }
 
 std::vector<Point3D::ShPtr> FeatureTracking::track(
-  FrameRgbd::ShPtr frameCur, const std::vector<FrameRgbd::ShPtr> & framesRef)
+  Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef)
 {
   extractFeatures(frameCur);
   return match(frameCur, selectCandidates(frameCur, framesRef));
 }
 
-void FeatureTracking::extractFeatures(FrameRgbd::ShPtr frame) const
+void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
 {
   cv::Mat image;
   cv::eigen2cv(frame->intensity(), image);
@@ -63,7 +63,7 @@ void FeatureTracking::extractFeatures(FrameRgbd::ShPtr frame) const
 }
 
 std::vector<Point3D::ShPtr> FeatureTracking::match(
-  FrameRgbd::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const
+  Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const
 {
   MatcherBruteForce matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
     // TODO(phil): min baseline?
@@ -82,7 +82,7 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
     return std::isfinite(xFx) ? d + xFx : d;
   });
   const std::vector<MatcherBruteForce::Match> matches = matcher.match(
-    FrameRgbd::ConstShPtr(frameCur)->features(),
+    Frame::ConstShPtr(frameCur)->features(),
     std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()));
 
   std::vector<Point3D::ShPtr> points;
@@ -105,7 +105,7 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
   return points;
 }
 std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
-  FrameRgbd::ConstShPtr frameCur, const std::vector<FrameRgbd::ShPtr> & framesRef) const
+  Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {
   std::set<std::uint64_t> pointIds;
 

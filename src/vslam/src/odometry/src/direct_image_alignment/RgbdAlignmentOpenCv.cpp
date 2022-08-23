@@ -13,14 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "RgbdAlignmentOpenCv.h"
-
 #include <Eigen/Dense>
 #include <opencv2/rgbd.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
 #include <opencv4/opencv2/opencv.hpp>
 
+#include "RgbdAlignmentOpenCv.h"
 #include "utils/utils.h"
 
 #define LOG_ODOM(level) CLOG(level, "odometry")
@@ -29,7 +28,7 @@ namespace pd::vslam
 RgbdAlignmentOpenCv::RgbdAlignmentOpenCv() { Log::get("odometry"); }
 
 PoseWithCovariance::UnPtr RgbdAlignmentOpenCv::align(
-  FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const
+  Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   cv::Mat camMat, srcImage, srcDepth, dstImage, dstDepth, guess;
   cv::eigen2cv(from->camera()->K(), camMat);

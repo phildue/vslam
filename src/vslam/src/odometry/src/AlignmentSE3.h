@@ -22,8 +22,7 @@ namespace pd::vslam
 class AlignmentSE3
 {
 public:
-  virtual PoseWithCovariance::UnPtr align(
-    FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const = 0;
+  virtual PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const = 0;
 };
 }  // namespace pd::vslam
 

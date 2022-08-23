@@ -24,22 +24,27 @@
 #include "types.h"
 namespace pd::vslam
 {
-class FrameRgb
+class Frame
 {
 public:
-  typedef std::shared_ptr<FrameRgb> ShPtr;
-  typedef std::shared_ptr<const FrameRgb> ConstShPtr;
-  typedef std::unique_ptr<FrameRgb> UnPtr;
-  typedef std::unique_ptr<const FrameRgb> ConstUnPtr;
+  typedef std::shared_ptr<Frame> ShPtr;
+  typedef std::shared_ptr<const Frame> ConstShPtr;
+  typedef std::unique_ptr<Frame> UnPtr;
+  typedef std::unique_ptr<const Frame> ConstUnPtr;
 
-  FrameRgb(
+  Frame(
+    const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, size_t nLevels = 1,
+    const Timestamp & t = 0U, const PoseWithCovariance & pose = {});
+
+  Frame(
     const Image & intensity, Camera::ConstShPtr cam, size_t nLevels = 1, const Timestamp & t = 0U,
     const PoseWithCovariance & pose = {});
+
   std::uint64_t id() const { return _id; }
 
   const Image & intensity(size_t level = 0) const { return _intensity.at(level); }
-  const MatXd & dIx(size_t level = 0) const { return _dIx.at(level); }
-  const MatXd & dIy(size_t level = 0) const { return _dIy.at(level); }
+  const MatXd & dIx(size_t level = 0) const;
+  const MatXd & dIy(size_t level = 0) const;
 
   const PoseWithCovariance & pose() const { return _pose; }
 
@@ -65,8 +70,16 @@ public:
   void addFeatures(const std::vector<Feature2D::ShPtr> & ft);
   void removeFeatures();
   void removeFeature(Feature2D::ShPtr f);
+  void computeDerivatives();
+  void computePcl();
 
-  virtual ~FrameRgb();
+  const DepthMap & depth(size_t level = 0) const { return _depth.at(level); }
+  const Vec3d & p3d(int v, int u, size_t level = 0) const;
+  Vec3d p3dWorld(int v, int u, size_t level = 0) const;
+  std::vector<Vec3d> pcl(size_t level = 0, bool removeInvalid = false) const;
+  std::vector<Vec3d> pclWorld(size_t level = 0, bool removeInvalid = false) const;
+
+  virtual ~Frame();
 
 private:
   const std::uint64_t _id;
@@ -76,40 +89,11 @@ private:
   Timestamp _t;
   PoseWithCovariance _pose;  //<< Pf = pose * Pw
   std::vector<Feature2D::ShPtr> _features;
-
+  DepthMapVec _depth;
+  std::vector<std::vector<Vec3d>> _pcl;
   static std::uint64_t _idCtr;
 };
 
-class FrameRgbd : public FrameRgb
-{
-public:
-  typedef std::shared_ptr<FrameRgbd> ShPtr;
-  typedef std::shared_ptr<const FrameRgbd> ConstShPtr;
-  typedef std::unique_ptr<FrameRgbd> UnPtr;
-  typedef std::unique_ptr<const FrameRgbd> ConstUnPtr;
-
-  FrameRgbd(
-    const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, size_t nLevels = 1,
-    const Timestamp & t = 0U, const PoseWithCovariance & pose = {});
-
-  const DepthMap & depth(size_t level = 0) const { return _depth.at(level); }
-  const Vec3d & p3d(int v, int u, size_t level = 0) const
-  {
-    return _pcl.at(level)[v * width(level) + u];
-  }
-  Vec3d p3dWorld(int v, int u, size_t level = 0) const
-  {
-    return pose().pose().inverse() * _pcl.at(level)[v * width() + u];
-  }
-  std::vector<Vec3d> pcl(size_t level = 0, bool removeInvalid = false) const;
-  std::vector<Vec3d> pclWorld(size_t level = 0, bool removeInvalid = false) const;
-
-  virtual ~FrameRgbd(){};
-
-private:
-  DepthMapVec _depth;
-  std::vector<std::vector<Vec3d>> _pcl;
-};
 }  // namespace pd::vslam
 
 #endif

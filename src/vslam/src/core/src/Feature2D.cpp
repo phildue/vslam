@@ -24,7 +24,7 @@ namespace pd::vslam
 std::uint64_t Feature2D::_idCtr = 0U;
 
 Feature2D::Feature2D(
-  const Eigen::Vector2d & position, std::shared_ptr<FrameRgb> frame, size_t level, double response,
+  const Eigen::Vector2d & position, std::shared_ptr<Frame> frame, size_t level, double response,
   const VecXd & descriptor, std::shared_ptr<Point3D> p3d)
 : _position(position),
   _frame(frame),

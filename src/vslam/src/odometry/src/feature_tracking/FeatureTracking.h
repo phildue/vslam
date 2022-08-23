@@ -30,15 +30,15 @@ public:
   FeatureTracking(size_t nFeatures = 100);
 
   std::vector<Point3D::ShPtr> track(
-    FrameRgbd::ShPtr frameCur, const std::vector<FrameRgbd::ShPtr> & framesRef);
+    Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef);
 
-  void extractFeatures(FrameRgbd::ShPtr frame) const;
+  void extractFeatures(Frame::ShPtr frame) const;
 
   std::vector<Point3D::ShPtr> match(
-    FrameRgbd::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const;
+    Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const;
 
   std::vector<Feature2D::ShPtr> selectCandidates(
-    FrameRgbd::ConstShPtr frameCur, const std::vector<FrameRgbd::ShPtr> & framesRef) const;
+    Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const;
 
 private:
   const size_t _nFeatures = 100;

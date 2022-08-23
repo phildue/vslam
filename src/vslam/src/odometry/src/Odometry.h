@@ -34,7 +34,7 @@ public:
   typedef std::shared_ptr<const Odometry> ConstShPtr;
   typedef std::unique_ptr<const Odometry> ConstUnPtr;
 
-  virtual void update(FrameRgbd::ConstShPtr frame) = 0;
+  virtual void update(Frame::ConstShPtr frame) = 0;
 
   virtual PoseWithCovariance::ConstShPtr pose() const = 0;
   virtual PoseWithCovariance::ConstShPtr speed() const = 0;
@@ -54,7 +54,7 @@ public:
     double minGradient, least_squares::Solver::ShPtr solver, least_squares::Loss::ShPtr loss,
     Map::ConstShPtr map);
 
-  void update(FrameRgbd::ConstShPtr frame) override;
+  void update(Frame::ConstShPtr frame) override;
 
   PoseWithCovariance::ConstShPtr pose() const override { return _pose; }
   PoseWithCovariance::ConstShPtr speed() const override { return _speed; }
@@ -76,7 +76,7 @@ public:
 
   OdometryIcp(int level, int maxIterations, Map::ConstShPtr map);
 
-  void update(FrameRgbd::ConstShPtr frame) override;
+  void update(Frame::ConstShPtr frame) override;
 
   PoseWithCovariance::ConstShPtr pose() const override { return _pose; }
   PoseWithCovariance::ConstShPtr speed() const override { return _speed; }

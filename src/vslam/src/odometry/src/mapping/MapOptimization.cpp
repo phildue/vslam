@@ -21,7 +21,7 @@ namespace pd::vslam::mapping
 {
 MapOptimization::MapOptimization() { Log::get("mapping"); }
 void MapOptimization::optimize(
-  const std::vector<FrameRgbd::ShPtr> & frames, const std::vector<Point3D::ShPtr> & points) const
+  const std::vector<Frame::ShPtr> & frames, const std::vector<Point3D::ShPtr> & points) const
 {
   BundleAdjustment::UnPtr ba = std::make_unique<BundleAdjustment>();
   for (const auto & p : points) {

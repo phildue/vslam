@@ -91,10 +91,10 @@ public:
     _aligner = std::make_shared<SE3Alignment>(5, solver, loss, true);
   }
 
-  FrameRgbd::ShPtr loadFrame(size_t fNo)
+  Frame::ShPtr loadFrame(size_t fNo)
   {
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-    return std::make_shared<FrameRgbd>(
+    return std::make_shared<Frame>(
       utils::loadImage(_datasetPath + "/" + _imgFilenames.at(fNo)),
       utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam, 3,
       _timestamps.at(fNo));
@@ -131,7 +131,7 @@ TEST_F(TestSE3Alignment, DISABLED_Comparison)
     fCur->set(fRef1->pose());
 
     auto result =
-      _aligner->align(std::vector<FrameRgbd::ConstShPtr>({fRef, fRef1}), fCur)->pose().log();
+      _aligner->align(std::vector<Frame::ConstShPtr>({fRef, fRef1}), fCur)->pose().log();
     //auto result = _aligner->align(fRef1,fCur)->pose().log();
     fCur->set(result);
     error += (fCur->pose().pose().inverse() * poseGt).log();

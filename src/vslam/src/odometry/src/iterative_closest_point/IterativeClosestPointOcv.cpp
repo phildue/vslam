@@ -13,19 +13,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "IterativeClosestPointOcv.h"
-
 #include <utils/utils.h>
 
 #include <opencv2/rgbd.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
 #include <opencv4/opencv2/opencv.hpp>
+
+#include "IterativeClosestPointOcv.h"
 #define LOG_ODOM(level) CLOG(level, "odometry")
 namespace pd::vslam
 {
 PoseWithCovariance::UnPtr IterativeClosestPointOcv::align(
-  FrameRgbd::ConstShPtr from, FrameRgbd::ConstShPtr to) const
+  Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   cv::Mat camMat, srcImage, srcDepth, dstImage, dstDepth, guess;
   cv::eigen2cv(from->camera()->K(), camMat);

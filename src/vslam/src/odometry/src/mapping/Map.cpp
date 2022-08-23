@@ -17,7 +17,7 @@
 namespace pd::vslam
 {
 Map::Map() : _frames(), _keyFrames(), _maxFrames(7), _maxKeyFrames(7) {}
-void Map::insert(FrameRgbd::ShPtr frame, bool isKeyFrame)
+void Map::insert(Frame::ShPtr frame, bool isKeyFrame)
 {
   if (_frames.size() >= _maxFrames) {
     _frames.pop_back();
@@ -49,36 +49,36 @@ std::vector<Point3D::ConstShPtr> Map::points() const
   }
   return ps;
 }
-std::vector<FrameRgbd::ShPtr> Map::frames()
+std::vector<Frame::ShPtr> Map::frames()
 {
-  std::vector<FrameRgbd::ShPtr> fs;
+  std::vector<Frame::ShPtr> fs;
   fs.reserve(_frames.size());
   for (const auto & f : _frames) {
     fs.push_back(f);
   }
   return fs;
 }
-std::vector<FrameRgbd::ConstShPtr> Map::frames() const
+std::vector<Frame::ConstShPtr> Map::frames() const
 {
-  std::vector<FrameRgbd::ConstShPtr> fs;
+  std::vector<Frame::ConstShPtr> fs;
   fs.reserve(_frames.size());
   for (const auto & f : _frames) {
     fs.push_back(f);
   }
   return fs;
 }
-std::vector<FrameRgbd::ShPtr> Map::keyFrames()
+std::vector<Frame::ShPtr> Map::keyFrames()
 {
-  std::vector<FrameRgbd::ShPtr> fs;
+  std::vector<Frame::ShPtr> fs;
   fs.reserve(_keyFrames.size());
   for (const auto & f : _keyFrames) {
     fs.push_back(f);
   }
   return fs;
 }
-std::vector<FrameRgbd::ConstShPtr> Map::keyFrames() const
+std::vector<Frame::ConstShPtr> Map::keyFrames() const
 {
-  std::vector<FrameRgbd::ConstShPtr> fs;
+  std::vector<Frame::ConstShPtr> fs;
   fs.reserve(_keyFrames.size());
   for (const auto & f : _keyFrames) {
     fs.push_back(f);
