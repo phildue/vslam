@@ -21,7 +21,6 @@
 #include "Feature2D.h"
 #include "Kernel2d.h"
 #include "PoseWithCovariance.h"
-#include "algorithm.h"
 #include "types.h"
 namespace pd::vslam
 {

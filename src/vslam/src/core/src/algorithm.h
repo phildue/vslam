@@ -25,8 +25,10 @@
 #include <random>
 #include <vector>
 
+#include "Frame.h"
 #include "Kernel2d.h"
 #include "types.h"
+
 namespace pd::vslam
 {
 namespace algorithm
@@ -197,6 +199,10 @@ Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat, double min, double max);
 
 /// Computes T01 from T0 and T1
 Sophus::SE3d computeRelativeTransform(const Sophus::SE3d & t0, const Sophus::SE3d & t1);
+
+MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rtref2cur, const Mat3d & Kcur);
+MatXd computeF(FrameRgb::ConstShPtr frameRef, FrameRgb::ConstShPtr frameCur);
+
 }  // namespace algorithm
 
 namespace transforms

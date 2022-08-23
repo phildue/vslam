@@ -13,8 +13,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "Frame.h"
-
 #include <Eigen/Dense>
 #include <opencv4/opencv2/calib3d.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
@@ -22,7 +20,10 @@
 #include <opencv4/opencv2/imgproc.hpp>
 
 #include "Exceptions.h"
+#include "Frame.h"
 #include "Point3D.h"
+#include "algorithm.h"
+
 #define USE_OPENCV
 namespace pd::vslam
 {

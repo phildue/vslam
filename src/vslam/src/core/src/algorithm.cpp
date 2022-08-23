@@ -16,10 +16,9 @@
 //
 // Created by phil on 02.07.21.
 //
-#include "algorithm.h"
-
 #include "Exceptions.h"
 #include "Kernel2d.h"
+#include "algorithm.h"
 #include "macros.h"
 namespace pd::vslam
 {
@@ -148,7 +147,25 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> conv2d(
   }
   return res;
 }
-
+MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rt, const Mat3d & Kcur)
+{
+  const Vec3d t = Rt.translation();
+  const Mat3d R = Rt.rotationMatrix();
+  Mat3d tx;
+  tx << 0, -t.z(), t.y(), t.x(), 0, t.z(), -t.y(), t.x(), 0;
+  const Mat3d E = tx * R;
+  return Kcur.inverse().transpose() * E * Kref.inverse();
+}
+MatXd computeF(FrameRgb::ConstShPtr frameRef, FrameRgb::ConstShPtr frameCur)
+{
+  const SE3d Rt = computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose());
+  const Vec3d t = Rt.translation();
+  const Mat3d R = Rt.rotationMatrix();
+  Mat3d tx;
+  tx << 0, -t.z(), t.y(), t.x(), 0, t.z(), -t.y(), t.x(), 0;
+  const Mat3d E = tx * R;
+  return frameCur->camera()->Kinv().transpose() * E * frameRef->camera()->Kinv();
+}
 }  // namespace algorithm
 namespace transforms
 {
