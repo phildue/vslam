@@ -42,7 +42,7 @@ std::shared_ptr<Log> Log::get(const std::string & name)
     return it->second;
   } else {
     _logs[name] = std::make_shared<Log>(name);
-}
+  }
   return _logs[name];
 }
 
@@ -78,7 +78,7 @@ std::shared_ptr<LogPlot> Log::getPlotLog(const std::string & name, Level level)
   }
 }
 
-Log::Log(const std::string & name) : _name(name) {}
+Log::Log(const std::string & name) : _name(name) { el::Loggers::getLogger(name); }
 void Log::configure(const std::string & configFilePath)
 {
   el::Configurations config(configFilePath);
