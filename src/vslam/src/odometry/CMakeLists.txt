@@ -67,9 +67,7 @@ if(VSLAM_ODOMETRY_BUILD_TESTS)
     set(TEST_VISUALIZE false)
   endif()
 
-  # pd_add_test(frame ${PROJECT_NAME} 
-  # TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  # TEST_VISUALIZE=${TEST_VISUALIZE})
+
 
   pd_add_test(alignment_se3 ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"

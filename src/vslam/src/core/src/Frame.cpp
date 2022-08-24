@@ -32,7 +32,7 @@ std::uint64_t Frame::_idCtr = 0U;
 Frame::Frame(
   const Image & intensity, Camera::ConstShPtr cam, size_t nLevels, const Timestamp & t,
   const PoseWithCovariance & pose)
-: Frame(intensity, MatXd::Zero(intensity.rows(), intensity.cols()), cam, nLevels, t, pose)
+: Frame(intensity, -1 * MatXd::Ones(intensity.rows(), intensity.cols()), cam, nLevels, t, pose)
 {
 }
 Eigen::Vector2d Frame::camera2image(const Eigen::Vector3d & pCamera, size_t level) const
@@ -64,7 +64,7 @@ Feature2D::ConstShPtr Frame::observationOf(std::uint64_t pointId) const
 
 const MatXd & Frame::dIx(size_t level) const
 {
-  if (level < _dIx.size()) {
+  if (level >= _dIx.size()) {
     throw pd::Exception(
       "No dIdx available for level: " + std::to_string(level) +
       ". Available: " + std::to_string(_dIx.size()));
@@ -73,7 +73,7 @@ const MatXd & Frame::dIx(size_t level) const
 }
 const MatXd & Frame::dIy(size_t level) const
 {
-  if (level < _dIy.size()) {
+  if (level >= _dIy.size()) {
     throw pd::Exception(
       "No dIdy available for level: " + std::to_string(level) +
       ". Available: " + std::to_string(_dIy.size()));
@@ -137,7 +137,6 @@ Frame::Frame(
   _cam.resize(nLevels);
   const double s = 0.5;
 
-#ifdef USE_OPENCV
   // TODO(unknown): replace using custom implementation
   cv::Mat mat;
   cv::eigen2cv(intensity, mat);
@@ -147,53 +146,21 @@ Frame::Frame(
     cv::cv2eigen(mats[i], _intensity[i]);
     _cam[i] = Camera::resize(cam, std::pow(s, i));
   }
-#else
-  //TODO make based on scales
-  Mat<double, 5, 5> gaussianKernel;
-  gaussianKernel << 1, 4, 6, 4, 1, 4, 16, 24, 16, 4, 6, 24, 36, 24, 6, 4, 16, 24, 16, 4, 1, 4, 6, 4,
-    1;
-  for (size_t i = 0; i < nLevels; i++) {
-    if (i == 0) {
-      _intensity[i] = intensity;
-      _cam[i] = cam;
-
-    } else {
-      Image imgBlur =
-        algorithm::conv2d(_intensity[i - 1].cast<double>(), gaussianKernel).cast<uint8_t>();
-      //TODO move padding to separate function
-      imgBlur.col(0) = imgBlur.col(2);
-      imgBlur.col(1) = imgBlur.col(2);
-      imgBlur.col(imgBlur.cols() - 2) = imgBlur.col(imgBlur.cols() - 3);
-      imgBlur.col(imgBlur.cols() - 1) = imgBlur.col(imgBlur.cols() - 3);
-      imgBlur.row(0) = imgBlur.row(2);
-      imgBlur.row(1) = imgBlur.row(2);
-      imgBlur.row(imgBlur.rows() - 2) = imgBlur.row(imgBlur.rows() - 3);
-      imgBlur.row(imgBlur.rows() - 1) = imgBlur.row(imgBlur.rows() - 3);
-
-      _intensity[i] = algorithm::resize(imgBlur, s);
-      _cam[i] = Camera::resize(_cam[i - 1], s);
-    }
-    _dIx[i] =
-      algorithm::conv2d(_intensity[i].cast<double>(), Kernel2d<double>::sobelX()).cast<int>();
-    _dIy[i] =
-      algorithm::conv2d(_intensity[i].cast<double>(), Kernel2d<double>::sobelY()).cast<int>();
-  }
-#endif
-
   _depth.resize(nLevels);
-  for (size_t i = 0; i < nLevels; i++) {
-    if (i == 0) {
-      _depth[i] = depth;
-
-    } else {
-      DepthMap depthBlur =
-        algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-      _depth[i] = algorithm::resize(depthBlur, s);
-    }
+  _depth[0] = depth;
+  for (size_t i = 1; i < nLevels; i++) {
+    DepthMap depthBlur =
+      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
+    _depth[i] = algorithm::resize(depthBlur, s);
   }
 }
 std::vector<Vec3d> Frame::pcl(size_t level, bool removeInvalid) const
 {
+  if (level >= _pcl.size()) {
+    throw pd::Exception(
+      "No PCL available for level: " + std::to_string(level) +
+      ". Available: " + std::to_string(_pcl.size()));
+  }
   if (removeInvalid) {
     std::vector<Vec3d> pcl;
     pcl.reserve(_pcl.at(level).size());
@@ -207,6 +174,11 @@ std::vector<Vec3d> Frame::pcl(size_t level, bool removeInvalid) const
 }
 std::vector<Vec3d> Frame::pclWorld(size_t level, bool removeInvalid) const
 {
+  if (level >= _pcl.size()) {
+    throw pd::Exception(
+      "No PCL available for level: " + std::to_string(level) +
+      ". Available: " + std::to_string(_pcl.size()));
+  }
   auto points = pcl(level, removeInvalid);
   std::transform(points.begin(), points.end(), points.begin(), [&](auto p) {
     return pose().pose().inverse() * p;
@@ -216,7 +188,7 @@ std::vector<Vec3d> Frame::pclWorld(size_t level, bool removeInvalid) const
 
 const Vec3d & Frame::p3d(int v, int u, size_t level) const
 {
-  if (level < _pcl.size()) {
+  if (level >= _pcl.size()) {
     throw pd::Exception(
       "No PCL available for level: " + std::to_string(level) +
       ". Available: " + std::to_string(_pcl.size()));
@@ -225,7 +197,7 @@ const Vec3d & Frame::p3d(int v, int u, size_t level) const
 }
 Vec3d Frame::p3dWorld(int v, int u, size_t level) const
 {
-  if (level < _pcl.size()) {
+  if (level >= _pcl.size()) {
     throw pd::Exception(
       "No PCL available for level: " + std::to_string(level) +
       ". Available: " + std::to_string(_pcl.size()));
