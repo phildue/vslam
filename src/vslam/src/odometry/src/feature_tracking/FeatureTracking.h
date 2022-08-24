@@ -27,7 +27,7 @@ public:
   typedef std::shared_ptr<const FeatureTracking> ConstShPtr;
   typedef std::unique_ptr<const FeatureTracking> ConstUnPtr;
 
-  FeatureTracking(size_t nFeatures = 100);
+  FeatureTracking();
 
   std::vector<Point3D::ShPtr> track(
     Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef);
@@ -41,7 +41,7 @@ public:
     Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const;
 
 private:
-  const size_t _nFeatures = 100;
+  const size_t _gridCellSize = 30;
 };
 }  // namespace pd::vslam
 

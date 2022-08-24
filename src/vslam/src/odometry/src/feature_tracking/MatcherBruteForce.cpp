@@ -51,4 +51,38 @@ std::vector<MatcherBruteForce::Match> MatcherBruteForce::match(
   }
   return matches;
 }
+double MatcherBruteForce::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+{
+  // TODO(phil): min baseline?
+  const Mat3d F = algorithm::computeF(ftRef->frame(), ftCur->frame());
+  const Vec3d xCur = Vec3d(ftRef->position().x(), ftRef->position().y(), 1).transpose();
+  const Vec3d xRef = Vec3d(ftCur->position().x(), ftCur->position().y(), 1);
+  const Vec3d l = F * xRef;
+  const double xFx = std::abs(xCur.transpose() * (l / std::sqrt(l.x() * l.x() + l.y() * l.y())));
+
+  LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") xFx = " << xFx
+                     << " F = " << F;
+
+  return xFx;
+}
+double MatcherBruteForce::reprojectionError(
+  Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+{
+  // TODO(phil): min baseline?
+  // const SE3d Rt = algorithm::computeRelativeTransform(
+  //  ftRef->frame()->pose().pose(), ftCur->frame()->pose().pose());
+  // const Vec3d p3dRef = ftRef->frame()->p3d(ftRef->position().y(), ftRef->position().x());
+  // const double err = (ftCur->position() - ftCur->frame()->camera2image(Rt * p3dRef)).norm();
+  const double err =
+    (ftCur->position() -
+     ftCur->frame()->world2image(ftCur->frame()->image2world(
+       ftRef->position(), ftRef->frame()->depth()(ftRef->position().y(), ftRef->position().x()))))
+      .norm();
+  //LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id()
+  //                   << ") reprojection error: " << err;
+
+  // TODO(phil): whats a good way to way of compute trade off? Compute mean + std offline and normalize..
+  return err;
+}
+
 }  // namespace pd::vslam

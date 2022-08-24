@@ -30,17 +30,20 @@ void MapOptimization::optimize(
   for (const auto & f : frames) {
     ba->setFrame(f->id(), f->pose().pose(), f->camera()->K());
     for (const auto & ft : f->features()) {
-      ba->setObservation(ft->point()->id(), f->id(), ft->position());
+      if (ft->point()) {
+        ba->setObservation(ft->point()->id(), f->id(), ft->position());
+      }
     }
   }
 
-  LOG_MAPPING(DEBUG) << "Reprojection error init: " << ba->computeError()
-                     << " Per point: " << ba->computeError() / ba->nPoints();
+  LOG_MAPPING(INFO) << "Reprojection error init: " << ba->computeError()
+                    << "\n#Points: " << ba->nPoints() << "\n#Frames: " << ba->nPoses()
+                    << "\nAverage: " << ba->computeError() / (ba->nPoints() * ba->nPoses());
 
   ba->optimize();
 
-  LOG_MAPPING(DEBUG) << "Reprojection error optimized: " << ba->computeError()
-                     << " Per point: " << ba->computeError() / ba->nPoints();
+  LOG_MAPPING(INFO) << "Reprojection error opt.: " << ba->computeError()
+                    << "\nAverage: " << ba->computeError() / (ba->nPoints() * ba->nPoses());
 
   for (const auto & p : points) {
     p->position() = ba->getPoint(p->id());

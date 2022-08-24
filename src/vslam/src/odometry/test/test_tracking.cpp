@@ -59,9 +59,11 @@ TEST(TrackingTest, Match)
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
   auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
   auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  f0->computePcl();
+  f1->computePcl();
   std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
-  auto tracking = std::make_shared<FeatureTracking>(50);
+  auto tracking = std::make_shared<FeatureTracking>();
   tracking->extractFeatures(f0);
   tracking->extractFeatures(f1);
 
@@ -94,26 +96,30 @@ TEST(TrackingTest, Match)
 
 TEST(TrackingTest, TrackAndOptimize)
 {
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.jpg") / 5000.0;
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
+  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
+  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
   auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
   auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  f0->computePcl();
+  f1->computePcl();
   std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
+
   auto tracking = std::make_shared<FeatureTracking>();
   tracking->extractFeatures(f0);
   tracking->extractFeatures(f1);
 
   auto pose = f1->pose().pose();
-  pose.translation().x() += 0.1;
-  pose.translation().y() -= 0.1;
+  //pose.translation().x() += 0.1;
+  //pose.translation().y() -= 0.1;
   f1->set(PoseWithCovariance(pose, f1->pose().cov()));
 
   auto featuresCandidate = tracking->selectCandidates(f1, frames);
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
   auto points = tracking->match(f1, featuresCandidate);
+  LOG(INFO) << "#Matches: " << points.size();
 
   cv::Mat mat0, mat1;
   cv::eigen2cv(img, mat0);
@@ -147,6 +153,7 @@ TEST(TrackingTest, TrackAndOptimize)
   //TODO(phil): visualize noisy + true reprojection
   EXPECT_EQ(points.size(), featuresCandidate.size());
   //TODO(phil): visualize optimized projection
+  frames.push_back(f1);
 
   mapping::MapOptimization mapper;
   mapper.optimize(frames, points);

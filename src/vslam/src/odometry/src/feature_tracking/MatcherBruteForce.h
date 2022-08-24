@@ -42,11 +42,15 @@ public:
     const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
     const std::vector<Feature2D::ConstShPtr> & descriptorsTarget);
 
+  static double epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
+  static double reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
+
 private:
   const std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>
     _computeDistance;
   const double _minDistanceRatio;
 };
+
 }  // namespace pd::vslam
 
 #endif  // VSLAM_MATCHER_BRUTE_FORCE_H

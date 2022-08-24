@@ -34,7 +34,7 @@
 
 namespace pd::vslam
 {
-FeatureTracking::FeatureTracking(size_t nFeatures) : _nFeatures(nFeatures) { Log::get("tracking"); }
+FeatureTracking::FeatureTracking() { Log::get("tracking"); }
 
 std::vector<Point3D::ShPtr> FeatureTracking::track(
   Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef)
@@ -47,18 +47,49 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
 {
   cv::Mat image;
   cv::eigen2cv(frame->intensity(), image);
-  cv::Ptr<cv::DescriptorExtractor> extractor = cv::ORB::create(_nFeatures);
-  cv::Mat desc;
+  cv::Ptr<cv::FastFeatureDetector> detector = cv::FastFeatureDetector::create();
   std::vector<cv::KeyPoint> kpts;
-  extractor->detectAndCompute(image, cv::Mat(), kpts, desc);
-  MatXd descriptors;
-  cv::cv2eigen(desc, descriptors);
+  detector->detect(image, kpts);
+  const size_t nRows =
+    static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(_gridCellSize));
+  const size_t nCols =
+    static_cast<size_t>(static_cast<float>(frame->width(0)) / static_cast<float>(_gridCellSize));
+
+  std::vector<size_t> grid(nRows * nCols, kpts.size());
+  for (size_t idx = 0U; idx < kpts.size(); idx++) {
+    const auto & kp = kpts[idx];
+    const size_t r =
+      static_cast<size_t>(static_cast<float>(kp.pt.y) / static_cast<float>(_gridCellSize));
+    const size_t c =
+      static_cast<size_t>(static_cast<float>(kp.pt.x) / static_cast<float>(_gridCellSize));
+    if (grid[r * nCols + c] >= kpts.size() || kp.response > kpts[grid[r * nCols + c]].response) {
+      grid[r * nCols + c] = idx;
+    }
+  }
+  LOG_TRACKING(INFO) << "Keypoints: " << kpts.size();
+
+  std::vector<cv::KeyPoint> kptsGrid;
+  kptsGrid.reserve(nRows * nCols);
+  std::for_each(grid.begin(), grid.end(), [&](auto idx) {
+    if (idx < kpts.size()) {
+      kptsGrid.push_back(kpts[idx]);
+    }
+  });
+  LOG_TRACKING(INFO) << "Remaining keypoints: " << kptsGrid.size();
+  cv::Ptr<cv::DescriptorExtractor> extractor = cv::ORB::create();
+  cv::Mat desc;
+  extractor->compute(image, kptsGrid, desc);
+  LOG_TRACKING(INFO) << "Remaining keypoints: " << kptsGrid.size();
+  LOG_TRACKING(INFO) << "Computed descriptors: " << desc.rows << "x" << desc.cols;
+
   std::vector<Feature2D::ShPtr> features;
-  features.reserve(kpts.size());
-  for (size_t i = 0U; i < kpts.size(); ++i) {
-    const auto & kp = kpts[i];
+  features.reserve(kptsGrid.size());
+  MatXd descriptor;
+  cv::cv2eigen(desc, descriptor);
+  for (size_t i = 0U; i < kptsGrid.size(); ++i) {
+    const auto & kp = kptsGrid[i];
     frame->addFeature(std::make_shared<Feature2D>(
-      Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response, descriptors.row(i)));
+      Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response, descriptor.row(i)));
   }
 }
 
@@ -66,43 +97,32 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
   Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const
 {
   MatcherBruteForce matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-    // TODO(phil): min baseline?
-    const Mat3d F = algorithm::computeF(ftRef->frame(), ftCur->frame());
-    const Vec3d xCur = Vec3d(ftRef->position().x(), ftRef->position().y(), 1).transpose();
-    const Vec3d xRef = Vec3d(ftCur->position().x(), ftCur->position().y(), 1);
-    const Vec3d l = F * xRef;
-    const double xFx = std::abs(xCur.transpose() * (l / std::sqrt(l.x() * l.x() + l.y() * l.y())));
-
     const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+    const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
 
-    LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") xFx = " << xFx
-                       << " d = " << d << " F = " << F;
-
-    // TODO(phil): whats a good way to way of compute trade off? Compute mean + std offline and normalize..
-    return std::isfinite(xFx) ? d + xFx : d;
+    // LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id()
+    //                    << ") reprojection error: " << d << " r: " << r;
+    return std::isfinite(r) ? d + r : d;
   });
   const std::vector<MatcherBruteForce::Match> matches = matcher.match(
     Frame::ConstShPtr(frameCur)->features(),
     std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()));
 
-  std::vector<Point3D::ShPtr> points;
-  points.reserve(matches.size());
+  std::set<Point3D::ShPtr> points;
   for (const auto & m : matches) {
     auto fRef = featuresRef[m.idxRef];
     auto fCur = frameCur->features()[m.idxCur];
     if (fRef->point()) {
       fCur->point() = fRef->point();
       fRef->point()->addFeature(fCur);
-    } else {
+    } else if (frameCur->depth()(fCur->position().y(), fCur->position().x()) > 0) {
       std::vector<Feature2D::ShPtr> features = {fRef, fCur};
-      const Vec3d p3d = frameCur->image2world(
-        fCur->position(), frameCur->depth()(fCur->position().y(), fCur->position().x()));
-
+      const Vec3d p3d = frameCur->p3dWorld(fCur->position().y(), fCur->position().x());
       fRef->point() = fCur->point() = std::make_shared<Point3D>(p3d, features);
+      points.insert(fCur->point());
     }
-    points.push_back(fCur->point());
   }
-  return points;
+  return std::vector<Point3D::ShPtr>(points.begin(), points.end());
 }
 std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
   Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
