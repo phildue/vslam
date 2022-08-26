@@ -24,7 +24,8 @@ using namespace testing;
 using namespace pd;
 using namespace pd::vslam;
 
-TEST(FrameTest, BadAccessDepth) {
+TEST(FrameTest, BadAccessDepth)
+{
   Image img = Image::Random(640, 480);
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
@@ -33,7 +34,8 @@ TEST(FrameTest, BadAccessDepth) {
   EXPECT_EQ(-1, f->depth()(10, 10));
 }
 
-TEST(FrameTest, GoodAccessDepth) {
+TEST(FrameTest, GoodAccessDepth)
+{
   Image img = Image::Random(640, 480);
   DepthMap depth = DepthMap::Ones(640, 240);
 
@@ -44,7 +46,8 @@ TEST(FrameTest, GoodAccessDepth) {
   EXPECT_EQ(1, f->depth(1)(10, 10));
 }
 
-TEST(FrameTest, AccessPcl) {
+TEST(FrameTest, AccessPcl)
+{
   Image img = Image::Random(640, 480);
   DepthMap depth = DepthMap::Ones(640, 240);
 
@@ -57,7 +60,8 @@ TEST(FrameTest, AccessPcl) {
   EXPECT_FALSE(f->pcl().empty());
 }
 
-TEST(FrameTest, BadAccessDerivative) {
+TEST(FrameTest, BadAccessDerivative)
+{
   DepthMap depth = DepthMap::Ones(640, 240);
   Image img = Image::Random(640, 480);
 
@@ -66,7 +70,8 @@ TEST(FrameTest, BadAccessDerivative) {
 
   EXPECT_ANY_THROW(f->dIx());
 }
-TEST(FrameTest, GoodAccessDerivative) {
+TEST(FrameTest, GoodAccessDerivative)
+{
   DepthMap depth = DepthMap::Ones(640, 240);
   Image img = Image::Random(640, 480);
 
@@ -75,7 +80,8 @@ TEST(FrameTest, GoodAccessDerivative) {
   f->computeDerivatives();
   f->dIx();
 }
-TEST(FrameTest, CreatePyramid) {
+TEST(FrameTest, DISABLE_Pcl)
+{
   DepthMap depth = DepthMap::Ones(640, 240) * 20;
   Image img = Image::Random(640, 480);
 
@@ -87,13 +93,20 @@ TEST(FrameTest, CreatePyramid) {
     auto pcl = f->pcl(i, true);
     EXPECT_FALSE(pcl.empty());
 
-    for (const auto &p : pcl) {
+    for (const auto & p : pcl) {
       const Eigen::Vector2i uv = f->camera2image(p, i).cast<int>();
       EXPECT_GE(uv.x(), 0);
       EXPECT_GE(uv.y(), 0);
       EXPECT_LE(uv.x(), f->width(i));
       EXPECT_LE(uv.y(), f->height(i));
-      EXPECT_NEAR(p.z(), f->depth(i)(uv.y(), uv.x()), 0.001);
+      const double z = f->depth(i)(uv.y(), uv.x());
+      if (std::isfinite(z) && z > 0) {
+        EXPECT_NEAR(p.z(), z, 0.001);
+        EXPECT_NEAR((f->p3d(uv.y(), uv.x(), i) - p).norm(), 0.0, 0.001);
+        EXPECT_NEAR(
+          (f->world2image(f->image2world(uv.cast<double>(), z, i)) - uv.cast<double>()).norm(), 0.0,
+          0.001);
+      }
     }
   }
 }
