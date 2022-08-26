@@ -30,22 +30,20 @@ public:
 
   PoseWithCovariance(
     const Vec6d & x = Vec6d::Zero(), const Matd<6, 6> & cov = Matd<6, 6>::Identity())
-  : _x(x), _cov(cov)
+  : _pose(SE3d::exp(x)), _cov(cov)
   {
   }
   //PoseWithCovariance( const Vec3d& t, const Vec4d& q, const Matd<6,6>& cov):_x(SE3d(q,t).log()),_cov(cov){}
-  PoseWithCovariance(const SE3d & pose, const Matd<6, 6> & cov) : _x(pose.log()), _cov(cov) {}
+  PoseWithCovariance(const SE3d & pose, const Matd<6, 6> & cov) : _pose(pose), _cov(cov) {}
 
-  SE3d pose() const { return SE3d::exp(_x); }
+  const SE3d & pose() const { return _pose; }
+  SE3d & pose() { return _pose; }
   Matd<6, 6> cov() const { return _cov; }
-  Vec6d mean() const { return _x; }
-  PoseWithCovariance inverse() const
-  {
-    return PoseWithCovariance(SE3d::exp(_x).inverse().log(), _cov);
-  }
+  Vec6d mean() const { return _pose.log(); }
+  PoseWithCovariance inverse() const { return PoseWithCovariance(_pose.inverse().log(), _cov); }
 
 private:
-  Vec6d _x;
+  SE3d _pose;
   Matd<6, 6> _cov;
 };
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0);
