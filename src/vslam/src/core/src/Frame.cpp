@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Eigen/Dense>
+#include <map>
 #include <opencv4/opencv2/calib3d.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <opencv4/opencv2/core/utility.hpp>
@@ -23,7 +24,6 @@
 #include "Frame.h"
 #include "Point3D.h"
 #include "algorithm.h"
-
 #define USE_OPENCV
 namespace pd::vslam
 {
@@ -54,7 +54,7 @@ Eigen::Vector3d Frame::image2world(const Eigen::Vector2d & pImage, double depth,
 }
 Feature2D::ConstShPtr Frame::observationOf(std::uint64_t pointId) const
 {
-  for (const auto & ft : _features) {
+  for (auto ft : _features) {
     if (ft->point() && ft->point()->id() == pointId) {
       return ft;
     }
@@ -92,10 +92,25 @@ void Frame::addFeatures(const std::vector<Feature2D::ShPtr> & features)
 }
 std::vector<Feature2D::ConstShPtr> Frame::features() const
 {
-  std::vector<Feature2D::ConstShPtr> features;
-  features.reserve(_features.size());
-  std::for_each(_features.begin(), _features.end(), [&](auto ft) { features.push_back(ft); });
-  return features;
+  return std::vector<Feature2D::ConstShPtr>(_features.begin(), _features.end());
+}
+std::vector<Feature2D::ShPtr> Frame::featuresWithPoints()
+{
+  std::vector<Feature2D::ShPtr> fts;
+  fts.reserve(_features.size());
+  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
+    return ft->point();
+  });
+  return fts;
+}
+std::vector<Feature2D::ConstShPtr> Frame::featuresWithPoints() const
+{
+  std::vector<Feature2D::ConstShPtr> fts;
+  fts.reserve(_features.size());
+  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
+    return ft->point();
+  });
+  return fts;
 }
 
 void Frame::removeFeatures()
@@ -209,7 +224,6 @@ void Frame::computeDerivatives()
 {
   _dIx.resize(nLevels());
   _dIy.resize(nLevels());
-  const double s = 0.5;
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
@@ -233,7 +247,7 @@ void Frame::computePcl()
     for (int v = 0; v < d.rows(); v++) {
       for (int u = 0; u < d.cols(); u++) {
         if (std::isfinite(d(v, u)) && d(v, u) > 0.0) {
-          pcl[v * d.cols() + u] = c->image2camera({u + 0.5, v + 0.5}, d(v, u));
+          pcl[v * d.cols() + u] = c->image2camera({u, v}, d(v, u));
         } else {
           pcl[v * d.cols() + u] = Eigen::Vector3d::Zero();
         }

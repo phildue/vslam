@@ -55,7 +55,9 @@ public:
   size_t nLevels() const { return _intensity.size(); }
 
   std::vector<Feature2D::ConstShPtr> features() const;
+  std::vector<Feature2D::ConstShPtr> featuresWithPoints() const;
   std::vector<Feature2D::ShPtr> features() { return _features; };
+  std::vector<Feature2D::ShPtr> featuresWithPoints();
   Feature2D::ConstShPtr observationOf(std::uint64_t pointId) const;
 
   Eigen::Vector2d camera2image(const Eigen::Vector3d & pCamera, size_t level = 0) const;
