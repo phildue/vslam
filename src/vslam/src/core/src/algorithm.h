@@ -169,8 +169,8 @@ Eigen::Matrix<Derived, Eigen::Dynamic, Eigen::Dynamic> medianBlur(
     for (Idx j = kX_2; j < res.cols() - kX_2; j++) {
       std::vector<double> values;
       values.reserve(sizeX * sizeY);
-      for (Idx ki = i - kY_2; ki <= i - kY_2 + sizeY; ki++) {
-        for (Idx kj = j - kX_2; kj <= j - kX_2 + sizeX; kj++) {
+      for (Idx ki = i - kY_2; ki < i - kY_2 + sizeY; ki++) {
+        for (Idx kj = j - kX_2; kj < j - kX_2 + sizeX; kj++) {
           auto v = static_cast<double>(mat(ki, kj));
           if (!mask(v)) {
             values.push_back(v);
