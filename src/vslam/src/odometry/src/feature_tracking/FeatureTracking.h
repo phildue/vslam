@@ -37,6 +37,10 @@ public:
   std::vector<Point3D::ShPtr> match(
     Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const;
 
+  std::vector<Point3D::ShPtr> match(
+    const std::vector<Feature2D::ShPtr> & featuresCur,
+    const std::vector<Feature2D::ShPtr> & featuresRef) const;
+
   std::vector<Feature2D::ShPtr> selectCandidates(
     Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const;
 

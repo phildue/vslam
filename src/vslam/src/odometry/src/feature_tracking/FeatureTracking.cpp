@@ -47,9 +47,16 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
 {
   cv::Mat image;
   cv::eigen2cv(frame->intensity(), image);
+  cv::Mat mask = cv::Mat::zeros(image.size(), CV_8U);
+
+  forEachPixel(frame->depth(), [&](auto u, auto v, auto d) {
+    if (std::isfinite(d) && d > 0.1) {
+      mask.at<std::uint8_t>(v, u) = 255U;
+    }
+  });
   cv::Ptr<cv::FastFeatureDetector> detector = cv::FastFeatureDetector::create();
   std::vector<cv::KeyPoint> kpts;
-  detector->detect(image, kpts);
+  detector->detect(image, kpts, mask);
   const size_t nRows =
     static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(_gridCellSize));
   const size_t nCols =
@@ -66,7 +73,7 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
       grid[r * nCols + c] = idx;
     }
   }
-  LOG_TRACKING(INFO) << "Keypoints: " << kpts.size();
+  LOG_TRACKING(DEBUG) << "Keypoints: " << kpts.size();
 
   std::vector<cv::KeyPoint> kptsGrid;
   kptsGrid.reserve(nRows * nCols);
@@ -75,12 +82,12 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
       kptsGrid.push_back(kpts[idx]);
     }
   });
-  LOG_TRACKING(INFO) << "Remaining keypoints: " << kptsGrid.size();
+  LOG_TRACKING(DEBUG) << "Remaining keypoints: " << kptsGrid.size();
   cv::Ptr<cv::DescriptorExtractor> extractor = cv::ORB::create();
   cv::Mat desc;
   extractor->compute(image, kptsGrid, desc);
-  LOG_TRACKING(INFO) << "Remaining keypoints: " << kptsGrid.size();
-  LOG_TRACKING(INFO) << "Computed descriptors: " << desc.rows << "x" << desc.cols;
+  LOG_TRACKING(DEBUG) << "Remaining keypoints: " << kptsGrid.size();
+  LOG_TRACKING(DEBUG) << "Computed descriptors: " << desc.rows << "x" << desc.cols;
 
   std::vector<Feature2D::ShPtr> features;
   features.reserve(kptsGrid.size());
@@ -96,34 +103,53 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
 std::vector<Point3D::ShPtr> FeatureTracking::match(
   Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const
 {
-  MatcherBruteForce matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-    const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
-    const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
+  return match(frameCur->features(), featuresRef);
+}
 
-    // LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id()
-    //                    << ") reprojection error: " << d << " r: " << r;
-    return std::isfinite(r) ? d + r : d;
-  });
+std::vector<Point3D::ShPtr> FeatureTracking::match(
+  const std::vector<Feature2D::ShPtr> & featuresCur,
+  const std::vector<Feature2D::ShPtr> & featuresRef) const
+{
+  MatcherBruteForce matcher(
+    [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
+      const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+      const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
+
+      //LOG_TRACKING(DEBUG) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") d: " << d
+      //                    << " r: " << r;
+      return std::isfinite(r) ? d + r : d;
+    },
+    1000);
   const std::vector<MatcherBruteForce::Match> matches = matcher.match(
-    Frame::ConstShPtr(frameCur)->features(),
+    std::vector<Feature2D::ConstShPtr>(featuresCur.begin(), featuresCur.end()),
     std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()));
 
-  std::set<Point3D::ShPtr> points;
+  LOG_TRACKING(DEBUG) << "#Matches: " << matches.size();
+
+  std::vector<Point3D::ShPtr> points;
+  points.reserve(matches.size());
   for (const auto & m : matches) {
     auto fRef = featuresRef[m.idxRef];
-    auto fCur = frameCur->features()[m.idxCur];
+    auto fCur = featuresCur[m.idxCur];
+    auto frameCur = fCur->frame();
+    auto z = frameCur->depth()(fCur->position().y(), fCur->position().x());
     if (fRef->point()) {
       fCur->point() = fRef->point();
       fRef->point()->addFeature(fCur);
-    } else if (frameCur->depth()(fCur->position().y(), fCur->position().x()) > 0) {
+    } else if (z > 0) {
       std::vector<Feature2D::ShPtr> features = {fRef, fCur};
-      const Vec3d p3d = frameCur->p3dWorld(fCur->position().y(), fCur->position().x());
-      fRef->point() = fCur->point() = std::make_shared<Point3D>(p3d, features);
-      points.insert(fCur->point());
+      const Vec3d p3d = frameCur->image2world(fCur->position(), z);
+      fCur->point() = std::make_shared<Point3D>(p3d, features);
+      fRef->point() = fCur->point();
+      points.push_back(fCur->point());
     }
   }
-  return std::vector<Point3D::ShPtr>(points.begin(), points.end());
+
+  LOG_TRACKING(DEBUG) << "#Created Points: " << points.size();
+
+  return points;
 }
+
 std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
   Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {

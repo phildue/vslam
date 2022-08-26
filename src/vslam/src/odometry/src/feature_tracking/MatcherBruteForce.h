@@ -37,7 +37,7 @@ public:
   };
   MatcherBruteForce(
     std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction,
-    double minDistanceRatio = 0.8);
+    double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
   std::vector<Match> match(
     const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
     const std::vector<Feature2D::ConstShPtr> & descriptorsTarget);
@@ -48,6 +48,7 @@ public:
 private:
   const std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>
     _computeDistance;
+  const double _maxDistance;
   const double _minDistanceRatio;
 };
 

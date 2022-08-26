@@ -25,8 +25,8 @@ namespace pd::vslam
 {
 MatcherBruteForce::MatcherBruteForce(
   std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction,
-  double minDistanceRatio)
-: _computeDistance(distanceFunction), _minDistanceRatio(minDistanceRatio)
+  double maxDistance, double minDistanceRatio)
+: _computeDistance(distanceFunction), _maxDistance(maxDistance), _minDistanceRatio(minDistanceRatio)
 {
   Log::get("tracking");
 }
@@ -43,9 +43,11 @@ std::vector<MatcherBruteForce::Match> MatcherBruteForce::match(
       distances[j] = {i, j, _computeDistance(featuresRef[i], featuresTarget[j])};
     }
     std::sort(distances.begin(), distances.end(), [&](auto m0, auto m1) {
-      return m0.distance > m1.distance;
+      return m0.distance < m1.distance;
     });
-    if (distances[0].distance > _minDistanceRatio * distances[1].distance) {
+    if (
+      distances[0].distance < _maxDistance &&
+      distances[0].distance < _minDistanceRatio * distances[1].distance) {
       matches.push_back(distances[0]);
     }
   }
@@ -73,11 +75,11 @@ double MatcherBruteForce::reprojectionError(
   //  ftRef->frame()->pose().pose(), ftCur->frame()->pose().pose());
   // const Vec3d p3dRef = ftRef->frame()->p3d(ftRef->position().y(), ftRef->position().x());
   // const double err = (ftCur->position() - ftCur->frame()->camera2image(Rt * p3dRef)).norm();
-  const double err =
-    (ftCur->position() -
-     ftCur->frame()->world2image(ftCur->frame()->image2world(
-       ftRef->position(), ftRef->frame()->depth()(ftRef->position().y(), ftRef->position().x()))))
-      .norm();
+  auto frameRef = ftRef->frame();
+  auto frameCur = ftCur->frame();
+  auto zRef = frameRef->depth()(ftRef->position().y(), ftRef->position().x());
+  auto p3d = frameRef->image2world(ftRef->position(), zRef);
+  const double err = (ftCur->position() - frameCur->world2image(p3d)).norm();
   //LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id()
   //                   << ") reprojection error: " << err;
 
