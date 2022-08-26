@@ -34,6 +34,10 @@ public:
   virtual void insert(Point3D::ShPtr point);
   virtual void insert(const std::vector<Point3D::ShPtr> & points);
 
+  void updateFrame(std::uint64_t, const PoseWithCovariance & pose);
+  void updateFrames(const std::map<std::uint64_t, PoseWithCovariance> & poses);
+  void updatePoints(const std::map<std::uint64_t, Vec3d> & points);
+
   Frame::ConstShPtr lastKf(size_t idx = 0) const
   {
     return _keyFrames.size() <= idx ? nullptr : _keyFrames.at(idx);

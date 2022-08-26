@@ -93,7 +93,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   _keyFrameSelection =
     std::make_shared<KeyFrameSelectionIdx>(get_parameter("keyframe_selection.idx.period").as_int());
   _tracking = std::make_shared<FeatureTracking>();
-  _mapOptimization = std::make_shared<mapping::MapOptimization>();
+  _ba = std::make_shared<mapping::BundleAdjustment>();
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
 

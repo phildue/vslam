@@ -27,5 +27,4 @@
 #include "iterative_closest_point/IterativeClosestPointOcv.h"
 #include "mapping/BundleAdjustment.h"
 #include "mapping/Map.h"
-#include "mapping/MapOptimization.h"
 #endif

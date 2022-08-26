@@ -93,5 +93,39 @@ void Map::insert(const std::vector<Point3D::ShPtr> & points)
     _points[p->id()] = p;
   }
 }
+void Map::updateFrame(std::uint64_t id, const PoseWithCovariance & pose)
+{
+  for (auto f : _keyFrames) {
+    if (f->id() == id) {
+      f->set(pose);
+      return;
+    }
+  }
+  for (auto f : _frames) {
+    if (f->id() == id) {
+      f->set(pose);
+      return;
+    }
+  }
+  throw pd::Exception("Frame not part of map: " + std::to_string(id));
+}
+void Map::updateFrames(const std::map<std::uint64_t, PoseWithCovariance> & poses)
+{
+  for (auto & id_pose : poses) {
+    updateFrame(id_pose.first, id_pose.second);
+  }
+}
+
+void Map::updatePoints(const std::map<std::uint64_t, Vec3d> & points)
+{
+  for (auto id_p : points) {
+    auto it = _points.find(id_p.first);
+    if (it != _points.end()) {
+      it->second->position() = id_p.second;
+    } else {
+      throw pd::Exception("Point is not part of map: " + std::to_string(id_p.first));
+    }
+  }
+}
 
 }  // namespace pd::vslam

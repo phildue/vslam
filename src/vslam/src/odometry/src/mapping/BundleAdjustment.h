@@ -31,25 +31,25 @@ public:
   typedef std::shared_ptr<const BundleAdjustment> ConstShPtr;
   typedef std::unique_ptr<const BundleAdjustment> ConstUnPtr;
 
-  BundleAdjustment();
-  void optimize();
+  struct Results
+  {
+    typedef std::shared_ptr<Results> ShPtr;
+    typedef std::unique_ptr<Results> UnPtr;
+    typedef std::shared_ptr<const Results> ConstShPtr;
+    typedef std::unique_ptr<const Results> ConstUnPtr;
 
-  void setFrame(std::uint64_t frameId, const SE3d & pose, const Mat3d & K);
-  void setPoint(std::uint64_t pointId, const Vec3d & point);
-  void setObservation(std::uint64_t pointId, std::uint64_t frameId, const Vec2d & observation);
+    std::map<std::uint64_t, PoseWithCovariance> poses;
+    std::map<std::uint64_t, Vec3d> positions;
+    double errorBefore;
+    double errorAfter;
+  };
 
-  SE3d getPose(std::uint64_t frameId) const;
-  Vec3d getPoint(std::uint64_t pointId) const;
-  double computeError() const;
-  size_t nPoints() const { return _points.size(); }
-  size_t nPoses() const { return _poses.size(); }
+  BundleAdjustment(size_t maxIterations = 50);
+
+  Results::ConstUnPtr optimize(const std::vector<Frame::ConstShPtr> & frames) const;
 
 private:
-  //compute error is not const?
-  mutable ceres::Problem _problem;
-  std::map<std::uint64_t, SE3d> _poses;
-  std::map<std::uint64_t, Mat3d> _Ks;
-  std::map<std::uint64_t, Vec3d> _points;
+  const size_t _maxIterations;
 };
 }  // namespace pd::vslam::mapping
 

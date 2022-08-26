@@ -60,78 +60,46 @@ private:
   const Eigen::Vector2d _obs;
   const Eigen::Matrix3d _K;
 };
-BundleAdjustment::BundleAdjustment() { Log::get("mapping"); }
+BundleAdjustment::BundleAdjustment(size_t maxIterations) : _maxIterations(maxIterations)
+{
+  Log::get("mapping");
+}
 
-void BundleAdjustment::setFrame(std::uint64_t frameId, const SE3d & pose, const Mat3d & K)
+BundleAdjustment::Results::ConstUnPtr BundleAdjustment::optimize(
+  const std::vector<Frame::ConstShPtr> & frames) const
 {
-  _poses[frameId] = pose;
-  _Ks[frameId] = K;
-  _problem.AddParameterBlock(
-    _poses[frameId].data(), SE3d::num_parameters, new Sophus::Manifold<Sophus::SE3>());
-}
-void BundleAdjustment::setPoint(std::uint64_t pointId, const Vec3d & position)
-{
-  _points[pointId] = position;
-}
-void BundleAdjustment::setObservation(
-  std::uint64_t pointId, std::uint64_t frameId, const Vec2d & observation)
-{
-  auto itF = _Ks.find(frameId);
-  if (itF == _Ks.end()) {
-    throw pd::Exception("No corresponding frame found.");
+  Results::UnPtr results = std::make_unique<Results>();
+  ceres::Problem problem;
+
+  for (const auto & f : frames) {
+    results->poses[f->id()] = f->pose();
+    problem.AddParameterBlock(
+      results->poses[f->id()].pose().data(), SE3d::num_parameters,
+      new Sophus::Manifold<Sophus::SE3>());
+
+    for (const auto & ft : f->featuresWithPoints()) {
+      auto pointId = ft->point()->id();
+      results->positions[pointId] = ft->point()->position();
+      problem.AddResidualBlock(
+        ReprojectionErrorManifold::Create(ft->position(), f->camera()->K()),
+        nullptr /* squared loss */, results->poses[f->id()].pose().data(),
+        results->positions[pointId].data());
+    }
   }
-  auto itP = _points.find(pointId);
-  if (itP == _points.end()) {
-    throw pd::Exception("No corresponding point found.");
-  }
+  ceres::Problem::EvaluateOptions evalOptions;
+  problem.Evaluate(evalOptions, &results->errorBefore, nullptr, nullptr, nullptr);
 
-  auto & K = itF->second;
-  auto & pose = _poses.find(frameId)->second;
-  auto & point = itP->second;
-  _problem.AddResidualBlock(
-    ReprojectionErrorManifold::Create(observation, K), nullptr /* squared loss */, pose.data(),
-    point.data());
-}
-
-void BundleAdjustment::optimize()
-{
   ceres::Solver::Options options;
   options.linear_solver_type = ceres::DENSE_SCHUR;
   options.minimizer_progress_to_stdout = true;
-  options.max_num_iterations = 200;
-  //double errorPrev = computeReprojectionError();
+  options.max_num_iterations = _maxIterations;
   ceres::Solver::Summary summary;
-  ceres::Solve(options, &_problem, &summary);
+  ceres::Solve(options, &problem, &summary);
 
   LOG_MAPPING(DEBUG) << summary.FullReport();
-  //double errorAfter = computeReprojectionError();
-  //std::cout << "Before: " << errorPrev << " -->  " << errorAfter << std::endl;
-}
-SE3d BundleAdjustment::getPose(std::uint64_t frameId) const
-{
-  auto it = _poses.find(frameId);
-  if (it != _poses.end()) {
-    return it->second;
-  } else {
-    throw pd::Exception("Did not find corresponding pose.");
-  }
-}
-Vec3d BundleAdjustment::getPoint(std::uint64_t pointId) const
-{
-  auto it = _points.find(pointId);
-  if (it != _points.end()) {
-    return it->second;
-  } else {
-    throw pd::Exception("Did not find corresponding point.");
-  }
-}
+  problem.Evaluate(evalOptions, &results->errorAfter, nullptr, nullptr, nullptr);
 
-double BundleAdjustment::computeError() const
-{
-  double error;
-  ceres::Problem::EvaluateOptions options;
-  _problem.Evaluate(options, &error, nullptr, nullptr, nullptr);
-  return error;
+  return results;
 }
 
 }  // namespace pd::vslam::mapping

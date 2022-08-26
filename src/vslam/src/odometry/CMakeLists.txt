@@ -12,7 +12,6 @@ set( sources
   src/feature_tracking/FeatureTracking.cpp
   src/feature_tracking/MatcherBruteForce.cpp
   src/mapping/BundleAdjustment.cpp
-  src/mapping/MapOptimization.cpp
   src/mapping/Map.cpp )
 
 set( headers
@@ -26,7 +25,6 @@ set( headers
   src/feature_tracking/FeatureTracking.h
   src/feature_tracking/MatcherBruteForce.h
   src/mapping/BundleAdjustment.h
-  src/mapping/MapOptimization.h
   src/mapping/Map.h
   include/odometry/odometry.h )
 
@@ -94,6 +92,14 @@ if(VSLAM_ODOMETRY_BUILD_TESTS)
   TEST_VISUALIZE=${TEST_VISUALIZE})
 
   pd_add_test(tracking ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(ba ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(ceres_ba ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
 
