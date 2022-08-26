@@ -78,7 +78,14 @@ std::shared_ptr<LogPlot> Log::getPlotLog(const std::string & name, Level level)
   }
 }
 
-Log::Log(const std::string & name) : _name(name) { el::Loggers::getLogger(name); }
+Log::Log(const std::string & name) : _name(name)
+{
+  el::Loggers::getLogger(name);
+  el::Configurations defaultConf;
+  defaultConf.setToDefault();
+  defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
+  el::Loggers::reconfigureLogger(name, defaultConf);
+}
 void Log::configure(const std::string & configFilePath)
 {
   el::Configurations config(configFilePath);
