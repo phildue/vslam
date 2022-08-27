@@ -30,7 +30,7 @@ using namespace testing;
 using namespace pd;
 using namespace pd::vslam;
 
-TEST(TrackingTest, DISABLED_Track)
+TEST(TrackingTest, SelectVisible)
 {
   DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.jpg") / 5000.0;
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
@@ -46,9 +46,6 @@ TEST(TrackingTest, DISABLED_Track)
 
   auto featuresCandidate = tracking->selectCandidates(f1, frames);
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
-
-  auto points = tracking->match(f1, featuresCandidate);
-  EXPECT_EQ(points.size(), featuresCandidate.size());
 }
 
 TEST(TrackingTest, DISABLED_Match)
@@ -116,7 +113,7 @@ TEST(TrackingTest, TrackAndOptimize)
   std::vector<Feature2D::ShPtr> f0Features = f0->features();
   std::vector<Feature2D::ShPtr> f1Features = f1->features();
 
-  auto points = tracking->match(f0, f1->features());
+  auto points = tracking->match(f0->features(), f1->features());
   for (auto p : points) {
     EXPECT_TRUE(f0->observationOf(p->id()));
     EXPECT_TRUE(f1->observationOf(p->id()));

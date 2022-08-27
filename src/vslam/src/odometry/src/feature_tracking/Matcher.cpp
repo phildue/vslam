@@ -17,7 +17,7 @@
 // Created by phil on 30.06.21.
 //
 
-#include "MatcherBruteForce.h"
+#include "Matcher.h"
 #include "utils/utils.h"
 #define LOG_TRACKING(level) CLOG(level, "tracking")
 
@@ -26,14 +26,17 @@ namespace pd::vslam
 MatcherBruteForce::MatcherBruteForce(
   std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction,
   double maxDistance, double minDistanceRatio)
-: _computeDistance(distanceFunction), _maxDistance(maxDistance), _minDistanceRatio(minDistanceRatio)
+: Matcher(),
+  _computeDistance(distanceFunction),
+  _maxDistance(maxDistance),
+  _minDistanceRatio(minDistanceRatio)
 {
   Log::get("tracking");
 }
 
-std::vector<MatcherBruteForce::Match> MatcherBruteForce::match(
+std::vector<Matcher::Match> MatcherBruteForce::match(
   const std::vector<Feature2D::ConstShPtr> & featuresRef,
-  const std::vector<Feature2D::ConstShPtr> & featuresTarget)
+  const std::vector<Feature2D::ConstShPtr> & featuresTarget) const
 {
   std::vector<Match> matches;
   matches.reserve(featuresRef.size());
@@ -53,7 +56,7 @@ std::vector<MatcherBruteForce::Match> MatcherBruteForce::match(
   }
   return matches;
 }
-double MatcherBruteForce::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+double Matcher::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
 {
   // TODO(phil): min baseline?
   const Mat3d F = algorithm::computeF(ftRef->frame(), ftCur->frame());
@@ -67,8 +70,7 @@ double MatcherBruteForce::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::
 
   return xFx;
 }
-double MatcherBruteForce::reprojectionError(
-  Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+double Matcher::reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
 {
   // TODO(phil): min baseline?
   // const SE3d Rt = algorithm::computeRelativeTransform(
@@ -85,6 +87,12 @@ double MatcherBruteForce::reprojectionError(
 
   // TODO(phil): whats a good way to way of compute trade off? Compute mean + std offline and normalize..
   return err;
+}
+
+double Matcher::descriptorL1(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+{
+  const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+  return d;
 }
 
 }  // namespace pd::vslam

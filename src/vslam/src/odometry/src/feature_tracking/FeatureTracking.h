@@ -15,8 +15,8 @@
 
 #ifndef VSLAM_FEATURE_TRACKING_H__
 #define VSLAM_FEATURE_TRACKING_H__
+#include "Matcher.h"
 #include "core/core.h"
-
 namespace pd::vslam
 {
 class FeatureTracking
@@ -27,7 +27,7 @@ public:
   typedef std::shared_ptr<const FeatureTracking> ConstShPtr;
   typedef std::unique_ptr<const FeatureTracking> ConstUnPtr;
 
-  FeatureTracking();
+  FeatureTracking(Matcher::ConstShPtr matcher = std::make_shared<MatcherBruteForce>());
 
   std::vector<Point3D::ShPtr> track(
     Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef);
@@ -46,6 +46,7 @@ public:
 
 private:
   const size_t _gridCellSize = 30;
+  const Matcher::ConstShPtr _matcher;
 };
 }  // namespace pd::vslam
 

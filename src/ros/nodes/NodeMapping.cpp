@@ -108,8 +108,20 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
   _keyFrameSelection =
     std::make_shared<KeyFrameSelectionIdx>(get_parameter("keyframe_selection.idx.period").as_int());
-  _tracking = std::make_shared<FeatureTracking>();
   _ba = std::make_shared<mapping::BundleAdjustment>();
+
+  _matcher = std::make_shared<MatcherBruteForce>(
+    [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
+      const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+      const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
+
+      //LOG_TRACKING(DEBUG) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") d: " << d
+      //                    << " r: " << r;
+      return std::isfinite(r) ? d + r : d;
+    },
+    1000);
+  _tracking = std::make_shared<FeatureTracking>(_matcher);
+
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
 
@@ -141,8 +153,9 @@ void NodeMapping::processFrame(
     if (_keyFrameSelection->isKeyFrame()) {
       auto points = _tracking->track(frame, _map->keyFrames());
       _map->insert(points);
+
       auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
-      _map->updateFrames(outBa->poses);
+      _map->updatePoses(outBa->poses);
       _map->updatePoints(outBa->positions);
     }
 

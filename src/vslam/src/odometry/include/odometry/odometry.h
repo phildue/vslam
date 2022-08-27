@@ -22,7 +22,7 @@
 #include "direct_image_alignment/RgbdAlignmentOpenCv.h"
 #include "direct_image_alignment/SE3Alignment.h"
 #include "feature_tracking/FeatureTracking.h"
-#include "feature_tracking/MatcherBruteForce.h"
+#include "feature_tracking/Matcher.h"
 #include "iterative_closest_point/IterativeClosestPoint.h"
 #include "iterative_closest_point/IterativeClosestPointOcv.h"
 #include "mapping/BundleAdjustment.h"

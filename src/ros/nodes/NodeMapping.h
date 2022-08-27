@@ -94,6 +94,7 @@ private:
   pd::vslam::MotionPrediction::ShPtr _prediction;
   pd::vslam::Map::ShPtr _map;
   pd::vslam::FeatureTracking::ShPtr _tracking;
+  pd::vslam::Matcher::ShPtr _matcher;
   pd::vslam::mapping::BundleAdjustment::ShPtr _ba;
 
   pd::vslam::Camera::ShPtr _camera;

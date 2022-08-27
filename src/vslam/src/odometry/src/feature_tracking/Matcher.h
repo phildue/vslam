@@ -26,24 +26,39 @@
 #include "core/core.h"
 namespace pd::vslam
 {
-class MatcherBruteForce
+class Matcher
 {
 public:
+  typedef std::shared_ptr<Matcher> ShPtr;
+  typedef std::unique_ptr<Matcher> UnPtr;
+  typedef std::shared_ptr<const Matcher> ConstShPtr;
+  typedef std::unique_ptr<const Matcher> ConstUnPtr;
+
   struct Match
   {
     size_t idxRef;
     size_t idxCur;
     double distance;
   };
-  MatcherBruteForce(
-    std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction,
-    double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
-  std::vector<Match> match(
+  virtual std::vector<Match> match(
     const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
-    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget);
+    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget) const = 0;
 
   static double epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
   static double reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
+  static double descriptorL1(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
+};
+
+class MatcherBruteForce : public Matcher
+{
+public:
+  MatcherBruteForce(
+    std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>
+      distanceFunction = [](auto f1, auto f2) { return descriptorL1(f1, f2); },
+    double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
+  std::vector<Match> match(
+    const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
+    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget) const override;
 
 private:
   const std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>

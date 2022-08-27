@@ -10,7 +10,7 @@ set( sources
   src/direct_image_alignment/SE3Alignment.cpp
   src/direct_image_alignment/RgbdAlignmentOpenCv.cpp
   src/feature_tracking/FeatureTracking.cpp
-  src/feature_tracking/MatcherBruteForce.cpp
+  src/feature_tracking/Matcher.cpp
   src/mapping/BundleAdjustment.cpp
   src/mapping/Map.cpp )
 
@@ -23,7 +23,7 @@ set( headers
   src/direct_image_alignment/SE3Alignment.h
   src/direct_image_alignment/RgbdAlignmentOpenCv.h
   src/feature_tracking/FeatureTracking.h
-  src/feature_tracking/MatcherBruteForce.h
+  src/feature_tracking/Matcher.h
   src/mapping/BundleAdjustment.h
   src/mapping/Map.h
   include/odometry/odometry.h )

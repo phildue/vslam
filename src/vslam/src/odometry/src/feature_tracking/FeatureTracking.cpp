@@ -28,13 +28,15 @@
 #include <set>
 
 #include "FeatureTracking.h"
-#include "MatcherBruteForce.h"
 #include "utils/utils.h"
 #define LOG_TRACKING(level) CLOG(level, "tracking")
 
 namespace pd::vslam
 {
-FeatureTracking::FeatureTracking() { Log::get("tracking"); }
+FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher)
+{
+  Log::get("tracking");
+}
 
 std::vector<Point3D::ShPtr> FeatureTracking::track(
   Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef)
@@ -110,17 +112,7 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
   const std::vector<Feature2D::ShPtr> & featuresCur,
   const std::vector<Feature2D::ShPtr> & featuresRef) const
 {
-  MatcherBruteForce matcher(
-    [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-      const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
-      const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
-
-      //LOG_TRACKING(DEBUG) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") d: " << d
-      //                    << " r: " << r;
-      return std::isfinite(r) ? d + r : d;
-    },
-    1000);
-  const std::vector<MatcherBruteForce::Match> matches = matcher.match(
+  const std::vector<Matcher::Match> matches = _matcher->match(
     std::vector<Feature2D::ConstShPtr>(featuresCur.begin(), featuresCur.end()),
     std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()));
 

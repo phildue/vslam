@@ -93,7 +93,7 @@ void Map::insert(const std::vector<Point3D::ShPtr> & points)
     _points[p->id()] = p;
   }
 }
-void Map::updateFrame(std::uint64_t id, const PoseWithCovariance & pose)
+void Map::updatePose(std::uint64_t id, const PoseWithCovariance & pose)
 {
   for (auto f : _keyFrames) {
     if (f->id() == id) {
@@ -109,10 +109,10 @@ void Map::updateFrame(std::uint64_t id, const PoseWithCovariance & pose)
   }
   throw pd::Exception("Frame not part of map: " + std::to_string(id));
 }
-void Map::updateFrames(const std::map<std::uint64_t, PoseWithCovariance> & poses)
+void Map::updatePoses(const std::map<std::uint64_t, PoseWithCovariance> & poses)
 {
   for (auto & id_pose : poses) {
-    updateFrame(id_pose.first, id_pose.second);
+    updatePose(id_pose.first, id_pose.second);
   }
 }
 
