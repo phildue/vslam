@@ -228,17 +228,19 @@ TEST_F(TestBundleAdjustment, BAClass)
   std::vector<Point3D::ShPtr> points;
   for (size_t i = 0U; i < _poses.size(); ++i) {
     frames.push_back(std::make_shared<Frame>(
-      Image::Zero(480, 640), _cam, 1, 0U, PoseWithCovariance(_poses[i], MatXd::Identity(6, 6))));
+      Image::Zero(480, 640), _cam, i, PoseWithCovariance(_poses[i], MatXd::Identity(6, 6))));
   }
   for (size_t i = 0U; i < _pcl.size(); ++i) {
     std::shared_ptr<Point3D> point;
     for (size_t j = 0U; j < _observations.size(); ++j) {
       auto feature = std::make_shared<Feature2D>(_observations[j].row(i), frames[j]);
+      frames[j]->addFeature(feature);
       if (!point) {
         point = std::make_shared<Point3D>(_pcl[i], feature);
       } else {
         point->addFeature(feature);
       }
+      feature->point() = point;
     }
   }
   mapping::BundleAdjustment ba;

@@ -75,7 +75,7 @@ TEST(WarpSE3Test, DISABLED_Jacobian)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
   auto frame = std::make_shared<Frame>(
-    img, depth, cam, 1, 0, PoseWithCovariance(pose, Eigen::MatrixXd::Identity(6, 6)));
+    img, depth, cam, 0, PoseWithCovariance(pose, Eigen::MatrixXd::Identity(6, 6)));
   auto w = std::make_shared<WarpSE3>(pose, frame->pcl(), frame->width(), cam, cam);
   const int u = 240;
   const int v = 300;

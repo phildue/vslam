@@ -191,8 +191,8 @@ Frame::ShPtr NodeRgbdAlignment::createFrame(
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
-  auto f = std::make_shared<Frame>(
-    img, depth, _camera, get_parameter("pyramid.levels").as_double_array().size(), t);
+  auto f = std::make_shared<Frame>(img, depth, _camera, t);
+  f->computePyramid(get_parameter("pyramid.levels").as_double_array().size());
   f->computeDerivatives();
   f->computePcl();
   return f;

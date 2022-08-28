@@ -33,11 +33,11 @@ public:
   typedef std::unique_ptr<const Frame> ConstUnPtr;
 
   Frame(
-    const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, size_t nLevels = 1,
-    const Timestamp & t = 0U, const PoseWithCovariance & pose = {});
+    const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, const Timestamp & t = 0U,
+    const PoseWithCovariance & pose = {});
 
   Frame(
-    const Image & intensity, Camera::ConstShPtr cam, size_t nLevels = 1, const Timestamp & t = 0U,
+    const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t = 0U,
     const PoseWithCovariance & pose = {});
 
   std::uint64_t id() const { return _id; }
@@ -74,6 +74,7 @@ public:
   void removeFeature(Feature2D::ShPtr f);
   void computeDerivatives();
   void computePcl();
+  void computePyramid(size_t nLevels, double scale = 0.5);
 
   const DepthMap & depth(size_t level = 0) const { return _depth.at(level); }
   const Vec3d & p3d(int v, int u, size_t level = 0) const;

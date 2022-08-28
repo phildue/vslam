@@ -94,10 +94,13 @@ public:
   Frame::ShPtr loadFrame(size_t fNo)
   {
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-    return std::make_shared<Frame>(
+    auto f = std::make_shared<Frame>(
       utils::loadImage(_datasetPath + "/" + _imgFilenames.at(fNo)),
-      utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam, 3,
+      utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam,
       _timestamps.at(fNo));
+    f->computeDerivatives();
+    f->computePyramid(3);
+    return f;
   }
 
 protected:

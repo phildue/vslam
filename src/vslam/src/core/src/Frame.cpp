@@ -24,15 +24,14 @@
 #include "Frame.h"
 #include "Point3D.h"
 #include "algorithm.h"
-#define USE_OPENCV
 namespace pd::vslam
 {
 std::uint64_t Frame::_idCtr = 0U;
 
 Frame::Frame(
-  const Image & intensity, Camera::ConstShPtr cam, size_t nLevels, const Timestamp & t,
+  const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t,
   const PoseWithCovariance & pose)
-: Frame(intensity, -1 * MatXd::Ones(intensity.rows(), intensity.cols()), cam, nLevels, t, pose)
+: Frame(intensity, -1 * MatXd::Ones(intensity.rows(), intensity.cols()), cam, t, pose)
 {
 }
 Eigen::Vector2d Frame::camera2image(const Eigen::Vector3d & pCamera, size_t level) const
@@ -144,31 +143,18 @@ void Frame::removeFeature(Feature2D::ShPtr ft)
 Frame::~Frame() { removeFeatures(); }
 
 Frame::Frame(
-  const Image & intensity, const MatXd & depth, Camera::ConstShPtr cam, size_t nLevels,
-  const Timestamp & t, const PoseWithCovariance & pose)
-: _id(_idCtr++), _t(t), _pose(pose)
+  const Image & intensity, const MatXd & depth, Camera::ConstShPtr cam, const Timestamp & t,
+  const PoseWithCovariance & pose)
+: _id(_idCtr++), _intensity({intensity}), _cam({cam}), _t(t), _pose(pose), _depth({depth})
 {
-  _intensity.resize(nLevels);
-  _cam.resize(nLevels);
-  const double s = 0.5;
-
-  // TODO(unknown): replace using custom implementation
-  cv::Mat mat;
-  cv::eigen2cv(intensity, mat);
-  std::vector<cv::Mat> mats;
-  cv::buildPyramid(mat, mats, nLevels - 1);
-  for (size_t i = 0; i < mats.size(); i++) {
-    cv::cv2eigen(mats[i], _intensity[i]);
-    _cam[i] = Camera::resize(cam, std::pow(s, i));
-  }
-  _depth.resize(nLevels);
-  _depth[0] = depth;
-  for (size_t i = 1; i < nLevels; i++) {
-    DepthMap depthBlur =
-      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-    _depth[i] = algorithm::resize(depthBlur, s);
+  if (
+    intensity.cols() != depth.cols() ||
+    std::abs(intensity.cols() / 2 - cam->principalPoint().x()) > 10 ||
+    intensity.rows() != depth.rows()) {
+    throw pd::Exception("Inconsistent camera parameters / image / depth dimensions detected.");
   }
 }
+
 std::vector<Vec3d> Frame::pcl(size_t level, bool removeInvalid) const
 {
   if (level >= _pcl.size()) {
@@ -257,6 +243,28 @@ void Frame::computePcl()
   };
   for (size_t i = 0; i < nLevels(); i++) {
     _pcl[i] = depth2pcl(depth(i), camera(i));
+  }
+}
+
+void Frame::computePyramid(size_t nLevels, double s)
+{
+  _intensity.resize(nLevels);
+  _cam.resize(nLevels);
+
+  // TODO(unknown): replace using custom implementation
+  cv::Mat mat;
+  cv::eigen2cv(_intensity[0], mat);
+  std::vector<cv::Mat> mats;
+  cv::buildPyramid(mat, mats, nLevels - 1);
+  for (size_t i = 0; i < mats.size(); i++) {
+    cv::cv2eigen(mats[i], _intensity[i]);
+    _cam[i] = Camera::resize(_cam[0], std::pow(s, i));
+  }
+  _depth.resize(nLevels);
+  for (size_t i = 1; i < nLevels; i++) {
+    DepthMap depthBlur =
+      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
+    _depth[i] = algorithm::resize(depthBlur, s);
   }
 }
 

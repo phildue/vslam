@@ -32,12 +32,12 @@ using namespace pd::vslam;
 
 TEST(TrackingTest, SelectVisible)
 {
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.jpg") / 5000.0;
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
+  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
+  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 1);
   std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
   auto tracking = std::make_shared<FeatureTracking>();
@@ -48,14 +48,14 @@ TEST(TrackingTest, SelectVisible)
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
 }
 
-TEST(TrackingTest, DISABLED_Match)
+TEST(TrackingTest, Match)
 {
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.jpg") / 5000.0;
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.jpg");
+  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
+  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 1);
   f0->computePcl();
   f1->computePcl();
   std::vector<Frame::ShPtr> frames;
@@ -97,8 +97,8 @@ TEST(TrackingTest, TrackAndOptimize)
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
 
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<Frame>(img, depth, cam, 3, 0);
-  auto f1 = std::make_shared<Frame>(img, depth, cam, 3, 0);
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
+  auto f1 = std::make_shared<Frame>(img, depth, cam, 1);
   f0->computePcl();
   f1->computePcl();
 
@@ -146,7 +146,7 @@ TEST(TrackingTest, TrackAndOptimize)
   mapping::BundleAdjustment ba;
   auto results = ba.optimize(std::vector<Frame::ConstShPtr>(frames.begin(), frames.end()));
 
-  EXPECT_LT(results->errorBefore, results->errorAfter);
+  EXPECT_LT(results->errorAfter, results->errorBefore);
 
   f0->set(results->poses.find(f0->id())->second);
   f1->set(results->poses.find(f1->id())->second);
