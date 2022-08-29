@@ -33,8 +33,38 @@
 
 namespace pd::vslam
 {
+class FeaturePlot : public vis::Drawable
+{
+public:
+  FeaturePlot(Frame::ConstShPtr frame) : _frame(frame) {}
+  cv::Mat draw() const
+  {
+    cv::Mat mat;
+    cv::eigen2cv(_frame->intensity(), mat);
+    cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
+    for (auto ft : _frame->features()) {
+      cv::Point center(ft->position().x(), ft->position().y());
+      double radius = 7;
+      if (ft->point()) {
+        cv::circle(mat, center, radius, cv::Scalar(255, 0, 0), 2);
+      } else {
+        cv::rectangle(
+          mat,
+          cv::Rect(
+            center - cv::Point(radius / 2, radius / 2), center + cv::Point(radius / 2, radius / 2)),
+          cv::Scalar(0, 0, 255), 2);
+      }
+    }
+    return mat;
+  }
+
+private:
+  const Frame::ConstShPtr _frame;
+};
+
 FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher)
 {
+  LOG_IMG("Tracking");
   Log::get("tracking");
 }
 
@@ -42,7 +72,10 @@ std::vector<Point3D::ShPtr> FeatureTracking::track(
   Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef)
 {
   extractFeatures(frameCur);
-  return match(frameCur, selectCandidates(frameCur, framesRef));
+  auto points = match(frameCur, selectCandidates(frameCur, framesRef));
+  LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur);
+
+  return points;
 }
 
 void FeatureTracking::extractFeatures(Frame::ShPtr frame) const

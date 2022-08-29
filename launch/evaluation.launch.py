@@ -23,6 +23,19 @@ from launch.actions import DeclareLaunchArgument
 from launch.actions import OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 
+def create_algo_node(use_sim_time):
+   params_algo = os.path.join(get_package_share_directory('vslam_ros'), 'config', 'NodeMapping.yaml')
+   node = ComposableNode(
+        package='vslam_ros',
+        plugin='vslam_ros::NodeMapping',
+        name='mapping',
+        # remappings=[('/image', '/burgerimage')],
+        parameters=[params_algo,
+                    {"use_sim_time": use_sim_time},
+                    {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'cfg', 'log')}
+                    ],
+        extra_arguments=[{'use_intra_process_comms': True}])
+   return node, params_algo
 
 def ld_opaque(context):
     use_sim_time = True
@@ -37,8 +50,7 @@ def ld_opaque(context):
     gt_traj_file = os.path.join(sequence_folder, sequence_id + "-groundtruth.txt")
     algo_traj_file = os.path.join(experiment_folder, sequence_id + "-algo.txt")
     bag_file = os.path.join(sequence_folder, sequence_id + ".db3")
-    params_algo = os.path.join(
-        get_package_share_directory('vslam_ros'), 'config', 'RgbdAlignmentNode.yaml')
+    algo_node, params_algo = create_algo_node(use_sim_time)
     shutil.copy(params_algo, os.path.join(experiment_folder, 'params_algo.yaml'))
     container = ComposableNodeContainer(
         name='vslam_container',
@@ -46,16 +58,7 @@ def ld_opaque(context):
         package='rclcpp_components',
         executable='component_container',
         composable_node_descriptions=[
-            ComposableNode(
-                package='vslam_ros',
-                plugin='vslam_ros::NodeRgbdAlignment',
-                name='rgbdAlignment',
-                # remappings=[('/image', '/burgerimage')],
-                parameters=[params_algo,
-                            {"use_sim_time": use_sim_time},
-                            {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'cfg', 'log')}
-                            ],
-                extra_arguments=[{'use_intra_process_comms': True}]),
+            algo_node,
             ComposableNode(
                 package='vslam_ros',
                 plugin='vslam_ros::NodeGtLoader',
@@ -95,7 +98,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'sequence_root',
-            default_value=os.path.join('/mnt', 'dataset'),
+            default_value=os.path.join('/mnt', 'dataset', 'tum_rgbd'),
             description='Root folder of sequences'),
         DeclareLaunchArgument(
             'experiment_name',
