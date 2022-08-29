@@ -30,8 +30,8 @@ INITIALIZE_EASYLOGGINGPP
 namespace pd::vslam
 {
 std::map<std::string, std::shared_ptr<Log>> Log::_logs = {};
-std::map<std::string, std::map<Level, std::shared_ptr<LogPlot>>> Log::_logsPlot = {};
-std::map<std::string, std::map<Level, std::shared_ptr<LogImage>>> Log::_logsImage = {};
+std::map<std::string, std::shared_ptr<LogPlot>> Log::_logsPlot = {};
+std::map<std::string, std::shared_ptr<LogImage>> Log::_logsImage = {};
 Level Log::_blockLevel = Level::Unknown;
 Level Log::_showLevel = Level::Unknown;
 std::string LogImage::_rootFolder = "/tmp/log/";
@@ -46,35 +46,32 @@ std::shared_ptr<Log> Log::get(const std::string & name)
   return _logs[name];
 }
 
-std::shared_ptr<LogImage> Log::getImageLog(const std::string & name, Level level)
+std::shared_ptr<LogImage> Log::getImageLog(const std::string & name)
 {
   auto it = _logsImage.find(name);
   if (it != _logsImage.end()) {
-    return it->second[level];
+    return it->second;
   } else {
-    const std::vector<Level> levels = {Level::Debug, Level::Info, Level::Warning, Level::Error};
-    std::map<Level, std::shared_ptr<LogImage>> log;
-    for (const auto & l : levels) {
-      log[l] = std::make_shared<LogImage>(name, l >= _blockLevel, l >= _showLevel);
-    }
-
-    _logsImage[name] = log;
-    return log[level];
+#ifdef ELPP_DISABLE_ALL_LOGS
+    _logsImage[name] = std::make_shared<LogImageNull>(name);
+#else
+    _logsImage[name] = std::make_shared<LogImage>(name);
+#endif
+    return _logsImage[name];
   }
 }
-std::shared_ptr<LogPlot> Log::getPlotLog(const std::string & name, Level level)
+std::shared_ptr<LogPlot> Log::getPlotLog(const std::string & name)
 {
   auto it = _logsPlot.find(name);
   if (it != _logsPlot.end()) {
-    return it->second[level];
+    return it->second;
   } else {
-    const std::vector<Level> levels = {Level::Debug, Level::Info, Level::Warning, Level::Error};
-    std::map<Level, std::shared_ptr<LogPlot>> log;
-    for (const auto & l : levels) {
-      log[l] = std::make_shared<LogPlot>(name, l >= _blockLevel, l >= _showLevel);
-    }
-    _logsPlot[name] = log;
-    return log[level];
+#ifdef ELPP_DISABLE_ALL_LOGS
+    _logsPlot[name] = std::make_shared<LogPlotNull>(name);
+#else
+    _logsPlot[name] = std::make_shared<LogPlot>(name);
+#endif
+    return _logsPlot[name];
   }
 }
 

@@ -40,18 +40,7 @@ public:
     auto solver = std::make_shared<GaussNewton>(1e-7, 10);
     auto loss = std::make_shared<QuadraticLoss>();
     auto scaler = std::make_shared<Scaler>();
-    if (TEST_VISUALIZE) {
-      LOG_IMG("ImageWarped")->_show = true;
-      LOG_IMG("Depth")->_show = true;
-      LOG_IMG("Residual")->_show = true;
-      LOG_IMG("Image")->_show = true;
-      LOG_IMG("Template")->_show = true;
-      LOG_IMG("Depth")->_show = true;
-      LOG_IMG("Weights")->_show = true;
-      // LOG_PLT("MedianScaler")->_show = true;
-      // LOG_PLT("MedianScaler")->_block = true;
-      LOG_IMG("Residual")->_block = true;
-    }
+
     _aligner = std::make_shared<RgbdAlignmentOpenCv>();
 
     // tum depth format:
@@ -77,6 +66,9 @@ public:
       {-0.0255, 0.0066, 0.0108, -0.0148, -0.0306, 0.0042},
 
     };
+    for (auto log : Log::registeredLogsImage()) {
+      LOG_IMG(log)->show() = TEST_VISUALIZE;
+    }
   }
 
 protected:

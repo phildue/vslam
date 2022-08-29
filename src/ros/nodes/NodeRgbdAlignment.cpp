@@ -104,14 +104,14 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   for (const auto & name : Log::registeredLogsImage()) {
     declare_parameter("log.image." + name + ".show", false);
     declare_parameter("log.image." + name + ".block", false);
-    LOG_IMG(name)->_show = get_parameter("log.image." + name + ".show").as_bool();
-    LOG_IMG(name)->_block = get_parameter("log.image." + name + ".block").as_bool();
+    LOG_IMG(name)->show() = get_parameter("log.image." + name + ".show").as_bool();
+    LOG_IMG(name)->block() = get_parameter("log.image." + name + ".block").as_bool();
   }
   for (const auto & name : Log::registeredLogsPlot()) {
     declare_parameter("log.image." + name + ".show", false);
     declare_parameter("log.image." + name + ".block", false);
-    LOG_PLT(name)->_show = get_parameter("log.image." + name + ".show").as_bool();
-    LOG_PLT(name)->_block = get_parameter("log.image." + name + ".block").as_bool();
+    LOG_PLT(name)->show() = get_parameter("log.image." + name + ".show").as_bool();
+    LOG_PLT(name)->block() = get_parameter("log.image." + name + ".block").as_bool();
   }
   RCLCPP_INFO(get_logger(), "Ready.");
 }

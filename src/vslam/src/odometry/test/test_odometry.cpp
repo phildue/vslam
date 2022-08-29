@@ -65,19 +65,6 @@ class EvaluationOdometry : public Test
 public:
   EvaluationOdometry()
   {
-    if (TEST_VISUALIZE) {
-      LOG_IMG("Residual")->_show = true;
-      LOG_IMG("Image")->_show = true;
-      LOG_IMG("Depth")->_show = true;
-      //LOG_IMG("Template")->_show = true;
-      LOG_IMG("ImageWarped")->_show = true;
-      LOG_IMG("Weights")->_show = true;
-      LOG_IMG("SteepestDescent")->_show = true;
-      //LOG_PLT("MedianScaler")->_show = true;
-      //LOG_PLT("MedianScaler")->_block = true;
-      //LOG_IMG("Residual")->_block = true;
-    }
-
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
     _datasetPath = TEST_RESOURCE "/rgbd_dataset_freiburg2_desk";
     _cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
@@ -91,6 +78,10 @@ public:
     _map = std::make_shared<Map>();
     _prediction = std::make_shared<MotionPredictionConstant>();
     _odometry = std::make_shared<OdometryRgbd>(30, solver, loss, _map);
+
+    for (auto log : Log::registeredLogsImage()) {
+      LOG_IMG(log)->show() = TEST_VISUALIZE;
+    }
   }
 
   Frame::ShPtr loadFrame(size_t fNo)

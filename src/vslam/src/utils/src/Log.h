@@ -36,8 +36,8 @@
 #define IMAGE_ALIGNMENT(loglevel) CLOG(loglevel, "image_alignment")
 #define SOLVER(loglevel) CLOG(loglevel, "solver")
 
-#define LOG_IMG(name) pd::vslam::Log::getImageLog(name, pd::vslam::Level::Debug)
-#define LOG_PLT(name) pd::vslam::Log::getPlotLog(name, pd::vslam::Level::Debug)
+#define LOG_IMG(name) pd::vslam::Log::getImageLog(name)
+#define LOG_PLT(name) pd::vslam::Log::getPlotLog(name)
 
 namespace pd::vslam
 {
@@ -50,9 +50,9 @@ class LogPlot
 public:
   typedef std::shared_ptr<LogPlot> ShPtr;
 
-  LogPlot(const std::string & file, bool block = false, bool show = true, bool save = false);
+  LogPlot(const std::string & file, bool block = false, bool show = false, bool save = false);
   void setHeader(const std::vector<std::string> & header);
-  void append(vis::Plot::ConstShPtr plot)
+  virtual void append(vis::Plot::ConstShPtr plot)
   {
     if (_show || _save) {
       plot->plot();
@@ -64,12 +64,21 @@ public:
       }
     }
   }
+  bool & block() { return _block; }
+  bool & show() { return _block; }
+  bool & save() { return _block; }
+
+private:
   bool _block;
   bool _show;
   bool _save;
-
-private:
   const std::string _name;
+};
+class LogPlotNull : public LogPlot
+{
+public:
+  LogPlotNull() : LogPlot("") {}
+  void append(vis::Plot::ConstShPtr UNUSED(plot)) override {}
 };
 
 void operator<<(LogPlot::ShPtr log, vis::Plot::ConstShPtr plot);
@@ -82,7 +91,7 @@ class LogImage
 public:
   typedef std::shared_ptr<LogImage> ShPtr;
 
-  LogImage(const std::string & name, bool block = false, bool show = true, bool save = false);
+  LogImage(const std::string & name, bool block = false, bool show = false, bool save = false);
   template <typename... Args>
   void append(DrawFunctor<Args...> draw, Args... args)
   {
@@ -109,18 +118,29 @@ public:
       logMat(vis::drawAsImage(mat.template cast<double>()));
     }
   }
+  bool & block() { return _block; }
+  bool & show() { return _block; }
+  bool & save() { return _block; }
+
+protected:
   bool _block;
   bool _show;
   bool _save;
 
-protected:
   static std::string _rootFolder;
   const std::string _name;
   const std::string _folder;
 
   std::uint32_t _ctr;
 
-  void logMat(const cv::Mat & mat);
+  virtual void logMat(const cv::Mat & mat);
+};
+
+class LogImageNull : public LogImage
+{
+public:
+  LogImageNull() : LogImage("") {}
+  void logMat(const cv::Mat & UNUSED(plot)) override {}
 };
 
 template <typename T>
@@ -134,9 +154,8 @@ class Log
 {
 public:
   static std::shared_ptr<Log> get(const std::string & name);
-  static std::shared_ptr<LogImage> getImageLog(
-    const std::string & name, Level level = el::Level::Info);
-  static std::shared_ptr<LogPlot> getPlotLog(const std::string & name, Level level);
+  static std::shared_ptr<LogImage> getImageLog(const std::string & name);
+  static std::shared_ptr<LogPlot> getPlotLog(const std::string & name);
   static const std::map<std::string, std::shared_ptr<Log>> & loggers() { return _logs; };
   static const std::map<std::string, std::map<Level, std::shared_ptr<LogImage>>> & imageLoggers();
   static const std::map<std::string, std::map<Level, std::shared_ptr<LogPlot>>> & plotLoggers();
@@ -153,8 +172,8 @@ public:
 private:
   const std::string _name;
   static std::map<std::string, std::shared_ptr<Log>> _logs;
-  static std::map<std::string, std::map<Level, std::shared_ptr<LogPlot>>> _logsPlot;
-  static std::map<std::string, std::map<Level, std::shared_ptr<LogImage>>> _logsImage;
+  static std::map<std::string, std::shared_ptr<LogPlot>> _logsPlot;
+  static std::map<std::string, std::shared_ptr<LogImage>> _logsImage;
 };
 }  // namespace pd::vslam
 
