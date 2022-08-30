@@ -206,6 +206,12 @@ Vec3d Frame::p3dWorld(int v, int u, size_t level) const
   return pose().pose().inverse() * _pcl.at(level)[v * width() + u];
 }
 
+bool Frame::withinImage(const Vec2d & pImage, double border, size_t level) const
+{
+  return 0 + border < pImage.x() && pImage.x() < width(level) - border && 0 + border < pImage.y() &&
+         pImage.y() < height(level) - border;
+}
+
 void Frame::computeDerivatives()
 {
   _dIx.resize(nLevels());

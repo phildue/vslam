@@ -60,6 +60,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("loss.tdistribution.v", 5.0);
   declare_parameter("keyframe_selection.method", "idx");
   declare_parameter("keyframe_selection.idx.period", 5);
+  declare_parameter("keyframe_selection.visible_map.min_visible_points", 50);
   declare_parameter("prediction.model", "NoMotion");
   Log::_blockLevel = Level::Unknown;
   Log::_showLevel = Level::Unknown;
@@ -88,10 +89,15 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _map = std::make_shared<Map>();
   _odometry = std::make_shared<OdometryRgbd>(
     get_parameter("features.min_gradient").as_int(), solver, loss, _map);
-  // _odometry = std::make_shared<pd::vision::OdometryIcp>(1,10,_map);
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
-  _keyFrameSelection =
-    std::make_shared<KeyFrameSelectionIdx>(get_parameter("keyframe_selection.idx.period").as_int());
+
+  if (get_parameter("keyframe_selection.method").as_string() == "idx") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
+      get_parameter("keyframe_selection.idx.period").as_int());
+  } else if (get_parameter("keyframe_selection.method").as_string() == "visible_map") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
+      _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int());
+  }
   _ba = std::make_shared<mapping::BundleAdjustment>();
 
   _matcher = std::make_shared<MatcherBruteForce>(

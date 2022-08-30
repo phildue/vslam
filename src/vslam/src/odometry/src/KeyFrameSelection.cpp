@@ -14,10 +14,42 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "KeyFrameSelection.h"
+#include "utils/utils.h"
 namespace pd::vslam
 {
-KeyFrameSelection::ShPtr KeyFrameSelection::make()
+KeyFrameSelectionCustom::KeyFrameSelectionVisibleMap(
+  Map::ConstShPtr map, std::uint64_t minVisiblePoints, double maxTranslation)
+: KeyFrameSelection(),
+  _minVisiblePoints(minVisiblePoints),
+  _maxTranslation(maxTranslation),
+  _map(map),
+  _visiblePoints(0)
 {
-  return std::make_shared<KeyFrameSelectionIdx>();
+}
+
+void KeyFrameSelectionCustom::update(Frame::ConstShPtr frame)
+{
+  LOG(INFO) << "frame: " << frame->id();
+  _visiblePoints = 0U;
+  if (!_map->lastKf()) {
+    return;
+  }
+
+  _relativePose =
+    algorithm::computeRelativeTransform(_map->lastKf()->pose().pose(), frame->pose().pose());
+
+  for (auto ft : _map->lastKf()->featuresWithPoints()) {
+    if (frame->withinImage(frame->world2image(ft->point()->position()))) {
+      _visiblePoints++;
+    }
+  }
+}
+
+bool KeyFrameSelectionCustom::isKeyFrame() const
+{
+  LOG(INFO) << "nVisiblePoints: " << _visiblePoints
+            << " translation: " << _relativePose.translation().norm();
+
+  return _relativePose.translation().norm() > _maxTranslation || _visiblePoints < _minVisiblePoints;
 }
 }  // namespace pd::vslam

@@ -53,6 +53,7 @@ public:
   size_t width(size_t level = 0) const { return _intensity.at(level).cols(); }
   size_t height(size_t level = 0) const { return _intensity.at(level).rows(); }
   size_t nLevels() const { return _intensity.size(); }
+  bool withinImage(const Vec2d & pImage, double border = 7, size_t level = 0) const;
 
   std::vector<Feature2D::ConstShPtr> features() const;
   std::vector<Feature2D::ConstShPtr> featuresWithPoints() const;
