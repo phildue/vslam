@@ -17,7 +17,7 @@
 #include "utils/utils.h"
 namespace pd::vslam
 {
-KeyFrameSelectionCustom::KeyFrameSelectionVisibleMap(
+KeyFrameSelectionCustom::KeyFrameSelectionCustom(
   Map::ConstShPtr map, std::uint64_t minVisiblePoints, double maxTranslation)
 : KeyFrameSelection(),
   _minVisiblePoints(minVisiblePoints),
