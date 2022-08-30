@@ -161,8 +161,8 @@ TEST(TrackingTest, TrackAndOptimize)
   }
 
   if (TEST_VISUALIZE) {
-    cv::imshow("Frame0", mat0);
-    cv::imshow("Frame1", mat1);
-    cv::waitKey(0);
+    //cv::imshow("Frame0", mat0);
+    //cv::imshow("Frame1", mat1);
+    //cv::waitKey(0);
   }
 }
