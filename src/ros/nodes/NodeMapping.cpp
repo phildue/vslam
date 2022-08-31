@@ -34,7 +34,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _fixedFrameId("world"),
   _pubOdom(create_publisher<nav_msgs::msg::Odometry>("/odom", 10)),
   _pubPath(create_publisher<nav_msgs::msg::Path>("/path", 10)),
+  //_pubPoseGraph(create_publisher<nav_msgs::msg::Path>("/path/pose_graph", 10)),
   _pubTf(std::make_shared<tf2_ros::TransformBroadcaster>(this)),
+  //_pubPclMap(create_publisher<sensor_msgs::msg::PointCloud2>("/pcl/map", 10)),
   _tfBuffer(std::make_unique<tf2_ros::Buffer>(get_clock())),
   _subCamInfo(create_subscription<sensor_msgs::msg::CameraInfo>(
     "/camera/rgb/camera_info", 10,
@@ -60,7 +62,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("loss.tdistribution.v", 5.0);
   declare_parameter("keyframe_selection.method", "idx");
   declare_parameter("keyframe_selection.idx.period", 5);
-  declare_parameter("keyframe_selection.visible_map.min_visible_points", 50);
+  declare_parameter("keyframe_selection.custom.min_visible_points", 50);
   declare_parameter("prediction.model", "NoMotion");
   Log::_blockLevel = Level::Unknown;
   Log::_showLevel = Level::Unknown;
@@ -94,9 +96,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   if (get_parameter("keyframe_selection.method").as_string() == "idx") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
       get_parameter("keyframe_selection.idx.period").as_int());
-  } else if (get_parameter("keyframe_selection.method").as_string() == "visible_map") {
+  } else if (get_parameter("keyframe_selection.method").as_string() == "custom") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
       _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int());
+  } else {
+    throw pd::Exception("Unknown method for key frame selection.");
   }
   _ba = std::make_shared<mapping::BundleAdjustment>();
 
@@ -269,6 +273,24 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
   _path.header = odom.header;
   _path.poses.push_back(poseStamped);
   _pubPath->publish(_path);
+  /*
+  if (!_map->points().empty()) {
+    sensor_msgs::msg::PointCloud2 pcl;
+    pcl.header = odom.header;
+    vslam_ros::convert(_map->points(), pcl);
+    _pubPclMap->publish(pcl);
+  }
+
+  if (!_map->keyFrames().empty()) {
+    nav_msgs::msg::Path poseGraph;
+    poseGraph.header = odom.header;
+    for (auto kf : _map->keyFrames()) {
+      geometry_msgs::msg::PoseStamped kfPoseStamped;
+      kfPoseStamped.header = odom.header;
+      vslam_ros::convert(kf->t(), kfPoseStamped.header.stamp);
+    }
+    _pubPoseGraph->publish(poseGraph);
+  }*/
 }
 
 void NodeMapping::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
