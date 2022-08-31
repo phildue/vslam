@@ -1,5 +1,5 @@
 features:
-  min_gradient: 30
+  min_gradient: 80
 frame:
   base_link_id: world
   frame_id: odom
@@ -14,12 +14,14 @@ prediction:
 pyramid:
   levels: [1.0,0.5,0.25]
 solver:
-  max_iterations: 100
+  max_iterations: 20
   min_step_size: 0.00000000001
 keyframe_selection:
-  method: idx
+  method: custom
   idx:
     period: 5
+  custom:
+    min_visible_points: 100
 log:
   image:
     ImageWarped:
@@ -41,7 +43,7 @@ log:
       show: false
       block: false
     Tracking:
-      show: false
+      show: true
       block: false
   plot:
     ErrorDistribution:
