@@ -33,7 +33,7 @@ TEST(TrajectoryTest, Create)
   auto poseGraph =
     std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
 }
-TEST(TrajectoryTest, DISABLED_Interpolate)
+TEST(TrajectoryTest, Interpolate)
 {
   SE3d pose0, pose2;
   pose2.translation().x() += 2.0;
@@ -43,5 +43,4 @@ TEST(TrajectoryTest, DISABLED_Interpolate)
   auto poseGraph = std::make_shared<Trajectory>(poses);
   auto pose1 = poseGraph->poseAt(1);
   EXPECT_NEAR(pose1->pose().translation().x(), 1.0, 1e-7);
-  std::cout << pose1->pose().log().transpose() << std::endl;
 }
