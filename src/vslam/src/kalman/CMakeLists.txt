@@ -5,7 +5,6 @@ set( sources
         src/EKFConstantVelocitySE3.cpp )
 
 set( headers
-  src/KalmanFilter.h
   src/EKFConstantVelocitySE3.h
   include/kalman/kalman.h )
 
@@ -27,7 +26,6 @@ option(KALMAN_BUILD_TESTS "Enable to build tests" ON)
 if(KALMAN_BUILD_TESTS)
   enable_testing()
   find_package(GTest CONFIG REQUIRED)
-  pd_add_test(kalman kalman)
 endif()
 
 # Install

@@ -29,7 +29,6 @@ KeyFrameSelectionCustom::KeyFrameSelectionCustom(
 
 void KeyFrameSelectionCustom::update(Frame::ConstShPtr frame)
 {
-  LOG(INFO) << "frame: " << frame->id();
   _visiblePoints = 0U;
   if (!_map->lastKf()) {
     return;
@@ -47,9 +46,6 @@ void KeyFrameSelectionCustom::update(Frame::ConstShPtr frame)
 
 bool KeyFrameSelectionCustom::isKeyFrame() const
 {
-  LOG(INFO) << "nVisiblePoints: " << _visiblePoints
-            << " translation: " << _relativePose.translation().norm();
-
   return _relativePose.translation().norm() > _maxTranslation || _visiblePoints < _minVisiblePoints;
 }
 }  // namespace pd::vslam

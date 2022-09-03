@@ -89,6 +89,24 @@ void Log::configure(const std::string & configFilePath)
   // Actually reconfigure all loggers instead
   el::Loggers::reconfigureLogger(_name, config);
 }
+std::string LogImage::toString() const
+{
+  std::stringstream ss;
+  ss << "[" << _name << "]"
+     << "\nBlock: " << (_block ? "On" : "Off") << "\nShow: " << (_show ? "On" : "Off")
+     << "\nSave: " << (_save ? "On" : "Off");
+  return ss.str();
+}
+
+std::string LogPlot::toString() const
+{
+  std::stringstream ss;
+  ss << "[" << _name << "]"
+     << "\nBlock: " << (_block ? "On" : "Off") << "\nShow: " << (_show ? "On" : "Off")
+     << "\nSave: " << (_save ? "On" : "Off");
+  return ss.str();
+}
+
 std::vector<std::string> Log::registeredLogs()
 {
   std::vector<std::string> keys;

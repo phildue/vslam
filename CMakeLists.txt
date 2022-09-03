@@ -29,7 +29,8 @@ find_package(std_srvs REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(rosbag2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
-set(VSLAM_BUILD_TESTS ${BUILD_TESTING})
+find_package(pcl_conversions REQUIRED)
+option(VSLAM_BUILD_TESTS "Enable unit test build" ${BUILD_TESTING})
 add_subdirectory(src/vslam)
 
 add_library(${PROJECT_NAME} STATIC
@@ -80,7 +81,9 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2_geometry_msgs
   tf2_msgs
   std_srvs
-  rosbag2_cpp)
+  rosbag2_cpp
+  pcl_conversions
+  )
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(vslam)
@@ -110,7 +113,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/)
 
 install(DIRECTORY
-  src/vslam/src/odometry/cfg/log
+  src/vslam/src/odometry/cfg
   DESTINATION share/${PROJECT_NAME}/)
 
 install(

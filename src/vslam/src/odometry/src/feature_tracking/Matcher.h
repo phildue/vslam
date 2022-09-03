@@ -41,8 +41,8 @@ public:
     double distance;
   };
   virtual std::vector<Match> match(
-    const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
-    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget) const = 0;
+    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget,
+    const std::vector<Feature2D::ConstShPtr> & descriptorsRef) const = 0;
 
   static double epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
   static double reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
@@ -57,8 +57,8 @@ public:
       distanceFunction = [](auto f1, auto f2) { return descriptorL1(f1, f2); },
     double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
   std::vector<Match> match(
-    const std::vector<Feature2D::ConstShPtr> & descriptorsRef,
-    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget) const override;
+    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget,
+    const std::vector<Feature2D::ConstShPtr> & descriptorsRef) const override;
 
 private:
   const std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>

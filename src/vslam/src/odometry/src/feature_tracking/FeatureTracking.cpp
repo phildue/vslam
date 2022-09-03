@@ -62,6 +62,40 @@ private:
   const Frame::ConstShPtr _frame;
 };
 
+std::vector<cv::KeyPoint> gridSubsampling(
+  const std::vector<cv::KeyPoint> & keypoints, Frame::ConstShPtr frame, double cellSize)
+{
+  const size_t nRows =
+    static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(cellSize));
+  const size_t nCols =
+    static_cast<size_t>(static_cast<float>(frame->width(0)) / static_cast<float>(cellSize));
+
+  /* Create grid for subsampling where each cell contains index of keypoint with the highest response
+  *  or the total amount of keypoints if empty */
+  std::vector<size_t> grid(nRows * nCols, keypoints.size());
+  for (size_t idx = 0U; idx < keypoints.size(); idx++) {
+    const auto & kp = keypoints[idx];
+    const size_t r =
+      static_cast<size_t>(static_cast<float>(kp.pt.y) / static_cast<float>(cellSize));
+    const size_t c =
+      static_cast<size_t>(static_cast<float>(kp.pt.x) / static_cast<float>(cellSize));
+    if (
+      grid[r * nCols + c] >= keypoints.size() ||
+      kp.response > keypoints[grid[r * nCols + c]].response) {
+      grid[r * nCols + c] = idx;
+    }
+  }
+
+  std::vector<cv::KeyPoint> kptsGrid;
+  kptsGrid.reserve(nRows * nCols);
+  std::for_each(grid.begin(), grid.end(), [&](auto idx) {
+    if (idx < keypoints.size()) {
+      kptsGrid.push_back(keypoints[idx]);
+    }
+  });
+  return kptsGrid;
+}
+
 FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher)
 {
   LOG_IMG("Tracking");
@@ -92,44 +126,22 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
   cv::Ptr<cv::FastFeatureDetector> detector = cv::FastFeatureDetector::create();
   std::vector<cv::KeyPoint> kpts;
   detector->detect(image, kpts, mask);
-  const size_t nRows =
-    static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(_gridCellSize));
-  const size_t nCols =
-    static_cast<size_t>(static_cast<float>(frame->width(0)) / static_cast<float>(_gridCellSize));
+  LOG_TRACKING(DEBUG) << "Detected Keypoints: " << kpts.size();
 
-  std::vector<size_t> grid(nRows * nCols, kpts.size());
-  for (size_t idx = 0U; idx < kpts.size(); idx++) {
-    const auto & kp = kpts[idx];
-    const size_t r =
-      static_cast<size_t>(static_cast<float>(kp.pt.y) / static_cast<float>(_gridCellSize));
-    const size_t c =
-      static_cast<size_t>(static_cast<float>(kp.pt.x) / static_cast<float>(_gridCellSize));
-    if (grid[r * nCols + c] >= kpts.size() || kp.response > kpts[grid[r * nCols + c]].response) {
-      grid[r * nCols + c] = idx;
-    }
-  }
-  LOG_TRACKING(DEBUG) << "Keypoints: " << kpts.size();
+  kpts = gridSubsampling(kpts, frame, _gridCellSize);
 
-  std::vector<cv::KeyPoint> kptsGrid;
-  kptsGrid.reserve(nRows * nCols);
-  std::for_each(grid.begin(), grid.end(), [&](auto idx) {
-    if (idx < kpts.size()) {
-      kptsGrid.push_back(kpts[idx]);
-    }
-  });
-  LOG_TRACKING(DEBUG) << "Remaining keypoints: " << kptsGrid.size();
+  LOG_TRACKING(DEBUG) << "Remaining keypoints after grid: " << kpts.size();
   cv::Ptr<cv::DescriptorExtractor> extractor = cv::ORB::create();
   cv::Mat desc;
-  extractor->compute(image, kptsGrid, desc);
-  LOG_TRACKING(DEBUG) << "Remaining keypoints: " << kptsGrid.size();
+  extractor->compute(image, kpts, desc);
   LOG_TRACKING(DEBUG) << "Computed descriptors: " << desc.rows << "x" << desc.cols;
 
   std::vector<Feature2D::ShPtr> features;
-  features.reserve(kptsGrid.size());
+  features.reserve(desc.rows);
   MatXd descriptor;
   cv::cv2eigen(desc, descriptor);
-  for (size_t i = 0U; i < kptsGrid.size(); ++i) {
-    const auto & kp = kptsGrid[i];
+  for (int i = 0; i < desc.rows; ++i) {
+    const auto & kp = kpts[i];
     frame->addFeature(std::make_shared<Feature2D>(
       Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response, descriptor.row(i)));
   }
@@ -158,9 +170,18 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
     auto fCur = featuresCur[m.idxCur];
     auto frameCur = fCur->frame();
     auto z = frameCur->depth()(fCur->position().y(), fCur->position().x());
-    if (fRef->point()) {
-      fCur->point() = fRef->point();
-      fRef->point()->addFeature(fCur);
+    if (fCur->point()) {
+      LOG_TRACKING(DEBUG) << fCur->id() << " was already matched. Skipping..";
+    } else if (fRef->point()) {
+      if (!frameCur->observationOf(fRef->point()->id())) {
+        fCur->point() = fRef->point();
+        fRef->point()->addFeature(fCur);
+        LOG_TRACKING(DEBUG) << "Feature was matched to point: " << fRef->point()->id();
+
+      } else {
+        LOG_TRACKING(DEBUG) << "Point: " << fRef->point()->id() << " was already matched on "
+                            << frameCur->id() << " with lower distance. Skipping..";
+      }
     } else if (z > 0) {
       std::vector<Feature2D::ShPtr> features = {fRef, fCur};
       const Vec3d p3d = frameCur->image2world(fCur->position(), z);
@@ -170,7 +191,7 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
     }
   }
 
-  LOG_TRACKING(DEBUG) << "#Created Points: " << points.size();
+  LOG_TRACKING(DEBUG) << "#New Points: " << points.size();
 
   return points;
 }
@@ -178,28 +199,33 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
 std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
   Frame::ConstShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {
-  std::set<std::uint64_t> pointIds;
+  /* Prefer features from newer frames as they should have closer appearance*/
+  std::vector<Frame::ShPtr> framesSorted(framesRef.begin(), framesRef.end());
+  std::sort(
+    framesSorted.begin(), framesSorted.end(), [](auto f0, auto f1) { return f0->t() > f1->t(); });
 
+  std::set<std::uint64_t> pointIds;
   std::vector<Feature2D::ShPtr> candidates;
   candidates.reserve(framesRef.size() * framesRef.at(0)->features().size());
-  // TODO(unknown): sort frames from new to old
-  const double border = 5.0;
-  for (auto & f : framesRef) {
+  for (auto & f : framesSorted) {
+    if (f->id() == frameCur->id()) {
+      continue;
+    }
     for (auto ft : f->features()) {
       if (!ft->point()) {
         candidates.push_back(ft);
-      } else if (std::find(pointIds.begin(), pointIds.end(), ft->point()->id()) == pointIds.end()) {
-        Vec2d pIcs = frameCur->world2image(ft->point()->position());
-        if (
-          border < pIcs.x() && pIcs.x() < f->width() - border && border < pIcs.y() &&
-          pIcs.y() < f->height() - border) {
-          candidates.push_back(ft);
-          pointIds.insert(ft->point()->id());
-        }
+      } else if (
+        pointIds.find(ft->point()->id()) == pointIds.end() &&
+        frameCur->withinImage(frameCur->world2image(ft->point()->position()))) {
+        candidates.push_back(ft);
+        pointIds.insert(ft->point()->id());
       }
     }
   }
+  LOG_TRACKING(DEBUG) << "#Candidate Features: " << candidates.size()
+                      << " #Visible Points: " << pointIds.size()
+                      << " #Unmatched Features: " << candidates.size() - pointIds.size();
+
   return candidates;
 }
-
 }  // namespace pd::vslam

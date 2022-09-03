@@ -21,6 +21,7 @@ keyframe_selection:
   idx:
     period: 5
   custom:
+    min_translation: 0.2
     min_visible_points: 100
 log:
   image:
@@ -44,7 +45,7 @@ log:
       block: false
     Tracking:
       show: true
-      block: false
+      block: true
   plot:
     ErrorDistribution:
       show: false

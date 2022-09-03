@@ -13,7 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <list>
+
 #include "Map.h"
+#include "utils/utils.h"
+#define LOG_MAPPING(level) CLOG(level, "mapping")
+
 namespace pd::vslam
 {
 Map::Map() : _frames(), _keyFrames(), _maxFrames(7), _maxKeyFrames(7) {}
@@ -126,6 +131,20 @@ void Map::updatePoints(const std::map<std::uint64_t, Vec3d> & points)
       throw pd::Exception("Point is not part of map: " + std::to_string(id_p.first));
     }
   }
+}
+
+void Map::removeUnobservedPoints()
+{
+  size_t nRemoved = 0U;
+  for (auto p = _points.begin(); p != _points.end();) {
+    if (p->second->features().size() < 2) {
+      nRemoved++;
+      _points.erase(p);
+    } else {
+      p++;
+    }
+  }
+  LOG_MAPPING(DEBUG) << "Removed: " << nRemoved << " points. Remaining: " << _points.size();
 }
 
 }  // namespace pd::vslam

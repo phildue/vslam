@@ -35,15 +35,19 @@ MatcherBruteForce::MatcherBruteForce(
 }
 
 std::vector<Matcher::Match> MatcherBruteForce::match(
-  const std::vector<Feature2D::ConstShPtr> & featuresRef,
-  const std::vector<Feature2D::ConstShPtr> & featuresTarget) const
+  const std::vector<Feature2D::ConstShPtr> & featuresTarget,
+  const std::vector<Feature2D::ConstShPtr> & featuresRef) const
 {
   std::vector<Match> matches;
   matches.reserve(featuresRef.size());
   for (size_t i = 0U; i < featuresRef.size(); ++i) {
-    std::vector<Match> distances(featuresTarget.size());
+    std::vector<Match> distances;
+    distances.reserve(featuresTarget.size());
     for (size_t j = 0U; j < featuresTarget.size(); ++j) {
-      distances[j] = {i, j, _computeDistance(featuresRef[i], featuresTarget[j])};
+      auto d = _computeDistance(featuresRef[i], featuresTarget[j]);
+      if (std::isfinite(d)) {
+        distances.push_back({i, j, d});
+      }
     }
     std::sort(distances.begin(), distances.end(), [&](auto m0, auto m1) {
       return m0.distance < m1.distance;
@@ -54,6 +58,8 @@ std::vector<Matcher::Match> MatcherBruteForce::match(
       matches.push_back(distances[0]);
     }
   }
+  std::sort(
+    matches.begin(), matches.end(), [](auto m0, auto m1) { return m0.distance < m1.distance; });
   return matches;
 }
 double Matcher::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)

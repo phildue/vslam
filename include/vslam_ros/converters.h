@@ -23,10 +23,12 @@
 #include <geometry_msgs/msg/twist_with_covariance.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sophus/se3.hpp>
 
 namespace vslam_ros
 {
+void convert(pd::vslam::Timestamp t, builtin_interfaces::msg::Time & tRos);
 pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg);
 geometry_msgs::msg::Pose convert(const Sophus::SE3d & se3);
 void convert(const Sophus::SE3d & se3, geometry_msgs::msg::Twist & twist);
@@ -38,5 +40,9 @@ void convert(
   const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::PoseWithCovariance & pRos);
 void convert(
   const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::TwistWithCovariance & pRos);
+
+void convert(
+  const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos);
+
 }  // namespace vslam_ros
 #endif

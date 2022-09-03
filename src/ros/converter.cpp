@@ -13,9 +13,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <pcl_conversions/pcl_conversions.h>
+
 #include "vslam_ros/converters.h"
+
 namespace vslam_ros
 {
+void convert(pd::vslam::Timestamp t, builtin_interfaces::msg::Time & tRos)
+{
+  tRos.sec = static_cast<int32_t>(t / 1e9);
+  tRos.nanosec = t - tRos.sec * 1e9;
+}
 pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
 {
   const double fx = msg.k[0 * 3 + 0];
@@ -97,5 +105,24 @@ void convert(
       pRos.covariance[i * 6 + j] = p.cov()(i, j);
     }
   }
+}
+void convert(
+  const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos)
+{
+  //TODO(phil) is this copying the pcl two times?
+  pcl::PointCloud<pcl::PointXYZRGB> pclPcl;
+  for (auto p : pcl) {
+    auto ft0 = p->features()[0];
+    pcl::PointXYZRGB pPcl;
+    pPcl.x = p->position().x();
+    pPcl.y = p->position().y();
+    pPcl.z = p->position().z();
+    pPcl.r = ft0->frame()->intensity()(ft0->position().y(), ft0->position().x());
+    pPcl.g = ft0->frame()->intensity()(ft0->position().y(), ft0->position().x());
+    pPcl.b = ft0->frame()->intensity()(ft0->position().y(), ft0->position().x());
+
+    pclPcl.push_back(pPcl);
+  }
+  pcl::toROSMsg(pclPcl, pclRos);
 }
 }  // namespace vslam_ros

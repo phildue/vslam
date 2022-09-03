@@ -60,6 +60,7 @@ if(VSLAM_BUILD_TESTS)
     else()
         set(TEST_VISUALIZE false)
     endif()
+    pd_add_test(log ${PROJECT_NAME})
     pd_add_test(plot ${PROJECT_NAME}
     TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
     TEST_VISUALIZE=${TEST_VISUALIZE})

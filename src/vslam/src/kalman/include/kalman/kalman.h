@@ -16,5 +16,4 @@
 #ifndef VSLAM_KALMAN_H__
 #define VSLAM_KALMAN_H__
 #include "EKFConstantVelocitySE3.h"
-#include "KalmanFilter.h"
 #endif

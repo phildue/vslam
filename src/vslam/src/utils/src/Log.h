@@ -65,8 +65,9 @@ public:
     }
   }
   bool & block() { return _block; }
-  bool & show() { return _block; }
-  bool & save() { return _block; }
+  bool & show() { return _show; }
+  bool & save() { return _save; }
+  std::string toString() const;
 
 private:
   bool _block;
@@ -119,8 +120,10 @@ public:
     }
   }
   bool & block() { return _block; }
-  bool & show() { return _block; }
-  bool & save() { return _block; }
+  bool & show() { return _show; }
+  bool & save() { return _save; }
+
+  std::string toString() const;
 
 protected:
   bool _block;

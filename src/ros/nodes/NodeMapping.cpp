@@ -34,9 +34,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _fixedFrameId("world"),
   _pubOdom(create_publisher<nav_msgs::msg::Odometry>("/odom", 10)),
   _pubPath(create_publisher<nav_msgs::msg::Path>("/path", 10)),
-  //_pubPoseGraph(create_publisher<nav_msgs::msg::Path>("/path/pose_graph", 10)),
+  _pubPoseGraph(create_publisher<nav_msgs::msg::Path>("/path/pose_graph", 10)),
   _pubTf(std::make_shared<tf2_ros::TransformBroadcaster>(this)),
-  //_pubPclMap(create_publisher<sensor_msgs::msg::PointCloud2>("/pcl/map", 10)),
+  _pubPclMap(create_publisher<sensor_msgs::msg::PointCloud2>("/pcl/map", 10)),
   _tfBuffer(std::make_unique<tf2_ros::Buffer>(get_clock())),
   _subCamInfo(create_subscription<sensor_msgs::msg::CameraInfo>(
     "/camera/rgb/camera_info", 10,
@@ -107,11 +107,8 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _matcher = std::make_shared<MatcherBruteForce>(
     [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
       const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
-      const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
-
-      //LOG_TRACKING(DEBUG) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") d: " << d
-      //                    << " r: " << r;
-      return std::isfinite(r) ? d + r : d;
+      //const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
+      return d;
     },
     1000);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
@@ -130,13 +127,14 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
     declare_parameter("log.image." + name + ".block", false);
     LOG_IMG(name)->show() = get_parameter("log.image." + name + ".show").as_bool();
     LOG_IMG(name)->block() = get_parameter("log.image." + name + ".block").as_bool();
+    RCLCPP_INFO(get_logger(), "Found image logger:\n%s", LOG_IMG(name)->toString().c_str());
   }
   for (const auto & name : Log::registeredLogsPlot()) {
-    RCLCPP_INFO(get_logger(), "Found plot logger: %s", name.c_str());
-    declare_parameter("log.image." + name + ".show", false);
-    declare_parameter("log.image." + name + ".block", false);
-    LOG_PLT(name)->show() = get_parameter("log.image." + name + ".show").as_bool();
-    LOG_PLT(name)->block() = get_parameter("log.image." + name + ".block").as_bool();
+    declare_parameter("log.plot." + name + ".show", false);
+    declare_parameter("log.plot." + name + ".block", false);
+    LOG_PLT(name)->show() = get_parameter("log.plot." + name + ".show").as_bool();
+    LOG_PLT(name)->block() = get_parameter("log.plot." + name + ".block").as_bool();
+    RCLCPP_INFO(get_logger(), "Found plot logger:\n%s", LOG_PLT(name)->toString().c_str());
   }
   RCLCPP_INFO(get_logger(), "Ready.");
 }
@@ -164,6 +162,7 @@ void NodeMapping::processFrame(
     _map->insert(frame, _keyFrameSelection->isKeyFrame());
 
     if (_keyFrameSelection->isKeyFrame()) {
+      _map->removeUnobservedPoints();
       auto points = _tracking->track(frame, _map->keyFrames());
 
       _map->insert(points);
@@ -273,11 +272,11 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
   _path.header = odom.header;
   _path.poses.push_back(poseStamped);
   _pubPath->publish(_path);
-  /*
+
   if (!_map->points().empty()) {
     sensor_msgs::msg::PointCloud2 pcl;
-    pcl.header = odom.header;
     vslam_ros::convert(_map->points(), pcl);
+    pcl.header = odom.header;
     _pubPclMap->publish(pcl);
   }
 
@@ -288,9 +287,11 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
       geometry_msgs::msg::PoseStamped kfPoseStamped;
       kfPoseStamped.header = odom.header;
       vslam_ros::convert(kf->t(), kfPoseStamped.header.stamp);
+      kfPoseStamped.pose = vslam_ros::convert(kf->pose().pose().inverse());
+      poseGraph.poses.push_back(kfPoseStamped);
     }
     _pubPoseGraph->publish(poseGraph);
-  }*/
+  }
 }
 
 void NodeMapping::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth)

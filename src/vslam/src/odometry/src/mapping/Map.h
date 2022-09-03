@@ -38,6 +38,8 @@ public:
   void updatePoses(const std::map<std::uint64_t, PoseWithCovariance> & poses);
   void updatePoints(const std::map<std::uint64_t, Vec3d> & points);
 
+  void removeUnobservedPoints();
+
   Frame::ConstShPtr lastKf(size_t idx = 0) const
   {
     return _keyFrames.size() <= idx ? nullptr : _keyFrames.at(idx);
