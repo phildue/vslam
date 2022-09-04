@@ -1,5 +1,5 @@
 features:
-  min_gradient: 80
+  min_gradient: 18
 frame:
   base_link_id: world
   frame_id: odom
@@ -23,6 +23,9 @@ keyframe_selection:
   custom:
     min_translation: 0.2
     min_visible_points: 100
+map:
+  n_keyframes: 10
+  n_frames: 3
 log:
   image:
     ImageWarped:
@@ -45,7 +48,7 @@ log:
       block: false
     Tracking:
       show: true
-      block: true
+      block: false
   plot:
     ErrorDistribution:
       show: false
