@@ -47,7 +47,7 @@ log:
       show: false
       block: false
     Tracking:
-      show: true
+      show: false
       block: false
   plot:
     ErrorDistribution:
