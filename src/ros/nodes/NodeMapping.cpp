@@ -63,7 +63,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("keyframe_selection.method", "idx");
   declare_parameter("keyframe_selection.idx.period", 5);
   declare_parameter("keyframe_selection.custom.min_visible_points", 50);
+  declare_parameter("keyframe_selection.custom.max_translation", 0.2);
   declare_parameter("prediction.model", "NoMotion");
+  declare_parameter("map.n_keyframes", 7);
+  declare_parameter("map.n_frames", 7);
+
   Log::_blockLevel = Level::Unknown;
   Log::_showLevel = Level::Unknown;
 
@@ -88,7 +92,8 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   auto solver = std::make_shared<least_squares::GaussNewton>(
     get_parameter("solver.min_step_size").as_double(),
     get_parameter("solver.max_iterations").as_int());
-  _map = std::make_shared<Map>();
+  _map = std::make_shared<Map>(
+    get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
   _odometry = std::make_shared<OdometryRgbd>(
     get_parameter("features.min_gradient").as_int(), solver, loss, _map);
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
@@ -98,7 +103,8 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
       get_parameter("keyframe_selection.idx.period").as_int());
   } else if (get_parameter("keyframe_selection.method").as_string() == "custom") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
-      _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int());
+      _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int(),
+      get_parameter("keyframe_selection.custom.max_translation").as_double());
   } else {
     throw pd::Exception("Unknown method for key frame selection.");
   }
@@ -106,11 +112,13 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
 
   _matcher = std::make_shared<MatcherBruteForce>(
     [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-      const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
-      //const double r = MatcherBruteForce::reprojectionError(ftRef, ftCur);
-      return d;
+      if (MatcherBruteForce::reprojectionError(ftRef, ftCur) > 20) {
+        return std::numeric_limits<double>::max();
+      } else {
+        return MatcherBruteForce::descriptorL1(ftRef, ftCur);  //TODO replace this with Hamming
+      }
     },
-    1000);
+    3000);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
