@@ -28,7 +28,7 @@ public:
   typedef std::shared_ptr<const Map> ConstShPtr;
   typedef std::unique_ptr<const Map> ConstUnPtr;
 
-  Map();
+  Map(size_t nKeyFrames = 7, size_t nFrames = 7);
 
   virtual void insert(Frame::ShPtr frame, bool isKeyFrame);
   virtual void insert(Point3D::ShPtr point);

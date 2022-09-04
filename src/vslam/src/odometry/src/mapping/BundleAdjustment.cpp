@@ -82,10 +82,11 @@ BundleAdjustment::Results::ConstUnPtr BundleAdjustment::optimize(
       results->positions[pointId] = ft->point()->position();
       problem.AddResidualBlock(
         ReprojectionErrorManifold::Create(ft->position(), f->camera()->K()),
-        nullptr /* squared loss */, results->poses[f->id()].pose().data(),
+        new ceres::HuberLoss(1.0), results->poses[f->id()].pose().data(),
         results->positions[pointId].data());
     }
   }
+  problem.SetParameterBlockConstant(results->poses[frames.at(0)->id()].pose().data());
   ceres::Problem::EvaluateOptions evalOptions;
   problem.Evaluate(evalOptions, &results->errorBefore, nullptr, nullptr, nullptr);
 
