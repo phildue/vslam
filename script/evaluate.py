@@ -9,9 +9,10 @@ script_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(script_dir)
 parser = argparse.ArgumentParser(description='''
 Run evaluation of algorithm''')
-parser.add_argument('experiment_name', help='Name for the experiment')
-parser.add_argument('sequence_id', help='Id of the sequence to run on)',
-                    default='rgbd_dataset_freiburg1_desk2')
+parser.add_argument('--experiment_name', help='Name for the experiment',
+                    default="test")
+parser.add_argument('--sequence_id', help='Id of the sequence to run on)',
+                    default='rgbd_dataset_freiburg2_desk')
 parser.add_argument('--sequence_root',
                     help='Root folder for sequences',
                     default='/mnt/dataset/tum_rgbd')
@@ -41,7 +42,7 @@ ate_txt = os.path.join(output_dir, 'ate.txt')
 gt_traj = os.path.join(args.sequence_root, args.sequence_id, args.sequence_id + "-groundtruth.txt")
 if not os.path.exists(output_dir):
     if not args.run_algo:
-        raise ValueError("There is no algorithm output for: {args.experiment_name}. \
+        raise ValueError(f"There is no algorithm output for: {args.experiment_name}. \
             Create it by setting --run_algo")
     os.makedirs(output_dir)
 
