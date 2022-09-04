@@ -180,4 +180,6 @@
     "ros.distro": "galactic",
 "editor.defaultFormatter": "xaver.clang-format",
 "editor.detectIndentation": false,
+"python.linting.flake8Enabled": true,
+"python.linting.enabled": true,
 }

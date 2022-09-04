@@ -77,7 +77,7 @@
       "name": "(gdb) Launch Test",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/odometry/trackingTest",
+      "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/${input:module}/${input:test}",
       "args": [],
       //"preLaunchTask": "build",
       "stopAtEntry": false,
@@ -143,6 +143,24 @@
           "rgbdAlignmentComp",
           "rgbdAlignment"
 
+        ]
+      },
+      {
+        "id": "module",
+        "type": "pickString",
+        "description": "vslam module",
+        "default": "odometry",
+        "options":[
+          "odometry",
+        ]
+      }
+      {
+        "id": "test",
+        "type": "pickString",
+        "description": "vslam unit test",
+        "options":[
+          "trackingTest",
+          "trajectoryTest"
         ]
       }
   ]
