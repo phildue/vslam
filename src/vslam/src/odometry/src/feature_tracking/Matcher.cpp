@@ -55,6 +55,10 @@ std::vector<Matcher::Match> MatcherBruteForce::match(
     if (
       distances[0].distance < _maxDistance &&
       distances[0].distance < _minDistanceRatio * distances[1].distance) {
+      LOG_TRACKING(DEBUG) << "Found match between [" << distances[0].idxRef << "] and ["
+                          << distances[0].idxCur << "] with distance [" << distances[0].distance
+                          << "] and distance ratio ["
+                          << distances[0].distance / distances[1].distance << "]";
       matches.push_back(distances[0]);
     }
   }
@@ -71,8 +75,8 @@ double Matcher::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr
   const Vec3d l = F * xRef;
   const double xFx = std::abs(xCur.transpose() * (l / std::sqrt(l.x() * l.x() + l.y() * l.y())));
 
-  LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") xFx = " << xFx
-                     << " F = " << F;
+  //LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") xFx = " << xFx
+  //                   << " F = " << F;
 
   return xFx;
 }
@@ -98,6 +102,8 @@ double Matcher::reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstS
 double Matcher::descriptorL1(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
 {
   const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+  //LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") descriptorL1: " << d;
+
   return d;
 }
 

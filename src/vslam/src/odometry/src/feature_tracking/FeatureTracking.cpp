@@ -36,22 +36,37 @@ namespace pd::vslam
 class FeaturePlot : public vis::Drawable
 {
 public:
-  FeaturePlot(Frame::ConstShPtr frame) : _frame(frame) {}
+  FeaturePlot(Frame::ConstShPtr frame, double cellSize) : _frame(frame), _gridCellSize(cellSize) {}
   cv::Mat draw() const
   {
     cv::Mat mat;
     cv::eigen2cv(_frame->intensity(), mat);
     cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
+
+    for (size_t r = 0; r < _frame->height(0); r += _gridCellSize) {
+      cv::line(mat, cv::Point(0, r), cv::Point(_frame->width(0), r), cv::Scalar(128, 128, 128));
+    }
+    for (size_t c = 0; c < _frame->width(0); c += _gridCellSize) {
+      cv::line(mat, cv::Point(c, 0), cv::Point(c, _frame->height(0)), cv::Scalar(128, 128, 128));
+    }
     for (auto ft : _frame->features()) {
       cv::Point center(ft->position().x(), ft->position().y());
-      double radius = 7;
+      const double radius = 5;
       if (ft->point()) {
+        std::stringstream ss;
+        ss << ft->point()->id();
+        cv::putText(
+          mat, ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
+
         cv::circle(mat, center, radius, cv::Scalar(255, 0, 0), 2);
       } else {
+        std::stringstream ss;
+        ss << ft->id();
+        cv::putText(
+          mat, ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
+
         cv::rectangle(
-          mat,
-          cv::Rect(
-            center - cv::Point(radius / 2, radius / 2), center + cv::Point(radius / 2, radius / 2)),
+          mat, cv::Rect(center - cv::Point(radius, radius), center + cv::Point(radius, radius)),
           cv::Scalar(0, 0, 255), 2);
       }
     }
@@ -60,6 +75,7 @@ public:
 
 private:
   const Frame::ConstShPtr _frame;
+  const double _gridCellSize;
 };
 
 std::vector<cv::KeyPoint> gridSubsampling(
@@ -107,7 +123,7 @@ std::vector<Point3D::ShPtr> FeatureTracking::track(
 {
   extractFeatures(frameCur);
   auto points = match(frameCur, selectCandidates(frameCur, framesRef));
-  LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur);
+  LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur, _gridCellSize);
 
   return points;
 }
@@ -171,16 +187,18 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
     auto frameCur = fCur->frame();
     auto z = frameCur->depth()(fCur->position().y(), fCur->position().x());
     if (fCur->point()) {
-      LOG_TRACKING(DEBUG) << fCur->id() << " was already matched. Skipping..";
+      LOG_TRACKING(DEBUG) << "Feature [" << fCur->id() << "] was already matched to Point ["
+                          << fCur->point()->id() << "] Skipping..";
     } else if (fRef->point()) {
       if (!frameCur->observationOf(fRef->point()->id())) {
         fCur->point() = fRef->point();
         fRef->point()->addFeature(fCur);
-        LOG_TRACKING(DEBUG) << "Feature was matched to point: " << fRef->point()->id();
+        LOG_TRACKING(DEBUG) << "Feature [" << fCur->id() << "] was matched to point: ["
+                            << fRef->point()->id() << "]";
 
       } else {
-        LOG_TRACKING(DEBUG) << "Point: " << fRef->point()->id() << " was already matched on "
-                            << frameCur->id() << " with lower distance. Skipping..";
+        LOG_TRACKING(DEBUG) << "Point: [" << fRef->point()->id() << "] was already matched on ["
+                            << frameCur->id() << "] with lower distance. Skipping..";
       }
     } else if (z > 0) {
       std::vector<Feature2D::ShPtr> features = {fRef, fCur};
@@ -188,6 +206,9 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
       fCur->point() = std::make_shared<Point3D>(p3d, features);
       fRef->point() = fCur->point();
       points.push_back(fCur->point());
+      LOG_TRACKING(DEBUG) << "New Point between [" << fRef->id() << "] and [" << fCur->id()
+                          << "]: [" << fCur->point()->id() << "] with distance: [" << m.distance
+                          << "]";
     }
   }
 
@@ -206,7 +227,9 @@ std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
 
   std::set<std::uint64_t> pointIds;
   std::vector<Feature2D::ShPtr> candidates;
-  candidates.reserve(framesRef.size() * framesRef.at(0)->features().size());
+  if (!framesRef.empty()) {
+    candidates.reserve(framesRef.size() * framesRef.at(0)->features().size());
+  }
   for (auto & f : framesSorted) {
     if (f->id() == frameCur->id()) {
       continue;

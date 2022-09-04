@@ -91,7 +91,7 @@ TEST(TrackingTest, Match)
   EXPECT_EQ(matches.size(), f0->features().size());
 }
 
-TEST(TrackingTest, TrackAndOptimize)
+TEST(TrackingTest, DISABLED_TrackAndOptimize)
 {
   DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
@@ -165,4 +165,109 @@ TEST(TrackingTest, TrackAndOptimize)
     //cv::imshow("Frame1", mat1);
     //cv::waitKey(0);
   }
+}
+
+class PlotCorrespondences : public vis::Drawable
+{
+public:
+  PlotCorrespondences(const std::vector<Frame::ConstShPtr> & frames) : _frames(frames) {}
+
+  cv::Mat draw() const override
+  {
+    std::vector<cv::Mat> mats;
+    for (const auto f : _frames) {
+      cv::Mat mat;
+      cv::eigen2cv(f->intensity(), mat);
+      cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
+      mats.push_back(mat);
+    }
+
+    std::set<uint64_t> points;
+    for (size_t i = 0U; i < _frames.size(); i++) {
+      for (auto ftRef : _frames[i]->featuresWithPoints()) {
+        auto p = ftRef->point();
+        if (points.find(p->id()) != points.end()) {
+          continue;
+        }
+        points.insert(p->id());
+        cv::Scalar color(
+          (double)std::rand() / RAND_MAX * 255, (double)std::rand() / RAND_MAX * 255,
+          (double)std::rand() / RAND_MAX * 255);
+        for (size_t j = 0U; j < _frames.size(); j++) {
+          auto ft = _frames[j]->observationOf(p->id());
+          if (ft) {
+            cv::Point center(ft->position().x(), ft->position().y());
+            const double radius = 5;
+            cv::circle(mats[j], center, radius, color, 2);
+            std::stringstream ss;
+            ss << ft->point()->id();
+            cv::putText(
+              mats[j], ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255));
+          }
+        }
+      }
+    }
+    cv::Mat mat;
+    cv::hconcat(mats, mat);
+    return mat;
+  }
+
+private:
+  std::vector<Frame::ConstShPtr> _frames;
+};
+
+TEST(TrackingTest, TrackThreeFrames)
+{
+  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
+
+  auto f0 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868164.363181.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868164.338541.png") / 5000.0, cam, 1311868164363181000U);
+
+  auto f1 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868165.499179.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868165.409979.png") / 5000.0, cam, 1311868165499179000U);
+
+  auto f2 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868166.763333.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868166.715787.png") / 5000.0, cam, 1311868166763333000U);
+
+  auto trajectoryGt =
+    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
+  f0->set(trajectoryGt->poseAt(f0->t())->inverse());
+  f1->set(trajectoryGt->poseAt(f1->t())->inverse());
+  f2->set(trajectoryGt->poseAt(f2->t())->inverse());
+  auto tracking = std::make_shared<FeatureTracking>(std::make_shared<MatcherBruteForce>(
+    [](auto ft1, auto ft2) {
+      if (MatcherBruteForce::reprojectionError(ft1, ft2) > 20) {
+        return std::numeric_limits<double>::max();
+      } else {
+        return MatcherBruteForce::descriptorL1(ft1, ft2);
+      }
+    },
+    2000));
+  LOG_IMG("Tracking")->show() = TEST_VISUALIZE;
+  LOG_IMG("Tracking")->block() = TEST_VISUALIZE;
+
+  auto points0 = tracking->track(f0, {});
+  EXPECT_TRUE(points0.empty());
+
+  auto points1 = tracking->track(f1, {f0});
+  for (auto p : points1) {
+    EXPECT_NE(f0->observationOf(p->id()), nullptr);
+    EXPECT_NE(f1->observationOf(p->id()), nullptr);
+  }
+  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
+    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
+
+  auto points2 = tracking->track(f2, {f0, f1});
+  size_t nCommonPoints = 0U;
+  for (auto p : points1) {
+    if (f2->observationOf(p->id())) {
+      nCommonPoints++;
+    }
+  }
+  EXPECT_GE(nCommonPoints, 15);
+  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
+    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
 }
