@@ -9,7 +9,9 @@ set( sources
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
   src/direct_image_alignment/SE3Alignment.cpp
   src/direct_image_alignment/RgbdAlignmentOpenCv.cpp
+  src/feature_tracking/FeaturePlot.cpp
   src/feature_tracking/FeatureTracking.cpp
+  src/feature_tracking/FeatureTrackingOcv.cpp
   src/feature_tracking/Matcher.cpp
   src/mapping/BundleAdjustment.cpp
   src/mapping/Map.cpp )
@@ -22,7 +24,9 @@ set( headers
   src/iterative_closest_point/IterativeClosestPointOcv.h
   src/direct_image_alignment/SE3Alignment.h
   src/direct_image_alignment/RgbdAlignmentOpenCv.h
+  src/feature_tracking/FeaturePlot.h
   src/feature_tracking/FeatureTracking.h
+  src/feature_tracking/FeatureTrackingOcv.h
   src/feature_tracking/Matcher.h
   src/mapping/BundleAdjustment.h
   src/mapping/Map.h
