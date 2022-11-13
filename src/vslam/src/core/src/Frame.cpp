@@ -80,13 +80,20 @@ const MatXd & Frame::dIy(size_t level) const
   return _dIy[level];
 }
 
-void Frame::addFeature(Feature2D::ShPtr ft) { _features.push_back(ft); }
+void Frame::addFeature(Feature2D::ShPtr ft)
+{
+  if (ft->frame() && ft->frame()->id() != _id) {
+    throw pd::Exception(
+      "Feature is alread associated with frame [" + std::to_string(ft->frame()->id()) + "]");
+  }
+  _features.push_back(ft);
+}
 
 void Frame::addFeatures(const std::vector<Feature2D::ShPtr> & features)
 {
   _features.reserve(_features.size() + features.size());
   for (const auto & ft : features) {
-    _features.push_back(ft);
+    addFeature(ft);
   }
 }
 std::vector<Feature2D::ConstShPtr> Frame::features() const

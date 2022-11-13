@@ -30,6 +30,16 @@ void forEachPixel(const Eigen::Matrix<Derived, -1, -1> & image, Operation op)
     }
   }
 }
+template <typename Derived, typename Operation>
+void forEach(const Eigen::Matrix<Derived, -1, -1> & mat, Operation op)
+{
+  //give option to parallelize?
+  for (int v = 0; v < mat.rows(); v++) {
+    for (int u = 0; u < mat.cols(); u++) {
+      op(u, v, mat(v, u));
+    }
+  }
+}
 }  // namespace pd::vslam
 
 #endif
