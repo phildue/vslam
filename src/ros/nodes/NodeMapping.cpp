@@ -110,15 +110,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   }
   _ba = std::make_shared<mapping::BundleAdjustment>();
 
-  _matcher = std::make_shared<MatcherBruteForce>(
-    [&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-      if (MatcherBruteForce::reprojectionError(ftRef, ftCur) > 20) {
-        return std::numeric_limits<double>::max();
-      } else {
-        return MatcherBruteForce::descriptorL1(ftRef, ftCur);  //TODO replace this with Hamming
-      }
-    },
-    3000);
+  _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
@@ -167,17 +159,22 @@ void NodeMapping::processFrame(
 
     _keyFrameSelection->update(frame);
 
-    _map->insert(frame, _keyFrameSelection->isKeyFrame());
-
     if (_keyFrameSelection->isKeyFrame()) {
       _map->removeUnobservedPoints();
-      auto points = _tracking->track(frame, _map->keyFrames());
 
-      _map->insert(points);
+      if (_map->keyFrames().empty()) {
+        frame->addFeatures(_tracking->extractFeatures(frame, true));
+        _map->insert(frame, _keyFrameSelection->isKeyFrame());
+      } else {
+        auto points = _tracking->track(frame, _map->keyFrames());
 
-      auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
-      _map->updatePoses(outBa->poses);
-      _map->updatePoints(outBa->positions);
+        _map->insert(points);
+        _map->insert(frame, _keyFrameSelection->isKeyFrame());
+
+        auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
+        _map->updatePoses(outBa->poses);
+        _map->updatePoints(outBa->positions);
+      }
     }
 
     publish(msgImg);

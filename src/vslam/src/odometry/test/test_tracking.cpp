@@ -48,7 +48,7 @@ TEST(TrackingTest, SelectVisible)
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
 }
 
-TEST(TrackingTest, DISABLED_GridSubsampling)
+TEST(TrackingTest, GridSubsampling)
 {
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
   DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
@@ -75,7 +75,7 @@ TEST(TrackingTest, DISABLED_GridSubsampling)
   LOG_IMG("AfterGridSubsampling") << std::make_shared<FeaturePlot>(Frame::ConstShPtr(f0), 30);
 }
 
-TEST(TrackingTest, DISABLED_FeatureConversion)
+TEST(TrackingTest, FeatureConversion)
 {
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
   DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
@@ -156,7 +156,7 @@ private:
   const int _idx;
 };
 
-TEST(TrackingTest, DISABLED_MatcherWithCombinedError)
+TEST(TrackingTest, MatcherWithCombinedError)
 {
   const size_t nFeatures = 5;
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
