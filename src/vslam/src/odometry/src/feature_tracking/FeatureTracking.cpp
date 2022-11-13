@@ -69,7 +69,8 @@ std::vector<cv::KeyPoint> FeatureTracking::gridSubsampling(
 }
 
 std::vector<Feature2D::ShPtr> FeatureTracking::gridSubsampling(
-  const std::vector<Feature2D::ShPtr> & features, Frame::ConstShPtr frame, double cellSize)
+  const std::vector<Feature2D::ShPtr> & features, Frame::ConstShPtr frame, double cellSize,
+  const Eigen::MatrixXi & mask)
 {
   const size_t nRows =
     static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(cellSize));
@@ -78,18 +79,18 @@ std::vector<Feature2D::ShPtr> FeatureTracking::gridSubsampling(
 
   /* Create grid for subsampling where each cell contains index of keypoint with the highest response
   *  or the total amount of keypoints if empty */
-  std::vector<size_t> grid(nRows * nCols, features.size());
+  auto grid = std::vector<size_t>(nRows * nCols, features.size());
   for (size_t idx = 0U; idx < features.size(); idx++) {
     const auto & ft = features[idx];
     const size_t r =
       static_cast<size_t>(static_cast<float>(ft->position().y()) / static_cast<float>(cellSize));
     const size_t c =
       static_cast<size_t>(static_cast<float>(ft->position().x()) / static_cast<float>(cellSize));
-    if (
+    if (mask.size() > 0 && mask(r, c) <= 0) {
+      continue;
+    } else if (
       grid[r * nCols + c] >= features.size() ||
-      (ft->point() && !features[grid[r * nCols + c]]->point()) ||
-      (ft->response() > features[grid[r * nCols + c]]->response() &&
-       !features[grid[r * nCols + c]]->point())) {
+      (ft->response() > features[grid[r * nCols + c]]->response())) {
       grid[r * nCols + c] = idx;
     }
   }
@@ -113,14 +114,32 @@ FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher
 std::vector<Point3D::ShPtr> FeatureTracking::track(
   Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {
-  extractFeatures(frameCur, framesRef.empty());
-  auto points = match(frameCur, selectCandidates(frameCur, framesRef));
+  if (framesRef.empty()) {
+    throw pd::Exception("No reference frames given for tracking.");
+  }
+  auto featuresCur = extractFeatures(frameCur, false);
+  auto featuresRef = selectCandidates(frameCur, framesRef);
+  auto points = match(featuresRef, featuresCur);
+
+  Feature2D::VecShPtr unmatchedFeatures;
+  MatXi mask = MatXi::Ones(frameCur->height(0) / _gridCellSize, frameCur->width(0) / _gridCellSize);
+  for (const auto & ft : featuresCur) {
+    if (ft->point()) {
+      mask(ft->position().y() / _gridCellSize, ft->position().x() / _gridCellSize) = 0;
+      frameCur->addFeature(ft);
+    } else {
+      unmatchedFeatures.push_back(ft);
+    }
+  }
+  frameCur->addFeatures(
+    gridSubsampling(unmatchedFeatures, Frame::ConstShPtr(frameCur), _gridCellSize, mask));
   LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur, _gridCellSize);
 
   return points;
 }
 
-void FeatureTracking::extractFeatures(Frame::ShPtr frame, bool applyGrid, size_t nMax) const
+Feature2D::VecShPtr FeatureTracking::extractFeatures(
+  Frame::ShPtr frame, bool applyGrid, size_t nMax) const
 {
   cv::Mat image;
   cv::eigen2cv(frame->intensity(), image);
@@ -159,9 +178,8 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame, bool applyGrid, size_t
   std::sort(features.begin(), features.end(), [&](auto ft0, auto ft1) {
     return ft0->response() < ft1->response();
   });
-  features = std::vector<Feature2D::ShPtr>(
+  return std::vector<Feature2D::ShPtr>(
     features.begin(), features.begin() + std::min(features.size(), nMax));
-  frame->addFeatures(features);
 }
 
 std::vector<Point3D::ShPtr> FeatureTracking::match(
@@ -174,11 +192,17 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
   const std::vector<Feature2D::ShPtr> & featuresRef,
   const std::vector<Feature2D::ShPtr> & featuresCur) const
 {
+  if (featuresRef.empty()) {
+    LOG_TRACKING(WARNING) << "No reference features given for matching.";
+    return std::vector<Point3D::ShPtr>();
+  }
+  if (featuresCur.empty()) {
+    LOG_TRACKING(WARNING) << "No target features given for matching.";
+    return std::vector<Point3D::ShPtr>();
+  }
   const std::vector<Matcher::Match> matches = _matcher->match(
     std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()),
     std::vector<Feature2D::ConstShPtr>(featuresCur.begin(), featuresCur.end()));
-
-  LOG_TRACKING(DEBUG) << "#Matches: " << matches.size();
 
   std::vector<Point3D::ShPtr> points;
   points.reserve(matches.size());

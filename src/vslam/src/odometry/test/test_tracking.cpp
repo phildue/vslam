@@ -41,8 +41,8 @@ TEST(TrackingTest, SelectVisible)
   std::vector<Frame::ShPtr> frames;
   frames.push_back(f0);
   auto tracking = std::make_shared<FeatureTracking>();
-  tracking->extractFeatures(f0);
-  tracking->extractFeatures(f1);
+  f0->addFeatures(tracking->extractFeatures(f0));
+  f1->addFeatures(tracking->extractFeatures(f1));
 
   auto featuresCandidate = tracking->selectCandidates(f1, frames);
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
@@ -156,7 +156,7 @@ private:
   const int _idx;
 };
 
-TEST(TrackingTest, MatcherWithCombinedError)
+TEST(TrackingTest, DISABLED_MatcherWithCombinedError)
 {
   const size_t nFeatures = 5;
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
@@ -175,8 +175,8 @@ TEST(TrackingTest, MatcherWithCombinedError)
   f1->set(trajectoryGt->poseAt(f1->t())->inverse());
 
   auto tracking = std::make_shared<FeatureTracking>();
-  tracking->extractFeatures(f0, true);
-  tracking->extractFeatures(f1);
+  f0->addFeatures(tracking->extractFeatures(f0, true));
+  f1->addFeatures(tracking->extractFeatures(f1));
 
   MatXd reprojectionError = vslam::Matcher::computeDistanceMat(
     Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features(),
@@ -233,47 +233,101 @@ TEST(TrackingTest, MatcherWithCombinedError)
   EXPECT_EQ(matches.size(), 3);
 }
 
-TEST(TrackingTest, DISABLED_Match)
+class PlotCorrespondences : public vis::Drawable
 {
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
+public:
+  PlotCorrespondences(const std::vector<Frame::ConstShPtr> & frames) : _frames(frames) {}
 
+  cv::Mat draw() const override
+  {
+    std::vector<cv::Mat> mats;
+    for (const auto f : _frames) {
+      cv::Mat mat;
+      cv::eigen2cv(f->intensity(), mat);
+      cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
+      mats.push_back(mat);
+    }
+
+    std::set<uint64_t> points;
+    for (size_t i = 0U; i < _frames.size(); i++) {
+      for (auto ftRef : _frames[i]->featuresWithPoints()) {
+        auto p = ftRef->point();
+        if (points.find(p->id()) != points.end()) {
+          continue;
+        }
+        points.insert(p->id());
+        cv::Scalar color(
+          (double)std::rand() / RAND_MAX * 255, (double)std::rand() / RAND_MAX * 255,
+          (double)std::rand() / RAND_MAX * 255);
+        for (size_t j = 0U; j < _frames.size(); j++) {
+          auto ft = _frames[j]->observationOf(p->id());
+          if (ft) {
+            cv::Point center(ft->position().x(), ft->position().y());
+            const double radius = 5;
+            cv::circle(mats[j], center, radius, color, 2);
+            std::stringstream ss;
+            ss << ft->point()->id();
+            cv::putText(
+              mats[j], ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255));
+          }
+        }
+      }
+    }
+    cv::Mat mat;
+    cv::hconcat(mats, mat);
+    return mat;
+  }
+
+private:
+  std::vector<Frame::ConstShPtr> _frames;
+};
+
+TEST(TrackingTest, TrackThreeFrames)
+{
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
-  auto f1 = std::make_shared<Frame>(img, depth, cam, 1);
-  f0->computePcl();
-  f1->computePcl();
-  std::vector<Frame::ShPtr> frames;
-  frames.push_back(f0);
-  auto tracking = std::make_shared<FeatureTracking>();
-  tracking->extractFeatures(f0);
-  tracking->extractFeatures(f1);
 
-  auto pose = f1->pose().pose();
-  pose.translation().x() += 0.01;
-  pose.translation().y() -= 0.01;
-  f1->set(PoseWithCovariance(pose, f1->pose().cov()));
+  auto f0 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868164.363181.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868164.338541.png") / 5000.0, cam, 1311868164363181000U);
 
-  const MatXd F = algorithm::computeF(f1->camera()->K(), f1->pose().pose(), f0->camera()->K());
+  auto f1 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868165.499179.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868165.409979.png") / 5000.0, cam, 1311868165499179000U);
 
-  vslam::Matcher matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
-    const Vec3d xCur = Vec3d(ftRef->position().x(), ftRef->position().y(), 1).transpose();
-    const Vec3d xRef = Vec3d(ftCur->position().x(), ftCur->position().y(), 1);
-    const Vec3d l = F * xRef;
-    const double xFx = std::abs(xCur.transpose() * (l / std::sqrt(l.x() * l.x() + l.y() * l.y())));
+  auto f2 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868166.763333.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868166.715787.png") / 5000.0, cam, 1311868166763333000U);
 
-    const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+  auto trajectoryGt =
+    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
+  f0->set(trajectoryGt->poseAt(f0->t())->inverse());
+  f1->set(trajectoryGt->poseAt(f1->t())->inverse());
+  f2->set(trajectoryGt->poseAt(f2->t())->inverse());
+  auto tracking = std::make_shared<FeatureTracking>(
+    std::make_shared<vslam::Matcher>(vslam::Matcher::reprojectionHamming, 10, 0.8));
+  LOG_IMG("Tracking")->set(TEST_VISUALIZE, TEST_VISUALIZE);
 
-    // LOG(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") xFx = " << xFx
-    //           << " d = " << d;
+  f0->addFeatures(tracking->extractFeatures(f0, true));
 
-    // TODO(phil): whats a good way to way of compute trade off? Compute mean + std offline and normalize..
-    return d + xFx;
-  });
-  std::vector<vslam::Matcher::Match> matches =
-    matcher.match(Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features());
+  auto points1 = tracking->track(f1, {f0});
+  for (auto p : points1) {
+    EXPECT_NE(f0->observationOf(p->id()), nullptr);
+    EXPECT_NE(f1->observationOf(p->id()), nullptr);
+  }
+  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
+    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
 
-  EXPECT_EQ(matches.size(), f0->features().size());
+  auto points2 = tracking->track(f2, {f0, f1});
+  size_t nCommonPoints = 0U;
+  for (auto p : points1) {
+    if (f2->observationOf(p->id())) {
+      nCommonPoints++;
+    }
+  }
+  LOG(INFO) << "#Common Points across three frames: " << nCommonPoints;
+  EXPECT_GE(nCommonPoints, 20);
+  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
+    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
 }
 
 TEST(TrackingTest, DISABLED_TrackAndOptimize)
@@ -288,8 +342,8 @@ TEST(TrackingTest, DISABLED_TrackAndOptimize)
   f1->computePcl();
 
   auto tracking = std::make_shared<FeatureTracking>();
-  tracking->extractFeatures(f0);
-  tracking->extractFeatures(f1);
+  f0->addFeatures(tracking->extractFeatures(f0));
+  f1->addFeatures(tracking->extractFeatures(f1));
 
   auto pose = f1->pose().pose();
   pose.translation().x() += 0.1;
@@ -350,112 +404,4 @@ TEST(TrackingTest, DISABLED_TrackAndOptimize)
     //cv::imshow("Frame1", mat1);
     //cv::waitKey(0);
   }
-}
-
-class PlotCorrespondences : public vis::Drawable
-{
-public:
-  PlotCorrespondences(const std::vector<Frame::ConstShPtr> & frames) : _frames(frames) {}
-
-  cv::Mat draw() const override
-  {
-    std::vector<cv::Mat> mats;
-    for (const auto f : _frames) {
-      cv::Mat mat;
-      cv::eigen2cv(f->intensity(), mat);
-      cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
-      mats.push_back(mat);
-    }
-
-    std::set<uint64_t> points;
-    for (size_t i = 0U; i < _frames.size(); i++) {
-      for (auto ftRef : _frames[i]->featuresWithPoints()) {
-        auto p = ftRef->point();
-        if (points.find(p->id()) != points.end()) {
-          continue;
-        }
-        points.insert(p->id());
-        cv::Scalar color(
-          (double)std::rand() / RAND_MAX * 255, (double)std::rand() / RAND_MAX * 255,
-          (double)std::rand() / RAND_MAX * 255);
-        for (size_t j = 0U; j < _frames.size(); j++) {
-          auto ft = _frames[j]->observationOf(p->id());
-          if (ft) {
-            cv::Point center(ft->position().x(), ft->position().y());
-            const double radius = 5;
-            cv::circle(mats[j], center, radius, color, 2);
-            std::stringstream ss;
-            ss << ft->point()->id();
-            cv::putText(
-              mats[j], ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 255, 255));
-          }
-        }
-      }
-    }
-    cv::Mat mat;
-    cv::hconcat(mats, mat);
-    return mat;
-  }
-
-private:
-  std::vector<Frame::ConstShPtr> _frames;
-};
-
-TEST(TrackingTest, DISABLED_TrackThreeFrames)
-{
-  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-
-  auto f0 = std::make_shared<Frame>(
-    utils::loadImage(TEST_RESOURCE "/1311868164.363181.png"),
-    utils::loadDepth(TEST_RESOURCE "/1311868164.338541.png") / 5000.0, cam, 1311868164363181000U);
-
-  auto f1 = std::make_shared<Frame>(
-    utils::loadImage(TEST_RESOURCE "/1311868165.499179.png"),
-    utils::loadDepth(TEST_RESOURCE "/1311868165.409979.png") / 5000.0, cam, 1311868165499179000U);
-
-  auto f2 = std::make_shared<Frame>(
-    utils::loadImage(TEST_RESOURCE "/1311868166.763333.png"),
-    utils::loadDepth(TEST_RESOURCE "/1311868166.715787.png") / 5000.0, cam, 1311868166763333000U);
-
-  auto trajectoryGt =
-    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
-  f0->set(trajectoryGt->poseAt(f0->t())->inverse());
-  f1->set(trajectoryGt->poseAt(f1->t())->inverse());
-  f2->set(trajectoryGt->poseAt(f2->t())->inverse());
-  /* auto tracking = std::make_shared<FeatureTracking>(std::make_shared<MatcherBruteForce>(
-    [](auto ft1, auto ft2) {
-      // if (MatcherBruteForce::reprojectionError(ft1, ft2) > 20) {
-      //   return std::numeric_limits<double>::max();
-      // } else {
-      return MatcherBruteForce::descriptorL1(ft1, ft2);
-      // }
-    },
-    2000, 0.75));*/
-  //auto tracking = std::make_shared<FeatureTracking>(
-  //  std::make_shared<MatcherOcv>(0.8, 15, CV_32F, "BruteForce-L1"));
-  auto tracking = std::make_shared<FeatureTrackingOcv>();
-  LOG_IMG("Tracking")->show() = TEST_VISUALIZE;
-  LOG_IMG("Tracking")->block() = TEST_VISUALIZE;
-
-  auto points0 = tracking->track(f0, {});
-  EXPECT_TRUE(points0.empty());
-
-  auto points1 = tracking->track(f1, {f0});
-  for (auto p : points1) {
-    EXPECT_NE(f0->observationOf(p->id()), nullptr);
-    EXPECT_NE(f1->observationOf(p->id()), nullptr);
-  }
-  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
-    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
-
-  auto points2 = tracking->track(f2, {f0, f1});
-  size_t nCommonPoints = 0U;
-  for (auto p : points1) {
-    if (f2->observationOf(p->id())) {
-      nCommonPoints++;
-    }
-  }
-  EXPECT_GE(nCommonPoints, 15);
-  LOG_IMG("Tracking") << std::make_shared<PlotCorrespondences>(
-    std::vector<Frame::ConstShPtr>({f0, f1, f2}));
 }

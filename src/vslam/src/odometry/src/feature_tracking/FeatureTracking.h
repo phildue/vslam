@@ -30,12 +30,14 @@ public:
   typedef std::shared_ptr<const FeatureTracking> ConstShPtr;
   typedef std::unique_ptr<const FeatureTracking> ConstUnPtr;
 
-  FeatureTracking(Matcher::ConstShPtr matcher = std::make_shared<Matcher>());
+  FeatureTracking(
+    Matcher::ConstShPtr matcher =
+      std::make_shared<Matcher>(Matcher::reprojectionHamming, 4.0, 0.8));
 
   virtual std::vector<Point3D::ShPtr> track(
     Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const;
 
-  void extractFeatures(
+  Feature2D::VecShPtr extractFeatures(
     Frame::ShPtr frame, bool applyGrid = false,
     size_t nMax = std::numeric_limits<size_t>::max()) const;
 
@@ -53,7 +55,8 @@ public:
     const std::vector<cv::KeyPoint> & keypoints, Frame::ConstShPtr frame, double cellSize);
 
   static std::vector<Feature2D::ShPtr> gridSubsampling(
-    const std::vector<Feature2D::ShPtr> & features, Frame::ConstShPtr frame, double cellSize);
+    const std::vector<Feature2D::ShPtr> & features, Frame::ConstShPtr frame, double cellSize,
+    const Eigen::MatrixXi & mask = {});
 
   static std::vector<Feature2D::ShPtr> createFeatures(
     const std::vector<cv::KeyPoint> & keypoints, Frame::ShPtr frame = nullptr);

@@ -50,11 +50,18 @@ std::vector<std::vector<Matcher::Match>> Matcher::knn(
   const std::vector<Feature2D::ConstShPtr> & featuresRef,
   const std::vector<Feature2D::ConstShPtr> & featuresTarget, int k) const
 {
+  LOG_TRACKING(DEBUG) << "Computing distance of: [" << featuresRef.size()
+                      << "] reference features against [" << featuresTarget.size()
+                      << "] target features.";
+
   const MatXd distanceMat = _computeDistanceMat(featuresRef, featuresTarget);
   std::vector<std::vector<Matcher::Match>> neighbors(
     featuresRef.size(), std::vector<Matcher::Match>(k));
 
+  LOG_TRACKING(DEBUG) << "Computed distance mat: " << distanceMat.rows() << "x"
+                      << distanceMat.cols();
   for (size_t i = 0U; i < featuresRef.size(); ++i) {
+    LOG_TRACKING(DEBUG) << i;
     std::vector<Match> candidates(featuresTarget.size());
     for (size_t j = 0U; j < featuresTarget.size(); ++j) {
       candidates[j] = {i, j, distanceMat(i, j)};
@@ -74,10 +81,12 @@ std::vector<Matcher::Match> Matcher::match(
   const std::vector<Feature2D::ConstShPtr> & featuresRef,
   const std::vector<Feature2D::ConstShPtr> & featuresTarget) const
 {
+  LOG_TRACKING(DEBUG) << "Matching: [" << featuresRef.size() << "] reference features against ["
+                      << featuresTarget.size() << "] target features.";
   auto candidates = knn(featuresRef, featuresTarget, 2);
   std::vector<Match> matches;
   matches.reserve(featuresRef.size());
-  for (size_t i = 0U; i < featuresRef.size(); ++i) {
+  for (size_t i = 0U; i < featuresRef.size(); i++) {
     if (
       candidates[i][0].distance < _maxDistance &&
       candidates[i][0].distance < _minDistanceRatio * candidates[i][1].distance) {
@@ -94,6 +103,8 @@ std::vector<Matcher::Match> Matcher::match(
   }
   std::sort(
     matches.begin(), matches.end(), [](auto m0, auto m1) { return m0.distance < m1.distance; });
+  LOG_TRACKING(DEBUG) << "#Matches: " << matches.size();
+
   return matches;
 }
 double Matcher::epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
@@ -173,7 +184,9 @@ MatXd Matcher::computeDistanceMat(
 MatXd Matcher::reprojectionHamming(
   const Feature2D::VecConstShPtr & featuresRef, const Feature2D::VecConstShPtr & featuresTarget)
 {
+  LOG_TRACKING(DEBUG) << "Computing reprojection error..";
   MatXd reprojection = computeDistanceMat(featuresRef, featuresTarget, Matcher::reprojectionError);
+  LOG_TRACKING(DEBUG) << "Computing descriptor error..";
   MatXd descriptor = computeDistanceMat(featuresRef, featuresTarget, Matcher::descriptorHamming);
   const VecXd reprojectionMin = reprojection.rowwise().minCoeff();
   const VecXd descriptorMin = descriptor.rowwise().minCoeff();

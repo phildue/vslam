@@ -28,7 +28,6 @@
 #include <set>
 
 #include "FeatureTrackingOcv.h"
-#include "MatcherOcv.h"
 #include "utils/utils.h"
 #define LOG_TRACKING(level) CLOG(level, "tracking")
 
