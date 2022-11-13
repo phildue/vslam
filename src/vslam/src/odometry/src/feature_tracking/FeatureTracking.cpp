@@ -27,58 +27,14 @@
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <set>
 
+#include "FeaturePlot.h"
 #include "FeatureTracking.h"
 #include "utils/utils.h"
 #define LOG_TRACKING(level) CLOG(level, "tracking")
 
 namespace pd::vslam
 {
-class FeaturePlot : public vis::Drawable
-{
-public:
-  FeaturePlot(Frame::ConstShPtr frame, double cellSize) : _frame(frame), _gridCellSize(cellSize) {}
-  cv::Mat draw() const
-  {
-    cv::Mat mat;
-    cv::eigen2cv(_frame->intensity(), mat);
-    cv::cvtColor(mat, mat, cv::COLOR_GRAY2BGR);
-
-    for (size_t r = 0; r < _frame->height(0); r += _gridCellSize) {
-      cv::line(mat, cv::Point(0, r), cv::Point(_frame->width(0), r), cv::Scalar(128, 128, 128));
-    }
-    for (size_t c = 0; c < _frame->width(0); c += _gridCellSize) {
-      cv::line(mat, cv::Point(c, 0), cv::Point(c, _frame->height(0)), cv::Scalar(128, 128, 128));
-    }
-    for (auto ft : _frame->features()) {
-      cv::Point center(ft->position().x(), ft->position().y());
-      const double radius = 5;
-      if (ft->point()) {
-        std::stringstream ss;
-        ss << ft->point()->id();
-        cv::putText(
-          mat, ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
-
-        cv::circle(mat, center, radius, cv::Scalar(255, 0, 0), 2);
-      } else {
-        std::stringstream ss;
-        ss << ft->id();
-        cv::putText(
-          mat, ss.str(), center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
-
-        cv::rectangle(
-          mat, cv::Rect(center - cv::Point(radius, radius), center + cv::Point(radius, radius)),
-          cv::Scalar(0, 0, 255), 2);
-      }
-    }
-    return mat;
-  }
-
-private:
-  const Frame::ConstShPtr _frame;
-  const double _gridCellSize;
-};
-
-std::vector<cv::KeyPoint> gridSubsampling(
+std::vector<cv::KeyPoint> FeatureTracking::gridSubsampling(
   const std::vector<cv::KeyPoint> & keypoints, Frame::ConstShPtr frame, double cellSize)
 {
   const size_t nRows =
@@ -112,6 +68,42 @@ std::vector<cv::KeyPoint> gridSubsampling(
   return kptsGrid;
 }
 
+std::vector<Feature2D::ShPtr> FeatureTracking::gridSubsampling(
+  const std::vector<Feature2D::ShPtr> & features, Frame::ConstShPtr frame, double cellSize)
+{
+  const size_t nRows =
+    static_cast<size_t>(static_cast<float>(frame->height(0)) / static_cast<float>(cellSize));
+  const size_t nCols =
+    static_cast<size_t>(static_cast<float>(frame->width(0)) / static_cast<float>(cellSize));
+
+  /* Create grid for subsampling where each cell contains index of keypoint with the highest response
+  *  or the total amount of keypoints if empty */
+  std::vector<size_t> grid(nRows * nCols, features.size());
+  for (size_t idx = 0U; idx < features.size(); idx++) {
+    const auto & ft = features[idx];
+    const size_t r =
+      static_cast<size_t>(static_cast<float>(ft->position().y()) / static_cast<float>(cellSize));
+    const size_t c =
+      static_cast<size_t>(static_cast<float>(ft->position().x()) / static_cast<float>(cellSize));
+    if (
+      grid[r * nCols + c] >= features.size() ||
+      (ft->point() && !features[grid[r * nCols + c]]->point()) ||
+      (ft->response() > features[grid[r * nCols + c]]->response() &&
+       !features[grid[r * nCols + c]]->point())) {
+      grid[r * nCols + c] = idx;
+    }
+  }
+
+  std::vector<Feature2D::ShPtr> ftsGrid;
+  ftsGrid.reserve(nRows * nCols);
+  std::for_each(grid.begin(), grid.end(), [&](auto idx) {
+    if (idx < features.size()) {
+      ftsGrid.push_back(features[idx]);
+    }
+  });
+  return ftsGrid;
+}
+
 FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher)
 {
   LOG_IMG("Tracking");
@@ -119,16 +111,16 @@ FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher
 }
 
 std::vector<Point3D::ShPtr> FeatureTracking::track(
-  Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef)
+  Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {
-  extractFeatures(frameCur);
+  extractFeatures(frameCur, framesRef.empty());
   auto points = match(frameCur, selectCandidates(frameCur, framesRef));
   LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur, _gridCellSize);
 
   return points;
 }
 
-void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
+void FeatureTracking::extractFeatures(Frame::ShPtr frame, bool applyGrid, size_t nMax) const
 {
   cv::Mat image;
   cv::eigen2cv(frame->intensity(), image);
@@ -139,12 +131,14 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
       mask.at<std::uint8_t>(v, u) = 255U;
     }
   });
-  cv::Ptr<cv::FastFeatureDetector> detector = cv::FastFeatureDetector::create();
+  cv::Ptr<cv::DescriptorExtractor> detector = cv::GFTTDetector::create();
   std::vector<cv::KeyPoint> kpts;
   detector->detect(image, kpts, mask);
   LOG_TRACKING(DEBUG) << "Detected Keypoints: " << kpts.size();
 
-  kpts = gridSubsampling(kpts, frame, _gridCellSize);
+  if (applyGrid) {
+    kpts = gridSubsampling(kpts, frame, _gridCellSize);
+  }
 
   LOG_TRACKING(DEBUG) << "Remaining keypoints after grid: " << kpts.size();
   cv::Ptr<cv::DescriptorExtractor> extractor = cv::ORB::create();
@@ -156,26 +150,33 @@ void FeatureTracking::extractFeatures(Frame::ShPtr frame) const
   features.reserve(desc.rows);
   MatXd descriptor;
   cv::cv2eigen(desc, descriptor);
-  for (int i = 0; i < desc.rows; ++i) {
+  for (int i = 0; i < desc.rows; i++) {
     const auto & kp = kpts[i];
-    frame->addFeature(std::make_shared<Feature2D>(
-      Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response, descriptor.row(i)));
+    features.push_back(std::make_shared<Feature2D>(
+      Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response,
+      Descriptor(descriptor.row(i), DescriptorType::ORB)));
   }
+  std::sort(features.begin(), features.end(), [&](auto ft0, auto ft1) {
+    return ft0->response() < ft1->response();
+  });
+  features = std::vector<Feature2D::ShPtr>(
+    features.begin(), features.begin() + std::min(features.size(), nMax));
+  frame->addFeatures(features);
 }
 
 std::vector<Point3D::ShPtr> FeatureTracking::match(
   Frame::ShPtr frameCur, const std::vector<Feature2D::ShPtr> & featuresRef) const
 {
-  return match(frameCur->features(), featuresRef);
+  return match(featuresRef, frameCur->features());
 }
 
 std::vector<Point3D::ShPtr> FeatureTracking::match(
-  const std::vector<Feature2D::ShPtr> & featuresCur,
-  const std::vector<Feature2D::ShPtr> & featuresRef) const
+  const std::vector<Feature2D::ShPtr> & featuresRef,
+  const std::vector<Feature2D::ShPtr> & featuresCur) const
 {
   const std::vector<Matcher::Match> matches = _matcher->match(
-    std::vector<Feature2D::ConstShPtr>(featuresCur.begin(), featuresCur.end()),
-    std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()));
+    std::vector<Feature2D::ConstShPtr>(featuresRef.begin(), featuresRef.end()),
+    std::vector<Feature2D::ConstShPtr>(featuresCur.begin(), featuresCur.end()));
 
   LOG_TRACKING(DEBUG) << "#Matches: " << matches.size();
 
@@ -187,8 +188,9 @@ std::vector<Point3D::ShPtr> FeatureTracking::match(
     auto frameCur = fCur->frame();
     auto z = frameCur->depth()(fCur->position().y(), fCur->position().x());
     if (fCur->point()) {
-      LOG_TRACKING(DEBUG) << "Feature [" << fCur->id() << "] was already matched to Point ["
-                          << fCur->point()->id() << "] Skipping..";
+      LOG_TRACKING(DEBUG) << "Feature [" << fRef->id() << "] cannot be matched with Feature ["
+                          << fCur->id() << "] because it was already matched to Point ["
+                          << fCur->point()->id() << "]";
     } else if (fRef->point()) {
       if (!frameCur->observationOf(fRef->point()->id())) {
         fCur->point() = fRef->point();
@@ -251,4 +253,53 @@ std::vector<Feature2D::ShPtr> FeatureTracking::selectCandidates(
 
   return candidates;
 }
+std::vector<Feature2D::ShPtr> FeatureTracking::createFeatures(
+  const std::vector<cv::KeyPoint> & keypoints, Frame::ShPtr frame)
+{
+  std::vector<Feature2D::ShPtr> features;
+  features.reserve(keypoints.size());
+  for (const auto & kp : keypoints) {
+    features.push_back(
+      std::make_shared<Feature2D>(Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response));
+  }
+  if (frame) {
+    frame->addFeatures(features);
+  }
+  return features;
+}
+
+std::vector<Feature2D::ShPtr> FeatureTracking::createFeatures(
+  const std::vector<cv::KeyPoint> & keypoints, const cv::Mat & desc,
+  const DescriptorType & descType, Frame::ShPtr frame)
+{
+  std::vector<Feature2D::ShPtr> features;
+  features.reserve(keypoints.size());
+  MatXd descriptor;
+  cv::cv2eigen(desc, descriptor);
+  for (int i = 0; i < desc.rows; i++) {
+    const auto & kp = keypoints[i];
+    features.push_back(std::make_shared<Feature2D>(
+      Vec2d(kp.pt.x, kp.pt.y), frame, kp.octave, kp.response,
+      Descriptor(descriptor.row(i), descType)));
+  }
+  if (frame) {
+    frame->addFeatures(features);
+  }
+  return features;
+}
+
+cv::Mat FeatureTracking::createDescriptorMatrix(
+  const std::vector<Feature2D::ConstShPtr> & features, int dtype)
+{
+  //TODO is this fast enough?
+  MatXd descriptors(features.size(), features[0]->descriptor().rows());
+  for (size_t i = 0U; i < features.size(); i++) {
+    descriptors.row(i) = features[i]->descriptor();
+  }
+  cv::Mat descriptorsOcv;
+  cv::eigen2cv(descriptors, descriptorsOcv);
+  descriptorsOcv.convertTo(descriptorsOcv, dtype);
+  return descriptorsOcv;
+}
+
 }  // namespace pd::vslam

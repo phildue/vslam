@@ -48,7 +48,192 @@ TEST(TrackingTest, SelectVisible)
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
 }
 
-TEST(TrackingTest, Match)
+TEST(TrackingTest, DISABLED_GridSubsampling)
+{
+  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
+  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
+  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
+
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
+
+  cv::Mat image;
+  cv::eigen2cv(img, image);
+
+  cv::Ptr<cv::DescriptorExtractor> detector = cv::ORB::create();
+  std::vector<cv::KeyPoint> kpts;
+  detector->detect(image, kpts);
+  LOG_IMG("BeforeGridSubsampling")->show() = TEST_VISUALIZE;
+  LOG_IMG("BeforeGridSubsampling")->block() = TEST_VISUALIZE;
+  LOG_IMG("AfterGridSubsampling")->show() = TEST_VISUALIZE;
+  LOG_IMG("AfterGridSubsampling")->block() = TEST_VISUALIZE;
+  FeatureTracking::createFeatures(kpts, f0);
+  LOG_IMG("BeforeGridSubsampling")
+    << std::make_shared<FeaturePlot>(Frame::ConstShPtr(f0), f0->width() * 200);
+  auto kptsFiltered = FeatureTracking::gridSubsampling(kpts, f0, 30);
+  f0->removeFeatures();
+  FeatureTracking::createFeatures(kptsFiltered, f0);
+  LOG_IMG("AfterGridSubsampling") << std::make_shared<FeaturePlot>(Frame::ConstShPtr(f0), 30);
+}
+
+TEST(TrackingTest, DISABLED_FeatureConversion)
+{
+  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
+  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
+  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
+
+  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
+
+  cv::Mat image;
+  cv::eigen2cv(img, image);
+
+  cv::Ptr<cv::DescriptorExtractor> detector = cv::ORB::create();
+  std::vector<cv::KeyPoint> kpts;
+  cv::Mat desc;
+  detector->detectAndCompute(image, cv::Mat(), kpts, desc);
+  auto features = FeatureTracking::createFeatures(kpts, desc, DescriptorType::ORB);
+
+  for (size_t i = 0U; i < kpts.size(); i++) {
+    EXPECT_NEAR(kpts[i].pt.x, features[i]->position().x(), 0.001);
+    EXPECT_NEAR(kpts[i].pt.y, features[i]->position().y(), 0.001);
+    EXPECT_NEAR(kpts[i].response, features[i]->response(), 0.001);
+    EXPECT_NEAR(kpts[i].octave, features[i]->level(), 0.001);
+    MatXd descriptor;
+    cv::cv2eigen(desc.row(i), descriptor);
+    EXPECT_NEAR((descriptor - features[i]->descriptor()).norm(), 0.0, 0.001);
+  }
+
+  auto descBack = FeatureTracking::createDescriptorMatrix(
+    std::vector<Feature2D::ConstShPtr>(features.begin(), features.end()), desc.type());
+
+  cv::Mat diff;
+  cv::subtract(desc, descBack, diff);
+  EXPECT_NEAR(cv::norm(diff), 0, 0.001);
+}
+class PlotMatchCandidates : public vis::Drawable
+{
+public:
+  PlotMatchCandidates(
+    Frame::ConstShPtr f0, Frame::ConstShPtr f1, const MatXd & mask, double maxMask, int idx)
+  : _f0(f0), _f1(f1), _mask(mask), _maxMask(maxMask), _idx(idx)
+  {
+  }
+
+  void drawFeature(
+    cv::Mat & mat, Feature2D::ConstShPtr ft, const std::string & annotation = "",
+    double radius = 5) const
+  {
+    cv::Point center(ft->position().x(), ft->position().y());
+    cv::putText(mat, annotation, center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
+
+    cv::rectangle(
+      mat, cv::Rect(center - cv::Point(radius, radius), center + cv::Point(radius, radius)),
+      cv::Scalar(0, 0, 255), 2);
+  }
+  cv::Mat draw() const override
+  {
+    cv::Mat mat0;
+    cv::eigen2cv(_f0->intensity(), mat0);
+    cv::cvtColor(mat0, mat0, cv::COLOR_GRAY2BGR);
+    auto ft = _f0->features()[_idx];
+    drawFeature(mat0, ft, std::to_string(ft->id()));
+    cv::Mat mat1;
+    cv::eigen2cv(_f1->intensity(), mat1);
+    cv::cvtColor(mat1, mat1, cv::COLOR_GRAY2BGR);
+    for (size_t j = 0U; j < _f1->features().size(); j++) {
+      if (_mask(_idx, j) < _maxMask) {
+        drawFeature(mat1, _f1->features()[j], std::to_string(_mask(_idx, j)));
+      }
+    }
+    cv::Mat mat;
+    cv::hconcat(std::vector<cv::Mat>({mat0, mat1}), mat);
+    return mat;
+  }
+
+private:
+  const Frame::ConstShPtr _f0, _f1;
+  const MatXd _mask;
+  const double _maxMask;
+  const int _idx;
+};
+
+TEST(TrackingTest, MatcherWithCombinedError)
+{
+  const size_t nFeatures = 5;
+  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
+
+  auto f0 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868164.363181.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868164.338541.png") / 5000.0, cam, 1311868164363181000U);
+
+  auto f1 = std::make_shared<Frame>(
+    utils::loadImage(TEST_RESOURCE "/1311868165.499179.png"),
+    utils::loadDepth(TEST_RESOURCE "/1311868165.409979.png") / 5000.0, cam, 1311868165499179000U);
+
+  auto trajectoryGt =
+    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
+  f0->set(trajectoryGt->poseAt(f0->t())->inverse());
+  f1->set(trajectoryGt->poseAt(f1->t())->inverse());
+
+  auto tracking = std::make_shared<FeatureTracking>();
+  tracking->extractFeatures(f0, true);
+  tracking->extractFeatures(f1);
+
+  MatXd reprojectionError = vslam::Matcher::computeDistanceMat(
+    Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features(),
+    [](auto ft1, auto ft2) { return vslam::Matcher::reprojectionError(ft1, ft2); });
+
+  EXPECT_NE(reprojectionError.norm(), 0.0);
+
+  MatXd descriptorDistance = vslam::Matcher::computeDistanceMat(
+    Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features(),
+    [](auto ft1, auto ft2) { return vslam::Matcher::descriptorHamming(ft1, ft2); });
+
+  EXPECT_NE(descriptorDistance.norm(), 0.0);
+
+  const VecXd reprojectionErrorMin = reprojectionError.rowwise().minCoeff();
+  const VecXd descriptorDistanceMin = descriptorDistance.rowwise().minCoeff();
+  for (size_t i = 0; i < f0->features().size(); i++) {
+    reprojectionError.row(i) /= std::max<double>(reprojectionErrorMin(i), 1);
+    descriptorDistance.row(i) /= std::max<double>(descriptorDistanceMin(i), 1);
+  }
+  MatXd combinedDistance = reprojectionError + descriptorDistance;
+  const VecXd combinedDistanceMin = combinedDistance.rowwise().minCoeff();
+  for (size_t i = 0; i < f0->features().size(); i++) {
+    combinedDistance.row(i) /= std::max<double>(combinedDistanceMin(i), 1);
+  }
+  std::vector<Feature2D::ConstShPtr> featureSubset;
+  for (size_t i = 0; i < nFeatures; i++) {
+    const int idx0 = static_cast<int>(random::U(0, f0->features().size() - 1));
+    featureSubset.push_back(f0->features()[idx0]);
+    std::cout << "Reprojection Error Min:" << reprojectionError.row(idx0).minCoeff()
+              << " Reprojection Error Max:" << reprojectionError.row(idx0).maxCoeff() << std::endl;
+
+    LOG_IMG("FeatureCandidatesReprojection")->set(TEST_VISUALIZE, TEST_VISUALIZE);
+    LOG_IMG("FeatureCandidatesReprojection") << std::make_shared<PlotMatchCandidates>(
+      f0, f1, reprojectionError / reprojectionError.row(idx0).minCoeff(), 1.5, idx0);
+
+    std::cout << "Descriptor Distance Min:" << descriptorDistance.row(idx0).minCoeff()
+              << " Descriptor Distance Max:" << descriptorDistance.row(idx0).maxCoeff()
+              << std::endl;
+
+    LOG_IMG("FeatureCandidatesDescriptorDistance")->set(TEST_VISUALIZE, TEST_VISUALIZE);
+    LOG_IMG("FeatureCandidatesDescriptorDistance") << std::make_shared<PlotMatchCandidates>(
+      f0, f1, descriptorDistance / descriptorDistance.row(idx0).minCoeff(), 1.5, idx0);
+
+    std::cout << "Combined Error Min:" << combinedDistance.row(idx0).minCoeff()
+              << " Combined Error Max:" << combinedDistance.row(idx0).maxCoeff() << std::endl;
+
+    LOG_IMG("FeatureCandidatesCombined")->set(TEST_VISUALIZE, TEST_VISUALIZE);
+    LOG_IMG("FeatureCandidatesCombined")
+      << std::make_shared<PlotMatchCandidates>(f0, f1, combinedDistance, 1.5, idx0);
+  }
+  auto matcher = std::make_shared<vslam::Matcher>(vslam::Matcher::reprojectionHamming, 4.0, 0.8);
+  const std::vector<vslam::Matcher::Match> matches =
+    matcher->match(featureSubset, Frame::ConstShPtr(f1)->features());
+  EXPECT_EQ(matches.size(), 3);
+}
+
+TEST(TrackingTest, DISABLED_Match)
 {
   DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
@@ -71,7 +256,7 @@ TEST(TrackingTest, Match)
 
   const MatXd F = algorithm::computeF(f1->camera()->K(), f1->pose().pose(), f0->camera()->K());
 
-  MatcherBruteForce matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
+  vslam::Matcher matcher([&](Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur) {
     const Vec3d xCur = Vec3d(ftRef->position().x(), ftRef->position().y(), 1).transpose();
     const Vec3d xRef = Vec3d(ftCur->position().x(), ftCur->position().y(), 1);
     const Vec3d l = F * xRef;
@@ -85,7 +270,7 @@ TEST(TrackingTest, Match)
     // TODO(phil): whats a good way to way of compute trade off? Compute mean + std offline and normalize..
     return d + xFx;
   });
-  std::vector<MatcherBruteForce::Match> matches =
+  std::vector<vslam::Matcher::Match> matches =
     matcher.match(Frame::ConstShPtr(f0)->features(), Frame::ConstShPtr(f1)->features());
 
   EXPECT_EQ(matches.size(), f0->features().size());
@@ -216,7 +401,7 @@ private:
   std::vector<Frame::ConstShPtr> _frames;
 };
 
-TEST(TrackingTest, TrackThreeFrames)
+TEST(TrackingTest, DISABLED_TrackThreeFrames)
 {
   auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
 
@@ -237,15 +422,18 @@ TEST(TrackingTest, TrackThreeFrames)
   f0->set(trajectoryGt->poseAt(f0->t())->inverse());
   f1->set(trajectoryGt->poseAt(f1->t())->inverse());
   f2->set(trajectoryGt->poseAt(f2->t())->inverse());
-  auto tracking = std::make_shared<FeatureTracking>(std::make_shared<MatcherBruteForce>(
+  /* auto tracking = std::make_shared<FeatureTracking>(std::make_shared<MatcherBruteForce>(
     [](auto ft1, auto ft2) {
-      if (MatcherBruteForce::reprojectionError(ft1, ft2) > 20) {
-        return std::numeric_limits<double>::max();
-      } else {
-        return MatcherBruteForce::descriptorL1(ft1, ft2);
-      }
+      // if (MatcherBruteForce::reprojectionError(ft1, ft2) > 20) {
+      //   return std::numeric_limits<double>::max();
+      // } else {
+      return MatcherBruteForce::descriptorL1(ft1, ft2);
+      // }
     },
-    2000));
+    2000, 0.75));*/
+  //auto tracking = std::make_shared<FeatureTracking>(
+  //  std::make_shared<MatcherOcv>(0.8, 15, CV_32F, "BruteForce-L1"));
+  auto tracking = std::make_shared<FeatureTrackingOcv>();
   LOG_IMG("Tracking")->show() = TEST_VISUALIZE;
   LOG_IMG("Tracking")->block() = TEST_VISUALIZE;
 

@@ -13,20 +13,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef VSLAM_ODOMETRY_H__
-#define VSLAM_ODOMETRY_H__
+#ifndef VSLAM_FEATURE_PLOT_H__
+#define VSLAM_FEATURE_PLOT_H__
+#include <opencv2/highgui/highgui.hpp>
 
-#include "KeyFrameSelection.h"
-#include "MotionPrediction.h"
-#include "Odometry.h"
-#include "direct_image_alignment/RgbdAlignmentOpenCv.h"
-#include "direct_image_alignment/SE3Alignment.h"
-#include "feature_tracking/FeaturePlot.h"
-#include "feature_tracking/FeatureTracking.h"
-#include "feature_tracking/FeatureTrackingOcv.h"
-#include "feature_tracking/Matcher.h"
-#include "iterative_closest_point/IterativeClosestPoint.h"
-#include "iterative_closest_point/IterativeClosestPointOcv.h"
-#include "mapping/BundleAdjustment.h"
-#include "mapping/Map.h"
-#endif
+#include "core/core.h"
+#include "utils/utils.h"
+
+namespace pd::vslam
+{
+class FeaturePlot : public vis::Drawable
+{
+public:
+  FeaturePlot(Frame::ConstShPtr frame, double cellSize) : _frame(frame), _gridCellSize(cellSize) {}
+  cv::Mat draw() const;
+
+private:
+  const Frame::ConstShPtr _frame;
+  const double _gridCellSize;
+};
+}  // namespace pd::vslam
+#endif  //VSLAM_FEATURE_PLOT_H__

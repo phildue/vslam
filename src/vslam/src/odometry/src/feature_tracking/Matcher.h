@@ -40,29 +40,45 @@ public:
     size_t idxCur;
     double distance;
   };
+
+  Matcher(
+    std::function<double(Feature2D::ConstShPtr, Feature2D::ConstShPtr)> distanceFunction =
+      [](auto f1, auto f2) { return descriptorL1(f1, f2); },
+    double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
+
+  Matcher(
+    std::function<
+      MatXd(const std::vector<Feature2D::ConstShPtr> &, const std::vector<Feature2D::ConstShPtr> &)>
+      distanceFunction,
+    double maxDistance, double minDistanceRatio);
+
   virtual std::vector<Match> match(
-    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget,
-    const std::vector<Feature2D::ConstShPtr> & descriptorsRef) const = 0;
+    const std::vector<Feature2D::ConstShPtr> & featuresRef,
+    const std::vector<Feature2D::ConstShPtr> & featuresTarget) const;
+
+  std::vector<std::vector<Matcher::Match>> knn(
+    const std::vector<Feature2D::ConstShPtr> & featuresRef,
+    const std::vector<Feature2D::ConstShPtr> & featuresTarget, int k = 2) const;
 
   static double epipolarError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
   static double reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
   static double descriptorL1(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
-};
+  static double descriptorL2(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
+  static double descriptorHamming(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur);
 
-class MatcherBruteForce : public Matcher
-{
-public:
-  MatcherBruteForce(
+  static MatXd computeDistanceMat(
+    const std::vector<Feature2D::ConstShPtr> & featuresRef,
+    const std::vector<Feature2D::ConstShPtr> & featuresTarget,
     std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>
-      distanceFunction = [](auto f1, auto f2) { return descriptorL1(f1, f2); },
-    double maxDistance = std::numeric_limits<double>::max(), double minDistanceRatio = 0.8);
-  std::vector<Match> match(
-    const std::vector<Feature2D::ConstShPtr> & descriptorsTarget,
-    const std::vector<Feature2D::ConstShPtr> & descriptorsRef) const override;
+      distanceFunction);
+
+  static MatXd reprojectionHamming(
+    const Feature2D::VecConstShPtr & featuresRef, const Feature2D::VecConstShPtr & featuresTarget);
 
 private:
-  const std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)>
-    _computeDistance;
+  const std::function<MatXd(
+    const std::vector<Feature2D::ConstShPtr> &, const std::vector<Feature2D::ConstShPtr> &)>
+    _computeDistanceMat;
   const double _maxDistance;
   const double _minDistanceRatio;
 };

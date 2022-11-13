@@ -23,43 +23,73 @@
 
 namespace pd::vslam
 {
-MatcherBruteForce::MatcherBruteForce(
-  std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction,
+Matcher::Matcher(
+  std::function<double(Feature2D::ConstShPtr, Feature2D::ConstShPtr)> distanceFunction,
   double maxDistance, double minDistanceRatio)
-: Matcher(),
-  _computeDistance(distanceFunction),
+: Matcher(
+    [&](const Feature2D::VecConstShPtr & ftsRef, const Feature2D::VecConstShPtr & ftsTarget) {
+      return Matcher::computeDistanceMat(ftsRef, ftsTarget, [&](auto ftRef, auto ftTarget) {
+        return distanceFunction(ftRef, ftTarget);
+      });
+    },
+    maxDistance, minDistanceRatio)
+{
+}
+Matcher::Matcher(
+  std::function<MatXd(
+    const std::vector<Feature2D::ConstShPtr> & target,
+    const std::vector<Feature2D::ConstShPtr> & ref)>
+    distanceFunction,
+  double maxDistance, double minDistanceRatio)
+: _computeDistanceMat(distanceFunction),
   _maxDistance(maxDistance),
   _minDistanceRatio(minDistanceRatio)
 {
-  Log::get("tracking");
+}
+std::vector<std::vector<Matcher::Match>> Matcher::knn(
+  const std::vector<Feature2D::ConstShPtr> & featuresRef,
+  const std::vector<Feature2D::ConstShPtr> & featuresTarget, int k) const
+{
+  const MatXd distanceMat = _computeDistanceMat(featuresRef, featuresTarget);
+  std::vector<std::vector<Matcher::Match>> neighbors(
+    featuresRef.size(), std::vector<Matcher::Match>(k));
+
+  for (size_t i = 0U; i < featuresRef.size(); ++i) {
+    std::vector<Match> candidates(featuresTarget.size());
+    for (size_t j = 0U; j < featuresTarget.size(); ++j) {
+      candidates[j] = {i, j, distanceMat(i, j)};
+    }
+    std::sort(candidates.begin(), candidates.end(), [&](auto m0, auto m1) {
+      return m0.distance < m1.distance;
+    });
+    for (int n = 0; n < k && static_cast<size_t>(n) < candidates.size(); n++) {
+      std::cout << "Neighbor [" << i << "][" << n << "]: " << candidates[n].distance << std::endl;
+      neighbors[i][n] = candidates[n];
+    }
+  }
+  return neighbors;
 }
 
-std::vector<Matcher::Match> MatcherBruteForce::match(
-  const std::vector<Feature2D::ConstShPtr> & featuresTarget,
-  const std::vector<Feature2D::ConstShPtr> & featuresRef) const
+std::vector<Matcher::Match> Matcher::match(
+  const std::vector<Feature2D::ConstShPtr> & featuresRef,
+  const std::vector<Feature2D::ConstShPtr> & featuresTarget) const
 {
+  auto candidates = knn(featuresRef, featuresTarget, 2);
   std::vector<Match> matches;
   matches.reserve(featuresRef.size());
   for (size_t i = 0U; i < featuresRef.size(); ++i) {
-    std::vector<Match> distances;
-    distances.reserve(featuresTarget.size());
-    for (size_t j = 0U; j < featuresTarget.size(); ++j) {
-      auto d = _computeDistance(featuresRef[i], featuresTarget[j]);
-      if (std::isfinite(d)) {
-        distances.push_back({i, j, d});
-      }
-    }
-    std::sort(distances.begin(), distances.end(), [&](auto m0, auto m1) {
-      return m0.distance < m1.distance;
-    });
     if (
-      distances[0].distance < _maxDistance &&
-      distances[0].distance < _minDistanceRatio * distances[1].distance) {
-      LOG_TRACKING(DEBUG) << "Found match between [" << distances[0].idxRef << "] and ["
-                          << distances[0].idxCur << "] with distance [" << distances[0].distance
-                          << "] and distance ratio ["
-                          << distances[0].distance / distances[1].distance << "]";
-      matches.push_back(distances[0]);
+      candidates[i][0].distance < _maxDistance &&
+      candidates[i][0].distance < _minDistanceRatio * candidates[i][1].distance) {
+      LOG_TRACKING(DEBUG) << "Found match between [" << featuresRef[candidates[i][0].idxRef]->id()
+                          << "] and [" << featuresTarget[candidates[i][0].idxCur]->id()
+                          << "] with distance [" << candidates[i][0].distance
+                          << "] and distance ratio [" << candidates[i][0].distance << "/"
+                          << candidates[i][1].distance << "="
+                          << candidates[i][0].distance / candidates[i][1].distance
+                          << "] to next best match ["
+                          << featuresTarget[candidates[i][1].idxCur]->id() << "]";
+      matches.push_back(candidates[i][0]);
     }
   }
   std::sort(
@@ -101,10 +131,57 @@ double Matcher::reprojectionError(Feature2D::ConstShPtr ftRef, Feature2D::ConstS
 
 double Matcher::descriptorL1(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
 {
-  const double d = (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
-  //LOG_TRACKING(INFO) << "(" << ftRef->id() << ") --> (" << ftCur->id() << ") descriptorL1: " << d;
+  return (ftRef->descriptor() - ftCur->descriptor()).cwiseAbs().sum();
+}
+double Matcher::descriptorL2(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+{
+  return (ftRef->descriptor() - ftCur->descriptor()).norm();
+}
+double Matcher::descriptorHamming(Feature2D::ConstShPtr ftRef, Feature2D::ConstShPtr ftCur)
+{
+  const int dim = ftRef->descriptor().rows();
+  int distance = 0U;
+  for (int i = 0; i < dim; i++) {
+    const auto byteRef = static_cast<uchar>(ftRef->descriptor()(i));
+    const auto byteCur = static_cast<uchar>(ftCur->descriptor()(i));
+    const uchar byteXor = byteRef ^ byteCur;
+    /* Count number of 1 by shifting and Bitwise AND with 1 to check if last bit is 1*/
+    distance += (byteXor >> 0 & 1);
+    distance += (byteXor >> 1 & 1);
+    distance += (byteXor >> 2 & 1);
+    distance += (byteXor >> 3 & 1);
+    distance += (byteXor >> 4 & 1);
+    distance += (byteXor >> 5 & 1);
+    distance += (byteXor >> 6 & 1);
+    distance += (byteXor >> 7 & 1);
+  }
+  return distance;
+}
 
-  return d;
+MatXd Matcher::computeDistanceMat(
+  const std::vector<Feature2D::ConstShPtr> & featuresRef,
+  const std::vector<Feature2D::ConstShPtr> & featuresTarget,
+  std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction)
+{
+  MatXd mask = MatXd::Zero(featuresRef.size(), featuresTarget.size());
+  forEach(mask, [&](int u, int v, double UNUSED(e)) {
+    mask(v, u) = distanceFunction(featuresRef[v], featuresTarget[u]);
+  });
+  return mask;
+}
+
+MatXd Matcher::reprojectionHamming(
+  const Feature2D::VecConstShPtr & featuresRef, const Feature2D::VecConstShPtr & featuresTarget)
+{
+  MatXd reprojection = computeDistanceMat(featuresRef, featuresTarget, Matcher::reprojectionError);
+  MatXd descriptor = computeDistanceMat(featuresRef, featuresTarget, Matcher::descriptorHamming);
+  const VecXd reprojectionMin = reprojection.rowwise().minCoeff();
+  const VecXd descriptorMin = descriptor.rowwise().minCoeff();
+  for (size_t i = 0U; i < featuresRef.size(); i++) {
+    reprojection.row(i) /= reprojectionMin(i);
+    descriptor.row(i) /= descriptorMin(i);
+  }
+  return reprojection + descriptor;
 }
 
 }  // namespace pd::vslam
