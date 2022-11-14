@@ -48,31 +48,6 @@ TEST(TrackingTest, SelectVisible)
   EXPECT_EQ(f0->features().size(), featuresCandidate.size());
 }
 
-TEST(TrackingTest, GridSubsampling)
-{
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
-  auto cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
-
-  auto f0 = std::make_shared<Frame>(img, depth, cam, 0);
-
-  cv::Mat image;
-  cv::eigen2cv(img, image);
-
-  cv::Ptr<cv::DescriptorExtractor> detector = cv::ORB::create();
-  std::vector<cv::KeyPoint> kpts;
-  detector->detect(image, kpts);
-  LOG_IMG("BeforeGridSubsampling")->set(TEST_VISUALIZE, false);
-  LOG_IMG("AfterGridSubsampling")->set(TEST_VISUALIZE, TEST_VISUALIZE);
-  FeatureTracking::createFeatures(kpts, f0);
-  LOG_IMG("BeforeGridSubsampling")
-    << std::make_shared<OverlayFeatures>(Frame::ConstShPtr(f0), f0->width() * 200);
-  auto kptsFiltered = FeatureTracking::gridSubsampling(kpts, f0, 30);
-  f0->removeFeatures();
-  FeatureTracking::createFeatures(kptsFiltered, f0);
-  LOG_IMG("AfterGridSubsampling") << std::make_shared<OverlayFeatures>(Frame::ConstShPtr(f0), 30);
-}
-
 TEST(TrackingTest, FeatureConversion)
 {
   Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
