@@ -161,31 +161,25 @@ void NodeMapping::processFrame(
 
     if (_keyFrameSelection->isKeyFrame()) {
       _map->removeUnobservedPoints();
+      auto points = _tracking->track(frame, _map->keyFrames());
+      _map->insert(frame, _keyFrameSelection->isKeyFrame());
+      _map->insert(points);
 
-      if (_map->keyFrames().empty()) {
-        frame->addFeatures(_tracking->extractFeatures(frame, true));
-        _map->insert(frame, _keyFrameSelection->isKeyFrame());
-      } else {
-        auto points = _tracking->track(frame, _map->keyFrames());
-
-        _map->insert(points);
-        _map->insert(frame, _keyFrameSelection->isKeyFrame());
-
-        auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
-        _map->updatePoses(outBa->poses);
-        _map->updatePoints(outBa->positions);
-      }
+      auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
+      _map->updatePoses(outBa->poses);
+      _map->updatePoints(outBa->positions);
+    } else {
+      _map->insert(frame, _keyFrameSelection->isKeyFrame());
     }
 
     publish(msgImg);
 
     _fNo++;
-
   } catch (const std::runtime_error & e) {
     RCLCPP_WARN(this->get_logger(), "%s", e.what());
   }
   signalReplayer();
-}
+}  // namespace vslam_ros
 
 void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
