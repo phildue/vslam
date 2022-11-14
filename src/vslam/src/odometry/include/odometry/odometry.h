@@ -27,6 +27,7 @@
 #include "feature_tracking/OverlayCorrespondences.h"
 #include "feature_tracking/OverlayFeatureDisplacement.h"
 #include "feature_tracking/OverlayFeatures.h"
+#include "feature_tracking/OverlayMatchCandidates.h"
 #include "iterative_closest_point/IterativeClosestPoint.h"
 #include "iterative_closest_point/IterativeClosestPointOcv.h"
 #include "mapping/BundleAdjustment.h"

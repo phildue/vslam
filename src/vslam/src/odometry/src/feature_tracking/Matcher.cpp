@@ -70,7 +70,6 @@ std::vector<std::vector<Matcher::Match>> Matcher::knn(
       return m0.distance < m1.distance;
     });
     for (int n = 0; n < k && static_cast<size_t>(n) < candidates.size(); n++) {
-      std::cout << "Neighbor [" << i << "][" << n << "]: " << candidates[n].distance << std::endl;
       neighbors[i][n] = candidates[n];
     }
   }

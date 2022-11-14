@@ -107,52 +107,6 @@ TEST(TrackingTest, FeatureConversion)
   cv::subtract(desc, descBack, diff);
   EXPECT_NEAR(cv::norm(diff), 0, 0.001);
 }
-class PlotMatchCandidates : public vis::Drawable
-{
-public:
-  PlotMatchCandidates(
-    Frame::ConstShPtr f0, Frame::ConstShPtr f1, const MatXd & mask, double maxMask, int idx)
-  : _f0(f0), _f1(f1), _mask(mask), _maxMask(maxMask), _idx(idx)
-  {
-  }
-
-  void drawFeature(
-    cv::Mat & mat, Feature2D::ConstShPtr ft, const std::string & annotation = "",
-    double radius = 5) const
-  {
-    cv::Point center(ft->position().x(), ft->position().y());
-    cv::putText(mat, annotation, center, cv::FONT_HERSHEY_COMPLEX, 1.0, cv::Scalar(255, 255, 255));
-
-    cv::rectangle(
-      mat, cv::Rect(center - cv::Point(radius, radius), center + cv::Point(radius, radius)),
-      cv::Scalar(0, 0, 255), 2);
-  }
-  cv::Mat draw() const override
-  {
-    cv::Mat mat0;
-    cv::eigen2cv(_f0->intensity(), mat0);
-    cv::cvtColor(mat0, mat0, cv::COLOR_GRAY2BGR);
-    auto ft = _f0->features()[_idx];
-    drawFeature(mat0, ft, std::to_string(ft->id()));
-    cv::Mat mat1;
-    cv::eigen2cv(_f1->intensity(), mat1);
-    cv::cvtColor(mat1, mat1, cv::COLOR_GRAY2BGR);
-    for (size_t j = 0U; j < _f1->features().size(); j++) {
-      if (_mask(_idx, j) < _maxMask) {
-        drawFeature(mat1, _f1->features()[j], std::to_string(_mask(_idx, j)));
-      }
-    }
-    cv::Mat mat;
-    cv::hconcat(std::vector<cv::Mat>({mat0, mat1}), mat);
-    return mat;
-  }
-
-private:
-  const Frame::ConstShPtr _f0, _f1;
-  const MatXd _mask;
-  const double _maxMask;
-  const int _idx;
-};
 
 TEST(TrackingTest, MatcherWithCombinedError)
 {
@@ -209,21 +163,21 @@ TEST(TrackingTest, MatcherWithCombinedError)
     std::cout << "Reprojection Error Min:" << reprojectionError.row(idx0).minCoeff()
               << " Reprojection Error Max:" << reprojectionError.row(idx0).maxCoeff() << std::endl;
 
-    LOG_IMG("FeatureCandidatesReprojection") << std::make_shared<PlotMatchCandidates>(
+    LOG_IMG("FeatureCandidatesReprojection") << std::make_shared<OverlayMatchCandidates>(
       f0, f1, reprojectionError / reprojectionError.row(idx0).minCoeff(), 1.5, idx0);
 
     std::cout << "Descriptor Distance Min:" << descriptorDistance.row(idx0).minCoeff()
               << " Descriptor Distance Max:" << descriptorDistance.row(idx0).maxCoeff()
               << std::endl;
 
-    LOG_IMG("FeatureCandidatesDescriptorDistance") << std::make_shared<PlotMatchCandidates>(
+    LOG_IMG("FeatureCandidatesDescriptorDistance") << std::make_shared<OverlayMatchCandidates>(
       f0, f1, descriptorDistance / descriptorDistance.row(idx0).minCoeff(), 1.5, idx0);
 
     std::cout << "Combined Error Min:" << combinedDistance.row(idx0).minCoeff()
               << " Combined Error Max:" << combinedDistance.row(idx0).maxCoeff() << std::endl;
 
     LOG_IMG("FeatureCandidatesCombined")
-      << std::make_shared<PlotMatchCandidates>(f0, f1, combinedDistance, 1.5, idx0);
+      << std::make_shared<OverlayMatchCandidates>(f0, f1, combinedDistance, 1.5, idx0);
   }
   auto matcher = std::make_shared<vslam::Matcher>(vslam::Matcher::reprojectionHamming, 4.0, 0.8);
   const std::vector<vslam::Matcher::Match> matches =
