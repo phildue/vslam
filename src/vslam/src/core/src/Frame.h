@@ -31,6 +31,8 @@ public:
   typedef std::shared_ptr<const Frame> ConstShPtr;
   typedef std::unique_ptr<Frame> UnPtr;
   typedef std::unique_ptr<const Frame> ConstUnPtr;
+  typedef std::vector<ShPtr> VecShPtr;
+  typedef std::vector<ConstShPtr> VecConstShPtr;
 
   Frame(
     const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, const Timestamp & t = 0U,

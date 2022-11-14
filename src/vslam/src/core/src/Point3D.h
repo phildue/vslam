@@ -31,8 +31,11 @@ class Feature2D;
 class Point3D
 {
 public:
-  using ShPtr = std::shared_ptr<Point3D>;
-  using ConstShPtr = std::shared_ptr<Point3D>;
+  typedef std::shared_ptr<Point3D> ShPtr;
+  typedef std::shared_ptr<Point3D> ConstShPtr;
+  typedef std::vector<ShPtr> VecShPtr;
+  typedef std::vector<ConstShPtr> VecConstShPtr;
+
   Point3D(const Eigen::Vector3d & position, std::shared_ptr<Feature2D> ft);
   Point3D(
     const Eigen::Vector3d & position, const std::vector<std::shared_ptr<Feature2D>> & features);
