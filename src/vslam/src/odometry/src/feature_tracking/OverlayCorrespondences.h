@@ -13,8 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef VSLAM_FEATURE_PLOT_H__
-#define VSLAM_FEATURE_PLOT_H__
+#ifndef VSLAM_OVERLAY_CORRESPONDENCES_H__
+#define VSLAM_OVERLAY_CORRESPONDENCES_H__
 #include <opencv2/highgui/highgui.hpp>
 
 #include "core/core.h"
@@ -22,15 +22,15 @@
 
 namespace pd::vslam
 {
-class FeaturePlot : public vis::Drawable
+class OverlayCorrespondences : public vis::Drawable
 {
 public:
-  FeaturePlot(Frame::ConstShPtr frame, double cellSize) : _frame(frame), _gridCellSize(cellSize) {}
-  cv::Mat draw() const;
+  OverlayCorrespondences(const std::vector<Frame::ConstShPtr> & frames) : _frames(frames) {}
+
+  cv::Mat draw() const override;
 
 private:
-  const Frame::ConstShPtr _frame;
-  const double _gridCellSize;
+  std::vector<Frame::ConstShPtr> _frames;
 };
 }  // namespace pd::vslam
-#endif  //VSLAM_FEATURE_PLOT_H__
+#endif  //VSLAM_OVERLAY_CORRESPONDENCES_H__

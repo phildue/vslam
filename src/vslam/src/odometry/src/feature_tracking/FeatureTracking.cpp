@@ -27,8 +27,8 @@
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <set>
 
-#include "FeaturePlot.h"
 #include "FeatureTracking.h"
+#include "OverlayFeatures.h"
 #include "utils/utils.h"
 #define LOG_TRACKING(level) CLOG(level, "tracking")
 
@@ -114,26 +114,32 @@ FeatureTracking::FeatureTracking(Matcher::ConstShPtr matcher) : _matcher(matcher
 std::vector<Point3D::ShPtr> FeatureTracking::track(
   Frame::ShPtr frameCur, const std::vector<Frame::ShPtr> & framesRef) const
 {
+  std::vector<Point3D::ShPtr> points;
   if (framesRef.empty()) {
-    throw pd::Exception("No reference frames given for tracking.");
-  }
-  auto featuresCur = extractFeatures(frameCur, false);
-  auto featuresRef = selectCandidates(frameCur, framesRef);
-  auto points = match(featuresRef, featuresCur);
+    LOG_TRACKING(WARNING) << "No reference frames given. Assuming initial frame.";
+    auto featuresCur = extractFeatures(frameCur, true);
+    frameCur->addFeatures(featuresCur);
+  } else {
+    auto featuresCur = extractFeatures(frameCur, false);
+    auto featuresRef = selectCandidates(frameCur, framesRef);
+    points = match(featuresRef, featuresCur);
 
-  Feature2D::VecShPtr unmatchedFeatures;
-  MatXi mask = MatXi::Ones(frameCur->height(0) / _gridCellSize, frameCur->width(0) / _gridCellSize);
-  for (const auto & ft : featuresCur) {
-    if (ft->point()) {
-      mask(ft->position().y() / _gridCellSize, ft->position().x() / _gridCellSize) = 0;
-      frameCur->addFeature(ft);
-    } else {
-      unmatchedFeatures.push_back(ft);
+    Feature2D::VecShPtr unmatchedFeatures;
+    MatXi mask =
+      MatXi::Ones(frameCur->height(0) / _gridCellSize, frameCur->width(0) / _gridCellSize);
+    for (const auto & ft : featuresCur) {
+      if (ft->point()) {
+        mask(ft->position().y() / _gridCellSize, ft->position().x() / _gridCellSize) = 0;
+        frameCur->addFeature(ft);
+      } else {
+        unmatchedFeatures.push_back(ft);
+      }
     }
+    frameCur->addFeatures(
+      gridSubsampling(unmatchedFeatures, Frame::ConstShPtr(frameCur), _gridCellSize, mask));
   }
-  frameCur->addFeatures(
-    gridSubsampling(unmatchedFeatures, Frame::ConstShPtr(frameCur), _gridCellSize, mask));
-  LOG_IMG("Tracking") << std::make_shared<FeaturePlot>(frameCur, _gridCellSize);
+
+  LOG_IMG("Tracking") << std::make_shared<OverlayFeatures>(frameCur, _gridCellSize);
 
   return points;
 }

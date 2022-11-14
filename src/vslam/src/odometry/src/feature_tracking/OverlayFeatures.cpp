@@ -17,10 +17,10 @@
 #include <opencv2/opencv.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
 
-#include "FeaturePlot.h"
+#include "OverlayFeatures.h"
 namespace pd::vslam
 {
-cv::Mat FeaturePlot::draw() const
+cv::Mat OverlayFeatures::draw() const
 {
   cv::Mat mat;
   cv::eigen2cv(_frame->intensity(), mat);
