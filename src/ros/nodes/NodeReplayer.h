@@ -62,5 +62,8 @@ private:
   std::condition_variable _cond;
   std::mutex _mutex;
   std::atomic<bool> _nodeReady;
+  std::string _bagName;
+  std::string _syncTopic;
+  double _duration;
 };
 }  // namespace vslam_ros
