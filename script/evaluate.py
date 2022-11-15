@@ -30,7 +30,7 @@ args = parser.parse_args()
 
 if not args.out_root:
     args.out_root = args.sequence_root
-output_dir = os.path.join(args.out_root, args.sequence_id, args.experiment_name)
+output_dir = os.path.join(args.out_root, args.sequence_id, 'algorithm_results', args.experiment_name)
 algo_traj = os.path.join(output_dir, args.sequence_id+"-algo.txt")
 rpe_plot = os.path.join(output_dir, "rpe.png")
 ate_plot = os.path.join(output_dir, "ate.png")

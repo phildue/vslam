@@ -9,6 +9,7 @@ NodeResultWriter::NodeResultWriter(const rclcpp::NodeOptions & options)
 {
   declare_parameter("algoOutputFile", "/media/data/dataset/rgbd_dataset_freiburg2_desk/test.txt");
   _outputFile = get_parameter("algoOutputFile").as_string();
+  RCLCPP_INFO(get_logger(), "Creating output at [%s]", _outputFile.c_str());
   _algoFile.open(_outputFile, std::ios_base::out);
   _algoFile << "# Algorithm Trajectory\n";
   _algoFile << "# file: " << _outputFile << "\n";

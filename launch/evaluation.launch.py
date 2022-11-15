@@ -44,7 +44,7 @@ def ld_opaque(context):
     experiment_name = LaunchConfiguration('experiment_name').perform(context)
 
     sequence_folder = os.path.join(sequence_root, sequence_id)
-    experiment_folder = os.path.join(sequence_folder, experiment_name)
+    experiment_folder = os.path.join(sequence_folder,'algorithm_results', experiment_name)
     if not os.path.exists(experiment_folder):
         os.makedirs(experiment_folder)
     gt_traj_file = os.path.join(sequence_folder, sequence_id + "-groundtruth.txt")
