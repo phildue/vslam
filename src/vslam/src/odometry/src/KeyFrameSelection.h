@@ -70,5 +70,16 @@ private:
   uint64_t _visiblePoints;
   SE3d _relativePose;
 };
+class KeyFrameSelectionNever : public KeyFrameSelection
+{
+public:
+  typedef std::shared_ptr<KeyFrameSelectionNever> ShPtr;
+  typedef std::unique_ptr<KeyFrameSelectionNever> UnPtr;
+  typedef std::shared_ptr<const KeyFrameSelectionNever> ConstShPtr;
+  typedef std::unique_ptr<const KeyFrameSelectionNever> ConstUnPtr;
+
+  void update(Frame::ConstShPtr UNUSED(frame)) override {}
+  bool isKeyFrame() const override { return false; }
+};
 }  // namespace pd::vslam
 #endif  // VSLAM_RGBD_ODOMETRY

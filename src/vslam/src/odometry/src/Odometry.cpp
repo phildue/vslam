@@ -20,12 +20,18 @@ namespace pd::vslam
 {
 OdometryRgbd::OdometryRgbd(
   double minGradient, least_squares::Solver::ShPtr solver, least_squares::Loss::ShPtr loss,
-  Map::ConstShPtr map)
+  Map::ConstShPtr map, bool includeKeyFrame, bool trackKeyFrame)
 : _aligner(std::make_shared<SE3Alignment>(minGradient, solver, loss, true)),
   _map(map),
-  _includeKeyFrame(true),
-  _trackKeyFrame(false)
+  _includeKeyFrame(includeKeyFrame),
+  _trackKeyFrame(trackKeyFrame)
 {
+  if (_includeKeyFrame && _trackKeyFrame) {
+    throw pd::Exception(
+      "Incompatible config. We can either [includeKeyFrame] to track against last frame and key "
+      "frame or [trackKeyFrame] to track only against key frame or none of the same to track only "
+      "against last frame.");
+  }
   Log::get("odometry");
 }
 void OdometryRgbd::update(Frame::ConstShPtr frame)

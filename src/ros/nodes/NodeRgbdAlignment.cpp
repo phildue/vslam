@@ -51,15 +51,19 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
 {
   declare_parameter("frame.base_link_id", _fixedFrameId);
   declare_parameter("frame.frame_id", _frameId);
-  declare_parameter("features.min_gradient", 1);
-  declare_parameter("pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
-  declare_parameter("solver.max_iterations", 100);
-  declare_parameter("solver.min_step_size", 1e-7);
-  declare_parameter("loss.function", "None");
-  declare_parameter("loss.huber.c", 10.0);
-  declare_parameter("loss.tdistribution.v", 5.0);
+  declare_parameter("odometry.rgbd.features.min_gradient", 1);
+  declare_parameter("odometry.rgbd.trackKeyFrame", false);
+  declare_parameter("odometry.rgbd.includeKeyFrame", false);
+  declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
+  declare_parameter("odometry.rgbd.solver.max_iterations", 100);
+  declare_parameter("odometry.rgbd.solver.min_step_size", 1e-7);
+  declare_parameter("odometry.rgbd.loss.function", "None");
+  declare_parameter("odometry.rgbd.loss.huber.c", 10.0);
+  declare_parameter("odometry.rgbd.loss.tdistribution.v", 5.0);
   declare_parameter("keyframe_selection.method", "idx");
   declare_parameter("keyframe_selection.idx.period", 5);
+  declare_parameter("keyframe_selection.custom.min_visible_points", 50);
+  declare_parameter("keyframe_selection.custom.max_translation", 0.2);
   declare_parameter("prediction.model", "NoMotion");
   Log::_blockLevel = Level::Unknown;
   Log::_showLevel = Level::Unknown;
@@ -68,30 +72,43 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
 
   least_squares::Loss::ShPtr loss = nullptr;
   least_squares::Scaler::ShPtr scaler;
-  auto paramLoss = get_parameter("loss.function").as_string();
+  auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
   if (paramLoss == "Tukey") {
     loss =
       std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
   } else if (paramLoss == "Huber") {
     loss = std::make_shared<least_squares::HuberLoss>(
-      std::make_shared<least_squares::MedianScaler>(), get_parameter("loss.huber.c").as_double());
+      std::make_shared<least_squares::MedianScaler>(),
+      get_parameter("odometry.rgbd.loss.huber.c").as_double());
   } else if (paramLoss == "tdistribution") {
     loss = std::make_shared<least_squares::LossTDistribution>(
       std::make_shared<least_squares::ScalerTDistribution>(
-        get_parameter("loss.tdistribution.v").as_double()),
-      get_parameter("loss.tdistribution.v").as_double());
+        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
+      get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
   }
 
   auto solver = std::make_shared<least_squares::GaussNewton>(
-    get_parameter("solver.min_step_size").as_double(),
-    get_parameter("solver.max_iterations").as_int());
-  _map = std::make_shared<Map>();
+    get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
+    get_parameter("odometry.rgbd.solver.max_iterations").as_int());
+  _map = std::make_shared<Map>(
+    get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
   _odometry = std::make_shared<OdometryRgbd>(
-    get_parameter("features.min_gradient").as_int(), solver, loss, _map);
-  // _odometry = std::make_shared<pd::vision::OdometryIcp>(1,10,_map);
+    get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
+    get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
+    get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
-  _keyFrameSelection =
-    std::make_shared<KeyFrameSelectionIdx>(get_parameter("keyframe_selection.idx.period").as_int());
+  if (get_parameter("keyframe_selection.method").as_string() == "idx") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
+      get_parameter("keyframe_selection.idx.period").as_int());
+  } else if (get_parameter("keyframe_selection.method").as_string() == "custom") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
+      _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int(),
+      get_parameter("keyframe_selection.custom.max_translation").as_double());
+  } else if (get_parameter("keyframe_selection.method").as_string() == "never") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionNever>();
+  } else {
+    throw pd::Exception("Unknown method for key frame selection.");
+  }
   _tracking = std::make_shared<FeatureTracking>();
   _ba = std::make_shared<mapping::BundleAdjustment>();
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
@@ -192,7 +209,7 @@ Frame::ShPtr NodeRgbdAlignment::createFrame(
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
   auto f = std::make_shared<Frame>(img, depth, _camera, t);
-  f->computePyramid(get_parameter("pyramid.levels").as_double_array().size());
+  f->computePyramid(get_parameter("odometry.rgbd.pyramid.levels").as_double_array().size());
   f->computeDerivatives();
   f->computePcl();
   return f;

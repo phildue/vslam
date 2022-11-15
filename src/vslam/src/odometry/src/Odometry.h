@@ -52,7 +52,7 @@ public:
 
   OdometryRgbd(
     double minGradient, least_squares::Solver::ShPtr solver, least_squares::Loss::ShPtr loss,
-    Map::ConstShPtr map);
+    Map::ConstShPtr map, bool includeKeyFrame = false, bool trackKeyFrame = false);
 
   void update(Frame::ConstShPtr frame) override;
 

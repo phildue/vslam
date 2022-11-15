@@ -1,23 +1,30 @@
-features:
-  min_gradient: 18
 frame:
-  base_link_id: world
-  frame_id: odom
-loss:
-  function: None
-  huber:
-    c: 1.43
-  tdistribution:
-    v: 5.0
+      base_link_id: world
+      frame_id: odom
+odometry:
+  rgbd:
+    includeKeyFrame: true
+    trackKeyFrame: false
+    features:
+      min_gradient: 18
+    loss:
+      function: None
+      functions: [None, huber, tdistribution]
+      huber:
+        c: 1.43
+      tdistribution:
+        v: 5.0
+  pyramid:
+    levels: [1.0,0.5,0.25]
+  solver:
+    max_iterations: 20
+    min_step_size: 0.00000000001
 prediction:
   model: ConstantMotion
-pyramid:
-  levels: [1.0,0.5,0.25]
-solver:
-  max_iterations: 20
-  min_step_size: 0.00000000001
+  models: [None, ConstantMotion, Kalman]
 keyframe_selection:
-  method: custom
+  method: never
+  methods: [custom, idx, never]
   idx:
     period: 5
   custom:
