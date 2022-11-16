@@ -44,7 +44,7 @@ def ld_opaque(context):
     experiment_name = LaunchConfiguration('experiment_name').perform(context)
 
     sequence_folder = os.path.join(sequence_root, sequence_id)
-    experiment_folder = os.path.join(sequence_folder,'algorithm_results', experiment_name)
+    experiment_folder = os.path.join(sequence_folder, 'algorithm_results', experiment_name)
     if not os.path.exists(experiment_folder):
         os.makedirs(experiment_folder)
     gt_traj_file = os.path.join(sequence_folder, sequence_id + "-groundtruth.txt")
@@ -56,7 +56,7 @@ def ld_opaque(context):
         name='vslam_container',
         namespace='',
         package='rclcpp_components',
-        executable='component_container',
+        executable='component_container_mt',
         composable_node_descriptions=[
             algo_node,
             ComposableNode(
@@ -66,7 +66,7 @@ def ld_opaque(context):
                 remappings=[('/path', '/path/gt')],
                 parameters=[{'gtTrajectoryFile': gt_traj_file},
                             {"use_sim_time": use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]),
+                extra_arguments=[{'use_intra_process_comms': False}]),
             ComposableNode(
                 package='vslam_ros',
                 plugin='vslam_ros::NodeResultWriter',
@@ -74,7 +74,7 @@ def ld_opaque(context):
                 # remappings=[('/image', '/burgerimage')],
                 parameters=[{'algoOutputFile': algo_traj_file},
                             {"use_sim_time": use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]),
+                extra_arguments=[{'use_intra_process_comms': False}]),
             ComposableNode(
                 package='vslam_ros',
                 plugin='vslam_ros::NodeReplayer',
@@ -84,7 +84,7 @@ def ld_opaque(context):
                             {"use_sim_time": use_sim_time},
                             {'timeout': 10}
                             ],
-                extra_arguments=[{'use_intra_process_comms': True}]),
+                extra_arguments=[{'use_intra_process_comms': False}]),
         ],
         output='both',
     )

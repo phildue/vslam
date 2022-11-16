@@ -44,11 +44,8 @@ private:
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response);
   std::unique_ptr<rosbag2_cpp::readers::SequentialReader> _reader;
-  int _nFrames;
-  rcutils_time_point_value_t _tStart = 0;
   bool _visualize = true;
   int _idx = 0;
-  int _fNo = 0;
   double _period = 0.05;
   int _fNoOut = 0;
   std::atomic<bool> _running;
@@ -65,5 +62,7 @@ private:
   std::string _bagName;
   std::string _syncTopic;
   double _duration;
+  std::map<std::string, unsigned long int> _msgCtr;
+  std::map<std::string, unsigned long int> _nMessages;
 };
 }  // namespace vslam_ros

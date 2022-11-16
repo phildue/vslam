@@ -20,7 +20,7 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
     "/media/data/dataset/rgbd_dataset_freiburg1_desk2/rgbd_dataset_freiburg1_desk2.db3");
   declare_parameter("period", 0.05);
   declare_parameter("timeout", 10);
-  declare_parameter("sync_topic", "/camera/rgb/image_color");
+  declare_parameter("sync_topic", "/camera/depth/image");
   _period = get_parameter("period").as_double();
   rosbag2_storage::StorageOptions storageOptions;
   storageOptions.uri = get_parameter("bag_file").as_string();
@@ -51,17 +51,17 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(
       get_logger(), "Topic: [%s] is type [%s] has [%ld] messages", mc.topic_metadata.name.c_str(),
       mc.topic_metadata.type.c_str(), mc.message_count);
-
-    if (mc.topic_metadata.name == _syncTopic) {
-      _nFrames = mc.message_count;
-    }
+    _nMessages[mc.topic_metadata.name] = mc.message_count;
+    _msgCtr[mc.topic_metadata.name] = 0U;
   }
+
   _thread = std::thread([&]() { play(); });
 }
 
 void NodeReplayer::publish(rosbag2_storage::SerializedBagMessageSharedPtr msg)
 {
   //std::cout << fNo << "/" << _nFrames << " t: " << msg->time_stamp << " topic: " << msg->topic_name << std::endl;
+  _msgCtr[msg->topic_name]++;
 
   if (msg->topic_name == "/camera/rgb/image_color") {
     auto img = std::make_shared<sensor_msgs::msg::Image>();
@@ -69,6 +69,9 @@ void NodeReplayer::publish(rosbag2_storage::SerializedBagMessageSharedPtr msg)
     rclcpp::Serialization<sensor_msgs::msg::Image> serialization;
     serialization.deserialize_message(&extracted_serialized_msg, img.get());
     _pubImg->publish(*img);
+    //RCLCPP_INFO(
+    //  get_logger(), "Topic [%s], replayed [%ld/%ld] messages.", msg->topic_name.c_str(),
+    //  _msgCtr[msg->topic_name], _nMessages[msg->topic_name]);
   }
 
   if (msg->topic_name == "/camera/rgb/camera_info") {
@@ -85,6 +88,9 @@ void NodeReplayer::publish(rosbag2_storage::SerializedBagMessageSharedPtr msg)
     rclcpp::Serialization<sensor_msgs::msg::Image> serialization;
     serialization.deserialize_message(&extracted_serialized_msg, depth.get());
     _pubDepth->publish(*depth);
+    //RCLCPP_INFO(
+    //  get_logger(), "Topic [%s], replayed [%ld/%ld] messages.", msg->topic_name.c_str(),
+    //  _msgCtr[msg->topic_name], _nMessages[msg->topic_name]);
   }
   if (msg->topic_name == "/tf") {
     auto tf = std::make_shared<tf2_msgs::msg::TFMessage>();
@@ -102,13 +108,15 @@ void NodeReplayer::play()
   while (_reader->has_next() && _running) {
     auto msg = _reader->read_next();
     if (msg->topic_name == _syncTopic) {
-      _fNo++;
-      if (_fNo % (_nFrames / 100) == 0) {
+      if (_msgCtr[_syncTopic] % (_nMessages[_syncTopic] / 100) == 0) {
         RCLCPP_INFO(
-          get_logger(), "Replayed [%d]%s, [%d/%d] msgs, [%.3f/%.3f]s of [%s]",
-          static_cast<int>(static_cast<float>(_fNo) / static_cast<float>(_nFrames) * 100), "%",
-          _fNo, _nFrames, static_cast<double>(static_cast<double>(msg->time_stamp - firstTs) / 1e9),
-          _duration, _bagName.substr(_bagName.find_last_of('/') + 1).c_str());
+          get_logger(), "Replayed [%d]%s, [%ld/%ld] msgs, [%.3f/%.3f]s of [%s]",
+          static_cast<int>(
+            static_cast<float>(_msgCtr[_syncTopic]) / static_cast<float>(_nMessages[_syncTopic]) *
+            100),
+          "%", _msgCtr[_syncTopic], _nMessages[_syncTopic],
+          static_cast<double>(static_cast<double>(msg->time_stamp - firstTs) / 1e9), _duration,
+          _bagName.substr(_bagName.find_last_of('/') + 1).c_str());
       }
       if (!_nodeReady) {
         //RCLCPP_INFO(get_logger(), "Waiting for reply from node..");

@@ -201,8 +201,6 @@ void NodeMapping::processFrame(
   } catch (const std::runtime_error & e) {
     RCLCPP_WARN(this->get_logger(), "%s", e.what());
   }
-
-  signalReplayer();
 }
 
 void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
@@ -337,6 +335,7 @@ void NodeMapping::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth
       RCLCPP_WARN(get_logger(), "%s", e.what());
     }
   }
+  signalReplayer();
 }
 
 void NodeMapping::imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
