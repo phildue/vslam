@@ -93,8 +93,6 @@ private:
   pd::vslam::KeyFrameSelection::ShPtr _keyFrameSelection;
   pd::vslam::MotionPrediction::ShPtr _prediction;
   pd::vslam::Map::ShPtr _map;
-  pd::vslam::FeatureTracking::ShPtr _tracking;
-  pd::vslam::mapping::BundleAdjustment::ShPtr _ba;
 
   pd::vslam::Camera::ShPtr _camera;
   geometry_msgs::msg::TransformStamped

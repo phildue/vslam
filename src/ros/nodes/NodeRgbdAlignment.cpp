@@ -70,33 +70,46 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
 
   RCLCPP_INFO(get_logger(), "Setting up..");
 
-  least_squares::Loss::ShPtr loss = nullptr;
-  least_squares::Scaler::ShPtr scaler;
-  auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
-  if (paramLoss == "Tukey") {
-    loss =
-      std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
-  } else if (paramLoss == "Huber") {
-    loss = std::make_shared<least_squares::HuberLoss>(
-      std::make_shared<least_squares::MedianScaler>(),
-      get_parameter("odometry.rgbd.loss.huber.c").as_double());
-  } else if (paramLoss == "tdistribution") {
-    loss = std::make_shared<least_squares::LossTDistribution>(
-      std::make_shared<least_squares::ScalerTDistribution>(
-        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
-      get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
-  }
-
-  auto solver = std::make_shared<least_squares::GaussNewton>(
-    get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
-    get_parameter("odometry.rgbd.solver.max_iterations").as_int());
+  RCLCPP_INFO(get_logger(), "Setting up..");
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-  _odometry = std::make_shared<OdometryRgbd>(
-    get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
-    get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
-    get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+
+  if (get_parameter("odometry.method").as_string() == "rgbd") {
+    least_squares::Loss::ShPtr loss = nullptr;
+    least_squares::Scaler::ShPtr scaler;
+    auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
+    if (paramLoss == "Tukey") {
+      loss =
+        std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
+    } else if (paramLoss == "Huber") {
+      loss = std::make_shared<least_squares::HuberLoss>(
+        std::make_shared<least_squares::MedianScaler>(),
+        get_parameter("odometry.rgbd.loss.huber.c").as_double());
+    } else if (paramLoss == "tdistribution") {
+      loss = std::make_shared<least_squares::LossTDistribution>(
+        std::make_shared<least_squares::ScalerTDistribution>(
+          get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
+        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
+    }
+
+    auto solver = std::make_shared<least_squares::GaussNewton>(
+      get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
+      get_parameter("odometry.rgbd.solver.max_iterations").as_int());
+
+    _odometry = std::make_shared<OdometryRgbd>(
+      get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
+      get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
+      get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+  } else if (get_parameter("odometry.method").as_string() == "rgbd_opencv") {
+    _odometry = std::make_shared<OdometryRgbdOpenCv>(
+      _map, get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+
+  } else {
+    RCLCPP_ERROR(get_logger(), "Unknown odometry method available are: [rgbd, rgbd_opencv]");
+  }
+
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
+
   if (get_parameter("keyframe_selection.method").as_string() == "idx") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
       get_parameter("keyframe_selection.idx.period").as_int());
@@ -109,10 +122,6 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   } else {
     throw pd::Exception("Unknown method for key frame selection.");
   }
-  _tracking = std::make_shared<FeatureTracking>();
-  _ba = std::make_shared<mapping::BundleAdjustment>();
-  // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
-  //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
 
   declare_parameter("log.config_dir", "/share/cfg/log/");
   for (const auto & name : Log::registeredLogs()) {

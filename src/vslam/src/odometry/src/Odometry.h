@@ -66,6 +66,30 @@ protected:
   PoseWithCovariance::ConstShPtr _speed;
   PoseWithCovariance::ConstShPtr _pose;
 };
+
+class OdometryRgbdOpenCv : public Odometry
+{
+public:
+  typedef std::shared_ptr<OdometryRgbd> ShPtr;
+  typedef std::unique_ptr<OdometryRgbd> UnPtr;
+  typedef std::shared_ptr<const OdometryRgbd> ConstShPtr;
+  typedef std::unique_ptr<const OdometryRgbd> ConstUnPtr;
+
+  OdometryRgbdOpenCv(Map::ConstShPtr map, bool trackKeyFrame = false);
+
+  void update(Frame::ConstShPtr frame) override;
+
+  PoseWithCovariance::ConstShPtr pose() const override { return _pose; }
+  PoseWithCovariance::ConstShPtr speed() const override { return _speed; }
+
+protected:
+  const RgbdAlignmentOpenCv::ConstShPtr _aligner;
+  const Map::ConstShPtr _map;
+  const bool _trackKeyFrame;
+  PoseWithCovariance::ConstShPtr _speed;
+  PoseWithCovariance::ConstShPtr _pose;
+};
+
 class OdometryIcp : public Odometry
 {
 public:
