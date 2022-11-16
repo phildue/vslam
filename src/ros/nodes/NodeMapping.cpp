@@ -48,11 +48,17 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
     "/camera/depth/image", 10,
     std::bind(&NodeMapping::depthCallback, this, std::placeholders::_1))),
   _subTf(std::make_shared<tf2_ros::TransformListener>(*_tfBuffer)),
-  _cliReplayer(create_client<std_srvs::srv::SetBool>("set_ready")),
   _queue(std::make_shared<vslam_ros::Queue>(10, 0.20 * 1e9))
 {
+  /*
+  _cliReplayer = create_client<std_srvs::srv::SetBool>(
+    "set_ready", rmw_qos_profile_services_default,
+    create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive));*/
+  _cliReplayer = create_client<std_srvs::srv::SetBool>("set_ready");
+
   declare_parameter("frame.base_link_id", _fixedFrameId);
   declare_parameter("frame.frame_id", _frameId);
+  declare_parameter("odometry.method", "rgbd");
   declare_parameter("odometry.rgbd.trackKeyFrame", false);
   declare_parameter("odometry.rgbd.includeKeyFrame", false);
   declare_parameter("odometry.rgbd.features.min_gradient", 1);
@@ -74,33 +80,43 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   Log::_showLevel = Level::Unknown;
 
   RCLCPP_INFO(get_logger(), "Setting up..");
-
-  least_squares::Loss::ShPtr loss = nullptr;
-  least_squares::Scaler::ShPtr scaler;
-  auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
-  if (paramLoss == "Tukey") {
-    loss =
-      std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
-  } else if (paramLoss == "Huber") {
-    loss = std::make_shared<least_squares::HuberLoss>(
-      std::make_shared<least_squares::MedianScaler>(),
-      get_parameter("odometry.rgbd.loss.huber.c").as_double());
-  } else if (paramLoss == "tdistribution") {
-    loss = std::make_shared<least_squares::LossTDistribution>(
-      std::make_shared<least_squares::ScalerTDistribution>(
-        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
-      get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
-  }
-
-  auto solver = std::make_shared<least_squares::GaussNewton>(
-    get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
-    get_parameter("odometry.rgbd.solver.max_iterations").as_int());
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-  _odometry = std::make_shared<OdometryRgbd>(
-    get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
-    get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
-    get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+
+  if (get_parameter("odometry.method").as_string() == "rgbd") {
+    least_squares::Loss::ShPtr loss = nullptr;
+    least_squares::Scaler::ShPtr scaler;
+    auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
+    if (paramLoss == "Tukey") {
+      loss =
+        std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
+    } else if (paramLoss == "Huber") {
+      loss = std::make_shared<least_squares::HuberLoss>(
+        std::make_shared<least_squares::MedianScaler>(),
+        get_parameter("odometry.rgbd.loss.huber.c").as_double());
+    } else if (paramLoss == "tdistribution") {
+      loss = std::make_shared<least_squares::LossTDistribution>(
+        std::make_shared<least_squares::ScalerTDistribution>(
+          get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
+        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
+    }
+
+    auto solver = std::make_shared<least_squares::GaussNewton>(
+      get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
+      get_parameter("odometry.rgbd.solver.max_iterations").as_int());
+
+    _odometry = std::make_shared<OdometryRgbd>(
+      get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
+      get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
+      get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+  } else if (get_parameter("odometry.method").as_string() == "rgbd_opencv") {
+    _odometry = std::make_shared<OdometryRgbdOpenCv>(
+      _map, get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+
+  } else {
+    RCLCPP_ERROR(get_logger(), "Unknown odometry method available are: [rgbd, rgbd_opencv]");
+  }
+
   _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
 
   if (get_parameter("keyframe_selection.method").as_string() == "idx") {
@@ -185,8 +201,9 @@ void NodeMapping::processFrame(
   } catch (const std::runtime_error & e) {
     RCLCPP_WARN(this->get_logger(), "%s", e.what());
   }
+
   signalReplayer();
-}  // namespace vslam_ros
+}
 
 void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
@@ -210,9 +227,15 @@ void NodeMapping::signalReplayer()
     }
     auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
     request->data = true;
-    auto result = _cliReplayer->async_send_request(request);
+    using ServiceResponseFuture = rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture;
+    auto response_received_callback = [this](ServiceResponseFuture future) {
+      if (!future.get()->success) {
+        RCLCPP_WARN(get_logger(), "Last replayer signal result was not valid.");
+      }
+    };
+    _cliReplayer->async_send_request(request, response_received_callback);
   }
-}
+}  // namespace vslam_ros
 
 Frame::ShPtr NodeMapping::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
@@ -302,27 +325,23 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 
 void NodeMapping::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
 {
-  if (_camInfoReceived) {
-    _queue->pushDepth(msgDepth);
+  _queue->pushDepth(msgDepth);
 
-    if (ready()) {
-      try {
-        auto img = _queue->popClosestImg();
-        processFrame(
-          img, _queue->popClosestDepth(
-                 rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds()));
-      } catch (const std::runtime_error & e) {
-        RCLCPP_WARN(get_logger(), "%s", e.what());
-      }
+  if (ready()) {
+    try {
+      auto img = _queue->popClosestImg();
+      processFrame(
+        img, _queue->popClosestDepth(
+               rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds()));
+    } catch (const std::runtime_error & e) {
+      RCLCPP_WARN(get_logger(), "%s", e.what());
     }
   }
 }
 
 void NodeMapping::imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
-  if (_camInfoReceived) {
-    _queue->pushImage(msgImg);
-  }
+  _queue->pushImage(msgImg);
 }
 void NodeMapping::dropCallback(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg, sensor_msgs::msg::Image::ConstSharedPtr msgDepth)

@@ -61,7 +61,7 @@ private:
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr _srvReady;
   std::condition_variable _cond;
   std::mutex _mutex;
-  std::atomic<bool> _nodeReady;
+  bool _nodeReady;
   std::string _bagName;
   std::string _syncTopic;
   double _duration;

@@ -111,11 +111,15 @@ void NodeReplayer::play()
           _duration, _bagName.substr(_bagName.find_last_of('/') + 1).c_str());
       }
       if (!_nodeReady) {
+        //RCLCPP_INFO(get_logger(), "Waiting for reply from node..");
+
         std::unique_lock<std::mutex> lk(_mutex);
         if (!_cond.wait_for(lk, std::chrono::seconds(get_parameter("timeout").as_int()), [&]() {
-              return this->_nodeReady == true;
+              return _nodeReady;
             })) {
           RCLCPP_WARN(get_logger(), "Timed out during waiting for node to be ready. Continuing..");
+        } else {
+          //RCLCPP_INFO(get_logger(), "Confirmation received. Continuing..");
         }
       }
       _nodeReady = false;
@@ -135,9 +139,16 @@ void NodeReplayer::srvSetReady(
   const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
   std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
-  _nodeReady = request->data;
+  //RCLCPP_INFO(get_logger(), "Received setSrvReady()");
+  {
+    std::unique_lock<std::mutex> lk(_mutex);
+    _nodeReady = request->data;
+  }
+  //RCLCPP_INFO(get_logger(), "Notifying");
+
   _cond.notify_all();
   response->success = true;
+  //RCLCPP_INFO(get_logger(), "Returning request..");
 }
 void NodeReplayer::publishNext() { publish(_reader->read_next()); }
 
