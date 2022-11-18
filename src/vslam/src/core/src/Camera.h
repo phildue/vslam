@@ -51,6 +51,8 @@ public:
   const Eigen::Matrix3d & Kinv() const { return _Kinv; }
   ShPtr static resize(ConstShPtr cam, double s);
 
+  static ShPtr TUM_RGBD() { return std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5); }
+
 private:
   Eigen::Matrix<double, 3, 3> _K;     //< Intrinsic camera matrix
   Eigen::Matrix<double, 3, 3> _Kinv;  //< Intrinsic camera matrix inverted
