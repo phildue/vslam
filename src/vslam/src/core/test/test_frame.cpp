@@ -136,3 +136,31 @@ TEST(FrameTest, Pcl)
     }
   }
 }
+TEST(FrameTest, AddDeleteFeatures)
+{
+  DepthMap depth = DepthMap::Ones(480, 640) * 20;
+  Image img = Image::Random(480, 640);
+
+  auto cam = Camera::TUM_RGBD();
+  auto f0 = std::make_shared<Frame>(img, depth, cam);
+  auto f1 = std::make_shared<Frame>(img, depth, cam);
+
+  for (int i = 0; i < 6; i++) {
+    auto ft = std::make_shared<Feature2D>(Vec2d::Random(), f0);
+    f0->addFeature(ft);
+  }
+  for (int i = 0; i < 3; i++) {
+    auto ft = std::make_shared<Feature2D>(Vec2d::Random(), f1);
+    f1->addFeature(ft);
+  }
+  for (int i = 0; i < 3; i++) {
+    auto ft0 = f0->features()[i];
+    auto ft1 = f1->features()[i];
+
+    ft0->point() = std::make_shared<Point3D>(Vec3d::Random(), Feature2D::VecShPtr({ft0, ft1}));
+    ft1->point() = ft0->point();
+  }
+  f0->removeFeatures();
+  EXPECT_EQ(f0->features().size(), 0);
+  EXPECT_EQ(f1->featuresWithPoints().size(), 0);
+}

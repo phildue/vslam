@@ -16,12 +16,12 @@
 //
 // Created by phil on 30.06.21.
 //
-
-#include "Point3D.h"
+#include <iostream>
 
 #include "Exceptions.h"
 #include "Feature2D.h"
 #include "Frame.h"
+#include "Point3D.h"
 namespace pd::vslam
 {
 std::uint64_t Point3D::_idCtr = 0U;
@@ -45,9 +45,11 @@ void Point3D::addFeature(std::shared_ptr<Feature2D> ft) { _features.push_back(ft
 
 void Point3D::removeFeatures()
 {
-  for (const auto & ft : _features) {
+  for (auto ft : _features) {
     ft->point() = nullptr;
-    ft->frame()->removeFeature(ft);
+    if (ft->frame()) {
+      ft->frame()->removeFeature(ft);
+    }
   }
   _features.clear();
 }
@@ -55,25 +57,21 @@ void Point3D::removeFeatures()
 void Point3D::removeFeature(std::shared_ptr<Feature2D> ft)
 {
   auto it = std::find(_features.begin(), _features.end(), ft);
-
   if (it == _features.end()) {
     throw pd::Exception(
       "Did not find feature: [" + std::to_string(ft->id()) + " ] in point: [" +
       std::to_string(_id) + "]");
   }
+
   ft->point() = nullptr;
   _features.erase(it);
 
-  if (_features.size() < 2) {
-    remove();
+  if (ft->frame()) {
+    ft->frame()->removeFeature(ft);
   }
-}
-void Point3D::remove()
-{
-  for (const auto & ftp : _features) {
-    ftp->point() = nullptr;
-    ftp->frame()->removeFeature(ftp);
-  }
-}
 
+  if (_features.size() < 2) {
+    removeFeatures();
+  }
+}
 }  // namespace pd::vslam

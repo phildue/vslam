@@ -42,7 +42,6 @@ public:
   void addFeature(std::shared_ptr<Feature2D> ft);
   void removeFeatures();
   void removeFeature(std::shared_ptr<Feature2D> f);
-  void remove();
 
   const Eigen::Vector3d & position() const { return _position; }
   Eigen::Vector3d & position() { return _position; }

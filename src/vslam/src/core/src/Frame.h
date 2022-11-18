@@ -85,8 +85,6 @@ public:
   std::vector<Vec3d> pcl(size_t level = 0, bool removeInvalid = false) const;
   std::vector<Vec3d> pclWorld(size_t level = 0, bool removeInvalid = false) const;
 
-  virtual ~Frame();
-
 private:
   const std::uint64_t _id;
   ImageVec _intensity;

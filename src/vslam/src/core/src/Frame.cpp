@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Eigen/Dense>
+#include <iostream>
 #include <map>
 #include <opencv4/opencv2/calib3d.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
@@ -121,11 +122,10 @@ std::vector<Feature2D::ConstShPtr> Frame::featuresWithPoints() const
 
 void Frame::removeFeatures()
 {
-  for (const auto & ft : _features) {
+  for (auto ft : _features) {
     ft->frame() = nullptr;
     if (ft->point()) {
       ft->point()->removeFeature(ft);
-      ft->point() = nullptr;
     }
   }
   _features.clear();
@@ -133,7 +133,6 @@ void Frame::removeFeatures()
 void Frame::removeFeature(Feature2D::ShPtr ft)
 {
   auto it = std::find(_features.begin(), _features.end(), ft);
-
   if (it == _features.end()) {
     throw pd::Exception(
       "Did not find feature: [" + std::to_string(ft->id()) + " ] in frame: [" +
@@ -146,8 +145,6 @@ void Frame::removeFeature(Feature2D::ShPtr ft)
     ft->point()->removeFeature(ft);
   }
 }
-
-Frame::~Frame() { removeFeatures(); }
 
 Frame::Frame(
   const Image & intensity, const MatXd & depth, Camera::ConstShPtr cam, const Timestamp & t,

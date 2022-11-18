@@ -61,7 +61,7 @@ public:
   std::shared_ptr<const Point3D> point() const { return _point; }
   std::shared_ptr<Point3D> & point() { return _point; }
   const Vec2d & position() const { return _position; }
-  std::shared_ptr<Frame> frame() { return _frame; }
+  std::shared_ptr<Frame> & frame() { return _frame; }
   std::shared_ptr<const Frame> frame() const { return _frame; }
   const VecXd & descriptor() const { return _descriptor.vec(); }
   DescriptorType descriptorType() const { return _descriptor.type(); }
@@ -72,7 +72,7 @@ public:
 
 private:
   const Vec2d _position;
-  const std::shared_ptr<Frame> _frame;
+  std::shared_ptr<Frame> _frame;
   const size_t _level;
   const double _response;
   const Descriptor _descriptor;
