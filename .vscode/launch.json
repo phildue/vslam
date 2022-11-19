@@ -152,6 +152,7 @@
         "default": "odometry",
         "options":[
           "odometry",
+          "core"
         ]
       }
       {
@@ -160,7 +161,9 @@
         "description": "vslam unit test",
         "options":[
           "trackingTest",
-          "trajectoryTest"
+          "trajectoryTest",
+          "mapTest",
+          "frameTest"
         ]
       }
   ]
