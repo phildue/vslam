@@ -32,7 +32,7 @@ class Point3D
 {
 public:
   typedef std::shared_ptr<Point3D> ShPtr;
-  typedef std::shared_ptr<Point3D> ConstShPtr;
+  typedef std::shared_ptr<const Point3D> ConstShPtr;
   typedef std::vector<ShPtr> VecShPtr;
   typedef std::vector<ConstShPtr> VecConstShPtr;
 
