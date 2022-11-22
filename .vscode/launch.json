@@ -100,6 +100,16 @@
       "program": "${file}",
       "console": "integratedTerminal",
     },
+    {
+        "name": "Evaluate RPE",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/script/vslam_evaluation/tum/evaluate_rpe.py",
+        "args": ["/mnt/dataset/tum_rgbd/${input:sequence_id}/${input:sequence_id}-groundtruth.txt", 
+                "/mnt/dataset/tum_rgbd/${input:sequence_id}/algorithm_results/${input:experiment_name}/${input:sequence_id}-algo.txt",
+                "--fixed_delta","--verbose"],
+        "console": "integratedTerminal",
+      },
     // Example gdb launch of a ros executable
     {
       "name": "(gdb) Launch",
@@ -154,7 +164,7 @@
           "odometry",
           "core"
         ]
-      }
+      },
       {
         "id": "test",
         "type": "pickString",
@@ -165,6 +175,22 @@
           "mapTest",
           "frameTest"
         ]
-      }
+      },
+      {
+        "id": "sequence_id",
+        "type": "pickString",
+        "description": "sequence",
+        "options": [
+            "rgbd_dataset_freiburg2_desk",
+            "rgbd_dataset_freiburg2_pioneer_360",
+            "rgbd_dataset_freiburg3_long_office_household"
+        ]
+    },
+    {
+        "id": "experiment_name",
+        "type": "promptString",
+        "description": "name of experiment",
+        "default": "test"
+    },
   ]
 }
