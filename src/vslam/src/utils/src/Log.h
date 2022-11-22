@@ -121,15 +121,13 @@ public:
   }
   bool & block() { return _block; }
   bool & show() { return _show; }
-  bool & save() { return _save; }
-  void set(bool show = false, bool block = false, bool save = false)
-  {
-    _block = block;
-    _show = show;
-    _save = save;
-  }
+  const bool & save() { return _save; }
+  void set(bool show = false, bool block = false, bool save = false);
+
+  void createDirectories();
 
   std::string toString() const;
+  static std::string & rootFolder() { return _rootFolder; }
 
 protected:
   bool _block;

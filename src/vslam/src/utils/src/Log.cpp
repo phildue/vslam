@@ -16,6 +16,8 @@
 //
 // Created by phil on 07.08.21.
 //
+#include <fmt/core.h>
+
 #include <eigen3/Eigen/Dense>
 #include <experimental/filesystem>
 #include <filesystem>
@@ -93,8 +95,8 @@ std::string LogImage::toString() const
 {
   std::stringstream ss;
   ss << "[" << _name << "]"
-     << "\nBlock: " << (_block ? "On" : "Off") << "\nShow: " << (_show ? "On" : "Off")
-     << "\nSave: " << (_save ? "On" : "Off");
+     << "\nBlock: [" << (_block ? "On" : "Off") << "]\nShow: [" << (_show ? "On" : "Off")
+     << "]\nSave: [" << (_save ? "On" : "Off") << "] to [" << rootFolder() << "/" << _folder << "]";
   return ss.str();
 }
 
@@ -138,13 +140,26 @@ LogPlot::LogPlot(const std::string & name, bool block, bool show, bool save)
 void operator<<(LogPlot::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
 
 LogImage::LogImage(const std::string & name, bool block, bool show, bool save)
-: _block(block),
-  _show(show),
-  _save(save),
-  _name(name),
-  _folder(LogImage::_rootFolder + "/" + name),
-  _ctr(0U)
+: _block(block), _show(show), _save(save), _name(name), _folder(name), _ctr(0U)
 {
+  if (_save) {
+    createDirectories();
+  }
+}
+void LogImage::createDirectories()
+{
+  if (!fs::exists(_folder)) {
+    fs::create_directories(rootFolder() + "/" + _folder);
+  }
+}
+void LogImage::set(bool show, bool block, bool save)
+{
+  _block = block;
+  _show = show;
+  _save = save;
+  if (_save) {
+    createDirectories();
+  }
 }
 
 void LogImage::logMat(const cv::Mat & mat)
@@ -158,7 +173,9 @@ void LogImage::logMat(const cv::Mat & mat)
     cv::waitKey(_block ? 0 : 30);
   }
   if (_save) {
-    cv::imwrite(_folder + "/" + _name + std::to_string(_ctr++) + ".jpg", mat);
+    std::stringstream ss;
+    ss << fmt::format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr++);
+    cv::imwrite(ss.str(), mat);
   }
 }
 

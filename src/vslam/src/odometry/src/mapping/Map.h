@@ -37,21 +37,28 @@ public:
   void updatePose(std::uint64_t, const PoseWithCovariance & pose);
   void updatePoses(const std::map<std::uint64_t, PoseWithCovariance> & poses);
   void updatePoints(const std::map<std::uint64_t, Vec3d> & points);
+  void updatePointsAndPoses(
+    const std::map<std::uint64_t, PoseWithCovariance> & poses,
+    const std::map<std::uint64_t, Vec3d> & points);
 
   void removeUnobservedPoints();
+  void removeLastFrame();
+  void removeLastKeyFrame();
 
-  Frame::ConstShPtr lastKf(size_t idx = 0) const
-  {
-    return _keyFrames.size() <= idx ? nullptr : _keyFrames.at(idx);
-  }
-  Frame::ConstShPtr lastFrame(size_t idx = 0) const
-  {
-    return _frames.size() <= idx ? nullptr : _frames.at(idx);
-  }
+  Frame::ConstShPtr lastKf() const;
+  Frame::ConstShPtr lastFrame() const;
+  Frame::ConstShPtr oldestKf() const;
+  Frame::ConstShPtr frame(size_t idx) const;
+  Frame::ConstShPtr keyFrame(size_t idx) const;
+
+  size_t nKeyFrames() const;
+  size_t nFrames() const;
 
   std::vector<Frame::ShPtr> keyFrames();
+  std::vector<Frame::ShPtr> keyFrames(size_t fromIdx, size_t toIdx);
   std::vector<Frame::ShPtr> frames();
   std::vector<Frame::ConstShPtr> keyFrames() const;
+  std::vector<Frame::ConstShPtr> keyFrames(size_t fromIdx, size_t toIdx) const;
   std::vector<Frame::ConstShPtr> frames() const;
 
   std::vector<Point3D::ShPtr> points();

@@ -44,12 +44,14 @@ public:
     double errorAfter;
   };
 
-  BundleAdjustment(size_t maxIterations = 50);
+  BundleAdjustment(size_t maxIterations = 50, double huberConstant = 1.43);
 
-  Results::ConstUnPtr optimize(const std::vector<Frame::ConstShPtr> & frames) const;
+  Results::ConstUnPtr optimize(
+    const Frame::VecConstShPtr & frames, const Frame::VecConstShPtr & fixedFrames = {}) const;
 
 private:
   const size_t _maxIterations;
+  const double _huberConstant;
 };
 }  // namespace pd::vslam::mapping
 

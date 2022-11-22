@@ -131,14 +131,22 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   } else {
     throw pd::Exception("Unknown method for key frame selection.");
   }
-  _ba = std::make_shared<mapping::BundleAdjustment>();
+  declare_parameter("bundle_adjustment.huber_constant", 1.43);
+  declare_parameter("bundle_adjustment.max_iterations", 50);
+
+  _ba = std::make_shared<mapping::BundleAdjustment>(
+    get_parameter("bundle_adjustment.max_iterations").as_int(),
+    get_parameter("bundle_adjustment.huber_constant").as_double());
 
   _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
+  LOG_IMG("KeyFrames");
   declare_parameter("log.config_dir", "/share/cfg/log/");
+  declare_parameter("log.root_dir", "/tmp/log/vslam");
+  LogImage::rootFolder() = get_parameter("log.root_dir").as_string();
   for (const auto & name : Log::registeredLogs()) {
     RCLCPP_INFO(get_logger(), "Found logger: %s", name.c_str());
     Log::get(name)->configure(get_parameter("log.config_dir").as_string() + "/" + name + ".conf");
@@ -148,8 +156,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
 
     declare_parameter("log.image." + name + ".show", false);
     declare_parameter("log.image." + name + ".block", false);
-    LOG_IMG(name)->show() = get_parameter("log.image." + name + ".show").as_bool();
-    LOG_IMG(name)->block() = get_parameter("log.image." + name + ".block").as_bool();
+    declare_parameter("log.image." + name + ".save", false);
+    LOG_IMG(name)->set(
+      get_parameter("log.image." + name + ".show").as_bool(),
+      get_parameter("log.image." + name + ".block").as_bool(),
+      get_parameter("log.image." + name + ".save").as_bool());
     RCLCPP_INFO(get_logger(), "Found image logger:\n%s", LOG_IMG(name)->toString().c_str());
   }
   for (const auto & name : Log::registeredLogsPlot()) {
@@ -178,24 +189,33 @@ void NodeMapping::processFrame(
 
     frame->set(*_odometry->pose());
 
-    _prediction->update(_odometry->pose(), frame->t());
-
     _keyFrameSelection->update(frame);
 
+    _map->insert(frame, _keyFrameSelection->isKeyFrame());
+    /*
+    auto outBa = _keyFrameSelection->isKeyFrame()
+                   ? _ba->optimize(Map::ConstShPtr(_map)->keyFrames())
+                   : _ba->optimize({frame}, Map::ConstShPtr(_map)->keyFrames());*/
     if (_keyFrameSelection->isKeyFrame()) {
-      _map->removeUnobservedPoints();
       auto points = _tracking->track(frame, _map->keyFrames());
-      _map->insert(frame, _keyFrameSelection->isKeyFrame());
       _map->insert(points);
+      if (_map->keyFrames().size() >= 2) {
+        LOG_IMG("KeyFrames") << std::make_shared<OverlayFeatureDisplacement>(
+          Map::ConstShPtr(_map)->keyFrames());
 
-      auto outBa = _ba->optimize(Map::ConstShPtr(_map)->keyFrames());
-      _map->updatePoses(outBa->poses);
-      _map->updatePoints(outBa->positions);
-    } else {
-      _map->insert(frame, _keyFrameSelection->isKeyFrame());
+        auto outBa = _ba->optimize(
+          {Map::ConstShPtr(_map)->keyFrame(0)},
+          Map::ConstShPtr(_map)->keyFrames(1, _map->nKeyFrames()));
+
+        _map->updatePointsAndPoses(outBa->poses, outBa->positions);
+        LOG_IMG("KeyFrames") << std::make_shared<OverlayFeatureDisplacement>(
+          Map::ConstShPtr(_map)->keyFrames());
+      }
     }
 
-    publish(msgImg);
+    _prediction->update(std::make_shared<PoseWithCovariance>(frame->pose()), frame->t());
+
+    publish(msgImg, frame);
 
     _fNo++;
   } catch (const std::runtime_error & e) {
@@ -258,7 +278,7 @@ Frame::ShPtr NodeMapping::createFrame(
   f->computePcl();
   return f;
 }
-void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
+void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame::ConstShPtr frame)
 {
   if (!_tfAvailable) {
     lookupTf(msgImg);
@@ -282,27 +302,27 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
   tf.header.stamp = msgImg->header.stamp;
   tf.header.frame_id = _frameId;
   tf.child_frame_id = "camera";  //camera name?
-  vslam_ros::convert(_odometry->pose()->pose().inverse(), tf);
+  vslam_ros::convert(frame->pose().pose().inverse(), tf);
   _pubTf->sendTransform(tf);
 
   // Send pose, twist and path in optical frame
   nav_msgs::msg::Odometry odom;
   odom.header = msgImg->header;
   odom.header.frame_id = _frameId;
-  vslam_ros::convert(_odometry->pose()->inverse(), odom.pose);
+  vslam_ros::convert(frame->pose().inverse(), odom.pose);
   vslam_ros::convert(_odometry->speed()->inverse(), odom.twist);
   _pubOdom->publish(odom);
 
   geometry_msgs::msg::PoseStamped poseStamped;
   poseStamped.header = odom.header;
-  poseStamped.pose = vslam_ros::convert(_odometry->pose()->pose().inverse());
+  poseStamped.pose = vslam_ros::convert(frame->pose().pose().inverse());
   _path.header = odom.header;
   _path.poses.push_back(poseStamped);
   _pubPath->publish(_path);
 
   if (!_map->points().empty()) {
     sensor_msgs::msg::PointCloud2 pcl;
-    vslam_ros::convert(_map->points(), pcl);
+    vslam_ros::convert(Map::ConstShPtr(_map)->points(), pcl);
     pcl.header = odom.header;
     _pubPclMap->publish(pcl);
   }

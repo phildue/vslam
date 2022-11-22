@@ -26,9 +26,25 @@ class OverlayFeatureDisplacement : public vis::Drawable
 {
 public:
   OverlayFeatureDisplacement(
-    const Frame::VecConstShPtr & frames, const Point3D::VecConstShPtr & points)
-  : _frames(frames), _points(points)
+    const Frame::VecConstShPtr & frames, const Point3D::VecConstShPtr & points,
+    unsigned int maxWidth = 2560, unsigned int nRows = 2)
+  : _frames(frames), _points(points), _maxWidth(maxWidth), _nRows(nRows)
   {
+    std::sort(_frames.begin(), _frames.end(), [](auto f0, auto f1) { return f0->t() < f1->t(); });
+  }
+  OverlayFeatureDisplacement(
+    const Frame::VecConstShPtr & frames, unsigned int maxWidth = 2560, unsigned int nRows = 2)
+  : _frames(frames), _maxWidth(maxWidth), _nRows(nRows)
+  {
+    std::sort(_frames.begin(), _frames.end(), [](auto f0, auto f1) { return f0->t() < f1->t(); });
+
+    for (auto f : frames) {
+      for (auto ft : f->featuresWithPoints()) {
+        if (std::find(_points.begin(), _points.end(), ft->point()) == _points.end()) {
+          _points.push_back(ft->point());
+        }
+      }
+    }
   }
 
   cv::Mat draw() const override;
@@ -36,6 +52,9 @@ public:
 private:
   Frame::VecConstShPtr _frames;
   Point3D::VecConstShPtr _points;
+  const unsigned int _maxWidth;
+  const unsigned int _nRows;
+  static std::map<uint64_t, cv::Scalar> _colorMap;
 };
 }  // namespace pd::vslam
 #endif  //VSLAM_OVERLAY_FEATURE_DISPLACEMENT_H__

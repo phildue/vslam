@@ -105,10 +105,11 @@ private:
     _world2origin;  //transforms from fixed frame to initial pose of optical frame
   nav_msgs::msg::Path _path;
 
-  void publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
+  void publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, pd::vslam::Frame::ConstShPtr frame);
   void lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
   void signalReplayer();
 };
 }  // namespace vslam_ros
 
 #endif  //VSLAM_ROS2_NODE_MAPPING_H__
+   

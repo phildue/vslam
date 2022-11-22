@@ -18,7 +18,8 @@ RUN apt update && apt install -y --no-install-recommends libgtk2.0-dev libva-dev
     clang-format \
     clang-tidy-6.0 \
     ros-galactic-ament-cmake-clang-format \
-    ros-galactic-ament-cmake-clang-tidy
+    ros-galactic-ament-cmake-clang-tidy \
+    libfmt-dev
 RUN pip3 install opencv-python GitPython sophuspy
 
 # Matplotlib

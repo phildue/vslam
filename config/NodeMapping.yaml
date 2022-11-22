@@ -2,9 +2,11 @@ frame:
       base_link_id: world
       frame_id: odom
 odometry:
+  method: rgbd
+  methods: [rgbd, rgbd_opencv]
   rgbd:
-    includeKeyFrame: true
-    trackKeyFrame: false
+    includeKeyFrame: false
+    trackKeyFrame: true
     features:
       min_gradient: 18
     loss:
@@ -23,16 +25,19 @@ prediction:
   model: ConstantMotion
   models: [None, ConstantMotion, Kalman]
 keyframe_selection:
-  method: never
+  method: custom
   methods: [custom, idx, never]
   idx:
     period: 5
   custom:
-    min_translation: 0.2
-    min_visible_points: 100
+    min_translation: 0.1
+    min_visible_points: 50
 map:
-  n_keyframes: 10
-  n_frames: 3
+  n_keyframes: 5
+  n_frames: 2
+bundle_adjustment:
+  max_iterations: 0
+  huber_constant: 3.0
 log:
   image:
     ImageWarped:
@@ -56,6 +61,10 @@ log:
     Tracking:
       show: false
       block: false
+    KeyFrames:
+      show: true
+      block: false
+      save: true
   plot:
     ErrorDistribution:
       show: false

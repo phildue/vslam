@@ -16,6 +16,7 @@
 #include <sophus/ceres_manifold.hpp>
 
 #include "BundleAdjustment.h"
+#include "feature_tracking/OverlayFeatureDisplacement.h"
 #include "utils/utils.h"
 #define LOG_MAPPING(level) CLOG(level, "mapping")
 
@@ -60,17 +61,22 @@ private:
   const Eigen::Vector2d _obs;
   const Eigen::Matrix3d _K;
 };
-BundleAdjustment::BundleAdjustment(size_t maxIterations) : _maxIterations(maxIterations)
+BundleAdjustment::BundleAdjustment(size_t maxIterations, double huberConstant)
+: _maxIterations(maxIterations), _huberConstant(huberConstant)
 {
   Log::get("mapping");
 }
 
 BundleAdjustment::Results::ConstUnPtr BundleAdjustment::optimize(
-  const std::vector<Frame::ConstShPtr> & frames) const
+  const Frame::VecConstShPtr & frames, const Frame::VecConstShPtr & fixedFrames) const
 {
   Results::UnPtr results = std::make_unique<Results>();
   ceres::Problem problem;
-
+  std::map<uint64_t, PoseWithCovariance> fixedPoses;
+  if (frames.empty()) {
+    LOG_MAPPING(WARNING) << "No Frames given to optimize.";
+    return results;
+  }
   for (const auto & f : frames) {
     results->poses[f->id()] = f->pose();
     problem.AddParameterBlock(
@@ -82,25 +88,45 @@ BundleAdjustment::Results::ConstUnPtr BundleAdjustment::optimize(
       results->positions[pointId] = ft->point()->position();
       problem.AddResidualBlock(
         ReprojectionErrorManifold::Create(ft->position(), f->camera()->K()),
-        new ceres::HuberLoss(5.0), results->poses[f->id()].pose().data(),
+        new ceres::HuberLoss(_huberConstant), results->poses[f->id()].pose().data(),
         results->positions[pointId].data());
     }
   }
-  problem.SetParameterBlockConstant(results->poses[frames.at(0)->id()].pose().data());
-  ceres::Problem::EvaluateOptions evalOptions;
-  problem.Evaluate(evalOptions, &results->errorBefore, nullptr, nullptr, nullptr);
+  if (fixedFrames.empty()) {
+    LOG_MAPPING(WARNING) << "No fixed frames given. Fixing first frame in list: ["
+                         << frames.at(0)->id() << "]";
+    problem.SetParameterBlockConstant(results->poses[frames.at(0)->id()].pose().data());
+  } else {
+    for (const auto & f : fixedFrames) {
+      fixedPoses[f->id()] = f->pose();
+      problem.AddParameterBlock(
+        fixedPoses[f->id()].pose().data(), SE3d::num_parameters,
+        new Sophus::Manifold<Sophus::SE3>());
+      problem.SetParameterBlockConstant(fixedPoses[f->id()].pose().data());
+      for (const auto & ft : f->featuresWithPoints()) {
+        auto pointId = ft->point()->id();
+        results->positions[pointId] = ft->point()->position();
+        problem.AddResidualBlock(
+          ReprojectionErrorManifold::Create(ft->position(), f->camera()->K()),
+          new ceres::HuberLoss(_huberConstant), fixedPoses[f->id()].pose().data(),
+          results->positions[pointId].data());
+      }
+    }
+  }
 
   ceres::Solver::Options options;
-  options.linear_solver_type = ceres::DENSE_SCHUR;
-  options.minimizer_progress_to_stdout = true;
+  options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+  options.minimizer_progress_to_stdout = false;
   options.max_num_iterations = _maxIterations;
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
+  results->errorBefore = summary.initial_cost;
+  results->errorAfter = summary.final_cost;
 
-  LOG_MAPPING(DEBUG) << summary.FullReport();
-  problem.Evaluate(evalOptions, &results->errorAfter, nullptr, nullptr, nullptr);
+  //LOG_MAPPING(DEBUG) << summary.FullReport();
+  LOG_MAPPING(DEBUG) << "BA: Reduced reprojection error from [" << results->errorBefore << "] to ["
+                     << results->errorAfter << "]";
 
   return results;
 }
-
 }  // namespace pd::vslam::mapping
