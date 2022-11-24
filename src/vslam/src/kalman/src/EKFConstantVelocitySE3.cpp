@@ -13,12 +13,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "EKFConstantVelocitySE3.h"
-
 #include <memory>
+
+#include "EKFConstantVelocitySE3.h"
 
 namespace pd::vslam::kalman
 {
+EKFConstantVelocitySE3::EKFConstantVelocitySE3(const Matd<12, 12> & covarianceProcess, Timestamp t0)
+: _t(t0), _covProcess(covarianceProcess)
+{
+}
 EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t) const
 {
   auto state = std::make_unique<State>();
