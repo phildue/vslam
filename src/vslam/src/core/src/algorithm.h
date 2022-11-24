@@ -224,6 +224,8 @@ struct Gaussian
 };
 
 double U(double min, double max);
+uint64_t U(uint64_t min, uint64_t max);
+
 int sign();
 Eigen::VectorXd N(const Eigen::MatrixXd & cov);
 }  // namespace random

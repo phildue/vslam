@@ -104,7 +104,7 @@ PoseWithCovariance::UnPtr SE3Alignment::align(Frame::ConstShPtr from, Frame::Con
   return pose;
 }
 PoseWithCovariance::UnPtr SE3Alignment::align(
-  const std::vector<Frame::ConstShPtr> & from, Frame::ConstShPtr to) const
+  const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const
 {
   PoseWithCovariance::UnPtr pose = std::make_unique<PoseWithCovariance>(to->pose());
   for (int level = from[0]->nLevels() - 1; level >= 0; level--) {

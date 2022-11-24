@@ -19,10 +19,20 @@
 #include <core/core.h>
 namespace pd::vslam
 {
-class AlignmentSE3
+class RgbdAlignment
 {
 public:
+  typedef std::shared_ptr<RgbdAlignment> ShPtr;
+  typedef std::unique_ptr<RgbdAlignment> UnPtr;
+  typedef std::shared_ptr<const RgbdAlignment> ConstShPtr;
+  typedef std::unique_ptr<const RgbdAlignment> ConstUnPtr;
+
   virtual PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const = 0;
+  virtual PoseWithCovariance::UnPtr align(
+    const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const
+  {
+    throw pd::Exception("Method not implemented.");
+  }
 };
 }  // namespace pd::vslam
 

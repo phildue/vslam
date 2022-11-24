@@ -109,7 +109,7 @@ TEST_F(TestSE3Alignment, DISABLED_Comparison)
   const int nFrames = 50;
   std::vector<int> fIds(nFrames, 0);
   std::transform(fIds.begin(), fIds.end(), fIds.begin(), [&](auto UNUSED(p)) {
-    return random::U(0, _timestamps.size());
+    return random::U(0UL, _timestamps.size());
   });
   Eigen::Vector6d error = Eigen::Vector6d::Zero();
   for (int i = 0; i < nFrames; i++) {

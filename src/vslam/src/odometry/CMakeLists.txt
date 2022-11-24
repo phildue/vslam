@@ -2,9 +2,8 @@ cmake_minimum_required(VERSION 3.8)
 project(odometry VERSION 1.0.0)
 
 set( sources
-  src/MotionPrediction.cpp
+  src/MotionModel.cpp
   src/KeyFrameSelection.cpp
-  src/Odometry.cpp
   src/iterative_closest_point/IterativeClosestPoint.cpp
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
   src/direct_image_alignment/SE3Alignment.cpp
@@ -20,9 +19,9 @@ set( sources
   src/mapping/Map.cpp )
 
 set( headers
-  src/MotionPrediction.h
+  src/MotionModel.h
   src/KeyFrameSelection.h
-  src/Odometry.h
+  src/RgbdAlignment.h
   src/iterative_closest_point/IterativeClosestPoint.h
   src/iterative_closest_point/IterativeClosestPointOcv.h
   src/direct_image_alignment/SE3Alignment.h

@@ -22,12 +22,12 @@
 #include <pcl/registration/icp.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
-#include "AlignmentSE3.h"
+#include "RgbdAlignment.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam
 {
-class IterativeClosestPoint : public AlignmentSE3
+class IterativeClosestPoint : public RgbdAlignment
 {
 public:
   typedef std::shared_ptr<IterativeClosestPoint> ShPtr;

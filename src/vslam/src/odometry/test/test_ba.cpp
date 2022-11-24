@@ -130,9 +130,9 @@ public:
 
     for (int i = 0; i < points.rows(); ++i) {
       _pcl.push_back(points.row(i));
-      _pcl[i].x() += random::U(-1, 1);
-      _pcl[i].y() += random::U(-1, 1);
-      _pcl[i].z() += random::U(-1, 1);
+      _pcl[i].x() += random::U(-1.0, 1.0);
+      _pcl[i].y() += random::U(-1.0, 1.0);
+      _pcl[i].z() += random::U(-1.0, 1.0);
     }
     _observations.resize(_poses.size());
     _observations[0] =

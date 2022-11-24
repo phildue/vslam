@@ -76,8 +76,8 @@ public:
     auto loss = std::make_shared<LossTDistribution>(std::make_shared<ScalerTDistribution>());
     _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(5);
     _map = std::make_shared<Map>();
-    _prediction = std::make_shared<MotionPredictionConstant>();
-    _odometry = std::make_shared<OdometryRgbd>(30, solver, loss, _map);
+    _prediction = std::make_shared<MotionModelConstantSpeed>();
+    _odometry = std::make_shared<SE3Alignment>(30, solver, loss);
 
     for (auto log : Log::registeredLogsImage()) {
       LOG_IMG(log)->show() = TEST_VISUALIZE;
@@ -97,9 +97,9 @@ public:
   }
 
 protected:
-  Odometry::ShPtr _odometry;
+  RgbdAlignment::ShPtr _odometry;
   KeyFrameSelection::ShPtr _keyFrameSelection;
-  MotionPrediction::ShPtr _prediction;
+  MotionModel::ShPtr _prediction;
   Map::ShPtr _map;
 
   std::vector<std::string> _depthFilenames;
@@ -119,13 +119,13 @@ TEST_F(EvaluationOdometry, DISABLED_Sequential)
   for (int fId = fId0; fId < nFrames; fId++) {
     auto fCur = loadFrame(fId);
 
-    fCur->set(*_prediction->predict(fCur->t()));
+    fCur->set(*_prediction->predictPose(fCur->t()));
 
-    _odometry->update(fCur);
-
-    fCur->set(*_odometry->pose());
-
-    _prediction->update(_odometry->pose(), fCur->t());
+    if (_map->lastFrame()) {
+      auto pose = _odometry->align(_map->lastFrame(), fCur);
+      fCur->set(*pose);
+      _prediction->update(_map->lastFrame(), fCur);
+    }
 
     _keyFrameSelection->update(fCur);
 

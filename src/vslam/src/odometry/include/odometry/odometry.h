@@ -17,8 +17,8 @@
 #define VSLAM_ODOMETRY_H__
 
 #include "KeyFrameSelection.h"
-#include "MotionPrediction.h"
-#include "Odometry.h"
+#include "MotionModel.h"
+#include "RgbdAlignment.h"
 #include "direct_image_alignment/RgbdAlignmentOpenCv.h"
 #include "direct_image_alignment/SE3Alignment.h"
 #include "feature_tracking/FeatureTracking.h"

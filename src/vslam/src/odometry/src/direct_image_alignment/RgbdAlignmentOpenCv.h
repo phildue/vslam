@@ -16,13 +16,13 @@
 #ifndef VSLAM_RGBD_ALIGNMENT_OPENCV
 #define VSLAM_RGBD_ALIGNMENT_OPENCV
 
-#include "AlignmentSE3.h"
+#include "RgbdAlignment.h"
 #include "core/core.h"
 #include "lukas_kanade/lukas_kanade.h"
 
 namespace pd::vslam
 {
-class RgbdAlignmentOpenCv : public AlignmentSE3
+class RgbdAlignmentOpenCv : public RgbdAlignment
 {
 public:
   typedef std::shared_ptr<RgbdAlignmentOpenCv> ShPtr;

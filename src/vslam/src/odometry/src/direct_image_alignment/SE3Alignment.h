@@ -16,13 +16,13 @@
 #ifndef VSLAM_SE3_ALIGNMENT
 #define VSLAM_SE3_ALIGNMENT
 
-#include "AlignmentSE3.h"
+#include "RgbdAlignment.h"
 #include "core/core.h"
 #include "least_squares/least_squares.h"
 #include "lukas_kanade/lukas_kanade.h"
 namespace pd::vslam
 {
-class SE3Alignment : public AlignmentSE3
+class SE3Alignment : public RgbdAlignment
 {
 public:
   typedef std::shared_ptr<SE3Alignment> ShPtr;
@@ -36,7 +36,7 @@ public:
 
   PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
   PoseWithCovariance::UnPtr align(
-    const std::vector<Frame::ConstShPtr> & from, Frame::ConstShPtr to) const;
+    const Frame::VecConstShPtr& from, Frame::ConstShPtr to) const override;
 
 protected:
   const double _minGradient2;

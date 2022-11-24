@@ -16,12 +16,12 @@
 #ifndef VSLAM_ICP_OPENCV_H__
 #define VSLAM_ICP_OPENCV_H__
 
-#include "AlignmentSE3.h"
+#include "RgbdAlignment.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam
 {
-class IterativeClosestPointOcv : public AlignmentSE3
+class IterativeClosestPointOcv : public RgbdAlignment
 {
 public:
   typedef std::shared_ptr<IterativeClosestPointOcv> ShPtr;

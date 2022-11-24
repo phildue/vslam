@@ -163,6 +163,7 @@ void Map::updatePose(std::uint64_t id, const PoseWithCovariance & pose)
 }
 void Map::updatePoses(const std::map<std::uint64_t, PoseWithCovariance> & poses)
 {
+  //TODO how to handle the effects on the remaining poses?
   for (auto & id_pose : poses) {
     updatePose(id_pose.first, id_pose.second);
   }

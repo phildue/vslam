@@ -104,7 +104,7 @@ public:
   }
 
 protected:
-  std::vector<std::shared_ptr<AlignmentSE3>> _aligner;
+  std::vector<std::shared_ptr<RgbdAlignment>> _aligner;
   std::vector<std::string> _names;
   std::vector<std::string> _depthFilenames;
   std::vector<std::string> _imgFilenames;

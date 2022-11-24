@@ -1,3 +1,5 @@
+#include <fmt/core.h>
+
 #include <filesystem>
 
 #include "NodeReplayer.h"
@@ -18,22 +20,16 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
   declare_parameter(
     "bag_file",
     "/media/data/dataset/rgbd_dataset_freiburg1_desk2/rgbd_dataset_freiburg1_desk2.db3");
+  _bagName = get_parameter("bag_file").as_string();
+  RCLCPP_INFO(get_logger(), "Opening: %s", _bagName.c_str());
+  _reader = open(_bagName);
+
   declare_parameter("period", 0.05);
   declare_parameter("timeout", 10);
   declare_parameter("sync_topic", "/camera/depth/image");
+  declare_parameter("start_random", false);
   _period = get_parameter("period").as_double();
-  rosbag2_storage::StorageOptions storageOptions;
-  storageOptions.uri = get_parameter("bag_file").as_string();
-  storageOptions.storage_id = "sqlite3";
-  rosbag2_cpp::ConverterOptions converterOptions;
-  RCLCPP_INFO(get_logger(), "Opening: %s", get_parameter("bag_file").as_string().c_str());
 
-  if (!fs::exists(storageOptions.uri)) {
-    throw std::runtime_error("Did not find bag file: " + storageOptions.uri);
-  }
-  _reader = std::make_unique<rosbag2_cpp::readers::SequentialReader>();
-  _reader->open(storageOptions, converterOptions);
-  _bagName = get_parameter("bag_file").as_string();
   RCLCPP_INFO(get_logger(), "Opened: %s", _bagName.c_str());
 
   _pubTf = create_publisher<tf2_msgs::msg::TFMessage>("/tf", 100);
@@ -47,6 +43,15 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
     get_logger(), "Bag has length of [%.2fs] and contains [%ld] from [%ld] topics", _duration,
     meta.message_count, meta.topics_with_message_count.size());
 
+  if (get_parameter("start_random").as_bool()) {
+    const bool success = seek(pd::vslam::random::U(
+      static_cast<uint64_t>(meta.starting_time.time_since_epoch().count()),
+      static_cast<uint64_t>((meta.starting_time + meta.duration).time_since_epoch().count())));
+    if (!success) {
+      RCLCPP_WARN(get_logger(), "Could not start random. Will start at beginning.");
+      _reader = open(_bagName);
+    }
+  }
   for (const auto & mc : _reader->get_metadata().topics_with_message_count) {
     RCLCPP_INFO(
       get_logger(), "Topic: [%s] is type [%s] has [%ld] messages", mc.topic_metadata.name.c_str(),
@@ -57,7 +62,22 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
 
   _thread = std::thread([&]() { play(); });
 }
+std::unique_ptr<rosbag2_cpp::readers::SequentialReader> NodeReplayer::open(
+  const std::string & bagName) const
+{
+  if (!fs::exists(bagName)) {
+    throw std::runtime_error("Did not find bag file: " + bagName);
+  }
+  rosbag2_storage::StorageOptions storageOptions;
+  storageOptions.uri = bagName;
+  storageOptions.storage_id = "sqlite3";
 
+  rosbag2_cpp::ConverterOptions converterOptions;
+
+  auto reader = std::make_unique<rosbag2_cpp::readers::SequentialReader>();
+  reader->open(storageOptions, converterOptions);
+  return reader;
+}
 void NodeReplayer::publish(rosbag2_storage::SerializedBagMessageSharedPtr msg)
 {
   //std::cout << fNo << "/" << _nFrames << " t: " << msg->time_stamp << " topic: " << msg->topic_name << std::endl;
@@ -140,7 +160,17 @@ void NodeReplayer::play()
     }
     lastTs = msg->time_stamp;
   }
+  std::this_thread::sleep_for(std::chrono::seconds(10));
   rclcpp::shutdown();
+}
+bool NodeReplayer::seek(rcl_time_point_value_t t)
+{
+  while (_reader->has_next()) {
+    if (_reader->read_next()->time_stamp == t) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void NodeReplayer::srvSetReady(

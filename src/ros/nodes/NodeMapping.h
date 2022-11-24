@@ -70,7 +70,8 @@ public:
     sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const;
 
 private:
-  const bool _includeKeyFrame;
+  bool _includeKeyFrame;
+  bool _trackKeyFrame;
   bool _camInfoReceived;
   bool _tfAvailable;
   int _fNo;
@@ -92,9 +93,9 @@ private:
 
   const std::shared_ptr<vslam_ros::Queue> _queue;
 
-  pd::vslam::Odometry::ShPtr _odometry;
+  pd::vslam::RgbdAlignment::ShPtr _rgbdAlignment;
   pd::vslam::KeyFrameSelection::ShPtr _keyFrameSelection;
-  pd::vslam::MotionPrediction::ShPtr _prediction;
+  pd::vslam::MotionModel::ShPtr _motionModel;
   pd::vslam::Map::ShPtr _map;
   pd::vslam::FeatureTracking::ShPtr _tracking;
   pd::vslam::Matcher::ShPtr _matcher;
@@ -112,4 +113,3 @@ private:
 }  // namespace vslam_ros
 
 #endif  //VSLAM_ROS2_NODE_MAPPING_H__
-   

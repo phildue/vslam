@@ -198,11 +198,15 @@ namespace random
 {
 static std::default_random_engine eng(0);
 
-double U(double min, double max)
+template <typename T = double>
+T U(T min, T max)
 {
   std::uniform_real_distribution<double> distr(min, max);
-  return distr(eng);
+  return static_cast<T>(distr(eng));
 }
+double U(double min, double max) { return U<double>(min, max); }
+uint64_t U(uint64_t min, uint64_t max) { return U<uint64_t>(min, max); }
+
 int sign() { return U(-1, 1) > 0 ? 1 : -1; }
 Eigen::VectorXd N(const Eigen::MatrixXd & cov)
 {

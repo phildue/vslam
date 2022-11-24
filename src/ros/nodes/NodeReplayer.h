@@ -38,8 +38,10 @@ public:
   void publishNext();
   void play();
   bool hasNext() { return _reader->has_next(); }
+  bool seek(rcl_time_point_value_t t);
 
 private:
+  std::unique_ptr<rosbag2_cpp::readers::SequentialReader> open(const std::string & bagName) const;
   void srvSetReady(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response);

@@ -59,8 +59,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("frame.base_link_id", _fixedFrameId);
   declare_parameter("frame.frame_id", _frameId);
   declare_parameter("odometry.method", "rgbd");
-  declare_parameter("odometry.rgbd.trackKeyFrame", false);
-  declare_parameter("odometry.rgbd.includeKeyFrame", false);
+  declare_parameter("odometry.trackKeyFrame", false);
+  declare_parameter("odometry.includeKeyFrame", false);
+  declare_parameter("odometry.rgbd.includePrior", false);
   declare_parameter("odometry.rgbd.features.min_gradient", 1);
   declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
   declare_parameter("odometry.rgbd.solver.max_iterations", 100);
@@ -82,7 +83,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(get_logger(), "Setting up..");
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-
+  _trackKeyFrame = get_parameter("odometry.trackKeyFrame").as_bool();
+  _includeKeyFrame = get_parameter("odometry.includeKeyFrame").as_bool();
+  if (_trackKeyFrame && _includeKeyFrame) {
+    throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
+  }
   if (get_parameter("odometry.method").as_string() == "rgbd") {
     least_squares::Loss::ShPtr loss = nullptr;
     least_squares::Scaler::ShPtr scaler;
@@ -105,19 +110,26 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
       get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
       get_parameter("odometry.rgbd.solver.max_iterations").as_int());
 
-    _odometry = std::make_shared<OdometryRgbd>(
-      get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss, _map,
-      get_parameter("odometry.rgbd.includeKeyFrame").as_bool(),
-      get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
+    _rgbdAlignment = std::make_shared<SE3Alignment>(
+      get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss,
+      get_parameter("odometry.rgbd.includePrior").as_bool());
   } else if (get_parameter("odometry.method").as_string() == "rgbd_opencv") {
-    _odometry = std::make_shared<OdometryRgbdOpenCv>(
-      _map, get_parameter("odometry.rgbd.trackKeyFrame").as_bool());
-
+    _rgbdAlignment = std::make_shared<RgbdAlignmentOpenCv>();
   } else {
     RCLCPP_ERROR(get_logger(), "Unknown odometry method available are: [rgbd, rgbd_opencv]");
   }
 
-  _prediction = MotionPrediction::make(get_parameter("prediction.model").as_string());
+  if (get_parameter("prediction.model").as_string() == "NoMotion") {
+    _motionModel = std::make_shared<MotionModelNoMotion>();
+  } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
+    _motionModel = std::make_shared<MotionModelConstantSpeed>();
+  } else if (get_parameter("prediction.model").as_string() == "Kalman") {
+    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>();
+  } else {
+    RCLCPP_ERROR(
+      get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",
+      get_parameter("prediction.model").as_string().c_str());
+  }
 
   if (get_parameter("keyframe_selection.method").as_string() == "idx") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
@@ -183,11 +195,17 @@ void NodeMapping::processFrame(
   try {
     auto frame = createFrame(msgImg, msgDepth);
 
-    frame->set(*_prediction->predict(frame->t()));
+    auto frameRef = _map->lastKf();
 
-    _odometry->update(frame);
-
-    frame->set(*_odometry->pose());
+    if (frameRef) {
+      frame->set(*_motionModel->predictPose(frame->t()));
+      auto pose = _includeKeyFrame && _map->lastFrame()
+                    ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
+                    : _rgbdAlignment->align(frameRef, frame);
+      frame->set(*pose);
+      _motionModel->update(frameRef, frame);
+      //frame->set(*_motionModel->pose());
+    }
 
     _keyFrameSelection->update(frame);
 
@@ -199,7 +217,7 @@ void NodeMapping::processFrame(
     if (_keyFrameSelection->isKeyFrame()) {
       auto points = _tracking->track(frame, _map->keyFrames());
       _map->insert(points);
-      if (_map->keyFrames().size() >= 2) {
+      if (_map->nKeyFrames() >= 2) {
         LOG_IMG("KeyFrames") << std::make_shared<OverlayFeatureDisplacement>(
           Map::ConstShPtr(_map)->keyFrames());
 
@@ -212,8 +230,6 @@ void NodeMapping::processFrame(
           Map::ConstShPtr(_map)->keyFrames());
       }
     }
-
-    _prediction->update(std::make_shared<PoseWithCovariance>(frame->pose()), frame->t());
 
     publish(msgImg, frame);
 
@@ -285,7 +301,7 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
     return;
   }
 
-  auto x = _odometry->pose()->pose().inverse().log();
+  auto x = frame->pose().pose().inverse().log();
   RCLCPP_INFO(
     get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f", x(0), x(1), x(2), x(3), x(4), x(5));
 
@@ -310,7 +326,7 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
   odom.header = msgImg->header;
   odom.header.frame_id = _frameId;
   vslam_ros::convert(frame->pose().inverse(), odom.pose);
-  vslam_ros::convert(_odometry->speed()->inverse(), odom.twist);
+  vslam_ros::convert(_motionModel->speed()->inverse(), odom.twist);
   _pubOdom->publish(odom);
 
   geometry_msgs::msg::PoseStamped poseStamped;
