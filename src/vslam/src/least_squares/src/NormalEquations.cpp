@@ -56,7 +56,7 @@ NormalEquations::NormalEquations(
   auto Jtw = J.transpose() * w.asDiagonal();
   _A = Jtw * J;
   _b = Jtw * r;
-  _chi2 = (r * w).transpose() * r;
+  _chi2 = (w.asDiagonal() * r).transpose() * r;
   _nConstraints = r.rows();
 }
 
