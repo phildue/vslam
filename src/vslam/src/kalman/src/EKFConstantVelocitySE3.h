@@ -46,8 +46,6 @@ public:
   void update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t);
 
 private:
-  void predict(Timestamp t, Vec6d & pose, Vec6d & vel, Matd<12, 12> & P, Matd<12, 12> & Jfx) const;
-
   Matd<12, 12> computeJacobianProcess(const SE3d & pose) const;
   Matd<6, 12> computeJacobianMeasurement(Timestamp t) const;
 

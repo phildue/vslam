@@ -26,59 +26,56 @@ EKFConstantVelocitySE3::EKFConstantVelocitySE3(const Matd<12, 12> & covariancePr
 EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t) const
 {
   auto state = std::make_unique<State>();
-  Matd<12, 12> P;
-  Matd<12, 12> Jfx;
-  predict(t, state->pose, state->velocity, P, Jfx);
+  Timestamp dt = t - _t;
+  state->pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
+  state->velocity = _velocity;
+  Mat<double, 12, 12> Jfx = computeJacobianProcess(SE3d::exp(state->pose));
+  Mat<double, 12, 12> P = Jfx * (_covState * Jfx.transpose()) + _covProcess;
   state->covPose = P.block(0, 0, 6, 6);
-  state->covVel = P.block(0, 0, 6, 6);
+  state->covVel = P.block(6, 6, 6, 6);
   return state;
 }
 
 void EKFConstantVelocitySE3::update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t)
 {
   Timestamp dt = t - _t;
-  Matd<12, 12> Jfx;
-  predict(t, _pose, _velocity, _covState, Jfx);
+  //Prediction
+  _pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
+  _velocity = _velocity;
+  Mat<double, 12, 12> Jfx = computeJacobianProcess(SE3d::exp(_pose));
+  _covState = Jfx * (_covState * Jfx.transpose()) + _covProcess;
 
-  auto e = _velocity * dt;
-  auto Jhx = computeJacobianMeasurement(dt);
-  auto E = Jhx * _covState * Jhx.transpose();
+  //Correction
+  Vec6d e = _velocity * dt;
+  Matd<6, 12> Jhx = computeJacobianMeasurement(dt);
+  Matd<6, 6> E = Jhx * _covState * Jhx.transpose();
 
-  auto y = motion - e;
-  auto Z = E + covMotion;
+  Vec6d y = motion - e;
+  Matd<6, 6> Z = E + covMotion;
 
+  //State update
   MatXd K = _covState * Jhx.transpose() * Z.inverse();
 
   MatXd dx = K * y;
   // there is no position update anyway
-  _velocity += dx.block(6, 0, 12, 1);
+  _velocity += dx.block(6, 0, 6, 1);
 
   _covState -= K * Z * K.transpose();
   _t = t;
 }
 
-void EKFConstantVelocitySE3::predict(
-  Timestamp t, Vec6d & pose, Vec6d & vel, Matd<12, 12> & P, Matd<12, 12> & Jfx) const
-{
-  Timestamp dt = t - _t;
-  pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
-  vel = _velocity;
-  Jfx = computeJacobianProcess(SE3d::exp(pose));
-  P = Jfx * (P * Jfx.transpose()) + _covProcess;
-}
-
 Matd<12, 12> EKFConstantVelocitySE3::computeJacobianProcess(const SE3d & pose) const
 {
-  MatXd J_f_x = MatXd::Zero(12, 12);
+  Matd<12, 12> J_f_x = MatXd::Zero(12, 12);
   Vec3d t = pose.translation();
   Eigen::Matrix3d t_hat;
   t_hat << 0, -t(2), t(1), t(2), 0, -t(0), -t(1), t(0), 0;
   auto R = pose.rotationMatrix();
   MatXd adj = MatXd::Zero(6, 6);
   adj.block(0, 0, 3, 3) = R;
-  adj.block(0, 3, 3, 6) = t_hat;
-  adj.block(3, 3, 6, 6) = R;
-  J_f_x.block(6, 6, 12, 12) = adj.inverse();
+  adj.block(0, 3, 3, 3) = t_hat;
+  adj.block(3, 3, 3, 3) = R;
+  J_f_x.block(6, 6, 6, 6) = adj.inverse();
   return J_f_x;
 }
 
