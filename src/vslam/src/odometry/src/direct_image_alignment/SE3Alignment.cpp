@@ -98,7 +98,10 @@ PoseWithCovariance::UnPtr SE3Alignment::align(Frame::ConstShPtr from, Frame::Con
       interestPoints, _loss, prior);
 
     auto results = _solver->solve(lk);
-    auto covariance = results->normalEquations.at(results->iteration)->A().inverse();
+    Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
+    if (!results->normalEquations.empty()) {
+      covariance = results->normalEquations.at(results->iteration)->A().inverse();
+    }
     pose = std::make_unique<PoseWithCovariance>(w->poseCur(), covariance);
   }
   return pose;
@@ -139,7 +142,10 @@ PoseWithCovariance::UnPtr SE3Alignment::align(
     auto lk = std::make_shared<lukas_kanade::InverseCompositionalStacked>(frames);
 
     auto results = _solver->solve(lk);
-    auto covariance = results->normalEquations.at(results->iteration)->A().inverse();
+    Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
+    if (!results->normalEquations.empty()) {
+      covariance = results->normalEquations.at(results->iteration)->A().inverse();
+    }
     pose = std::make_unique<PoseWithCovariance>(warps[0]->poseCur(), covariance);
   }
   return pose;
