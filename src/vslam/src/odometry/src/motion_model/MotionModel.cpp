@@ -75,14 +75,14 @@ PoseWithCovariance::UnPtr MotionModelConstantSpeed::predictPose(Timestamp timest
 
 MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman()
 : MotionModel(),
-  _kalman(std::make_unique<kalman::EKFConstantVelocitySE3>(Matd<12, 12>::Identity())),
+  _kalman(std::make_unique<odometry::EKFConstantVelocitySE3>(Matd<12, 12>::Identity())),
   _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
   _lastT(0U)
 {
 }
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
-  kalman::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(timestamp);
+  odometry::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(timestamp);
   return std::make_unique<PoseWithCovariance>(SE3d::exp(state->pose), state->covPose);
 }
 void MotionModelConstantSpeedKalman::update(
@@ -116,7 +116,7 @@ void MotionModelConstantSpeedKalman::update(Frame::ConstShPtr frameRef, Frame::C
 
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::speed() const
 {
-  kalman::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(0);
+  odometry::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(0);
   return std::make_unique<PoseWithCovariance>(SE3d::exp(state->velocity), state->covVel);
 }
 

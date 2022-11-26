@@ -17,7 +17,7 @@
 #define VSLAM_KALMAN_FILTER_SE3_H__
 
 #include "core/core.h"
-namespace pd::vslam::kalman
+namespace pd::vslam::odometry
 {
 class EKFConstantVelocitySE3
 {
@@ -55,5 +55,5 @@ private:
   Matd<12, 12> _covState;
   Matd<12, 12> _covProcess;
 };
-}  // namespace pd::vslam::kalman
+}  // namespace pd::vslam::odometry
 #endif  //VSLAM_KALMAN_H__

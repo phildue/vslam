@@ -17,7 +17,7 @@
 
 #include "EKFConstantVelocitySE3.h"
 
-namespace pd::vslam::kalman
+namespace pd::vslam::odometry
 {
 EKFConstantVelocitySE3::EKFConstantVelocitySE3(const Matd<12, 12> & covarianceProcess, Timestamp t0)
 : _t(t0), _covProcess(covarianceProcess)

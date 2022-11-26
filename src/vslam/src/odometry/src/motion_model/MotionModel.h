@@ -80,7 +80,7 @@ public:
   PoseWithCovariance::UnPtr speed() const override;
 
 private:
-  const kalman::EKFConstantVelocitySE3::UnPtr _kalman;
+  const odometry::EKFConstantVelocitySE3::UnPtr _kalman;
   PoseWithCovariance::ConstShPtr _lastPose;
   Timestamp _lastT;
 };
