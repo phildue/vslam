@@ -1,0 +1,11 @@
+/resultWriter:
+  ros__parameters:
+    algoOutputFile: /media/data/dataset/rgbd_dataset_freiburg2_desk/test.txt
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    use_sim_time: false
