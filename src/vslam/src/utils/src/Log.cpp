@@ -83,6 +83,7 @@ Log::Log(const std::string & name) : _name(name)
   el::Configurations defaultConf;
   defaultConf.setToDefault();
   defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
+  defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
   el::Loggers::reconfigureLogger(name, defaultConf);
 }
 void Log::configure(const std::string & configFilePath)
