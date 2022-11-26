@@ -17,6 +17,5 @@
 #define VSLAM_ROS2_H__
 #include "converters.h"
 #include "nodes/NodeMapping.h"
-#include "nodes/NodeRgbdAlignment.h"
 #include "vslam/vslam.h"
 #endif
