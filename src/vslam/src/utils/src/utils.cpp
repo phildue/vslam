@@ -17,7 +17,7 @@
 // Created by phil on 08.08.21.
 //
 
-#include "utils/utils.h"
+#include <fmt/core.h>
 
 #include <Eigen/Dense>
 #include <filesystem>
@@ -27,6 +27,7 @@
 #include <opencv4/opencv2/core/eigen.hpp>
 
 #include "Exceptions.h"
+#include "utils/utils.h"
 namespace fs = std::filesystem;
 namespace pd::vslam
 {
@@ -75,11 +76,14 @@ Eigen::MatrixXd utils::loadDepth(const fs::path & path, int height, int width)
 }
 std::map<Timestamp, SE3d> utils::loadTrajectory(const fs::path & path)
 {
+  if (!fs::exists(path)) {
+    throw pd::Exception(fmt::format("Could not find [{}]", path.string()));
+  }
   std::ifstream gtFile;
   gtFile.open(path.string());
 
   if (!gtFile.is_open()) {
-    std::runtime_error("Could not open file at: " + path.string());
+    throw std::runtime_error("Could not open file at: " + path.string());
   }
 
   std::map<Timestamp, SE3d> poses;
