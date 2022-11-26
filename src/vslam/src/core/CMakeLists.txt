@@ -19,6 +19,7 @@ set( headers
   src/Trajectory.h
   src/Point3D.h
   src/Feature2D.h
+  src/linalg.h
   include/core/core.h )
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 

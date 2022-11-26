@@ -1,3 +1,4 @@
+
 // Copyright 2022 Philipp.Duernay
 //
 // This program is free software: you can redistribute it and/or modify
@@ -13,19 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef VSLAM_CORE_H__
-#define VSLAM_CORE_H__
-#include "Camera.h"
-#include "Exceptions.h"
-#include "Feature2D.h"
-#include "Frame.h"
-#include "Kernel2d.h"
-#include "Point3D.h"
-#include "PoseWithCovariance.h"
-#include "Trajectory.h"
-#include "algorithm.h"
+//
+// Created by phil on 02.07.21.
+//
+
+#ifndef VSLAM_LINALG_H__
+#define VSLAM_LINALG_H__
+#include <Eigen/Dense>
+
 #include "image_transform.h"
-#include "linalg.h"
 #include "macros.h"
 #include "types.h"
-#endif  // VSLAM_CORE_H__
+namespace pd::vslam::linalg
+{
+template <typename Derived>
+double stddev(const Eigen::Matrix<Derived, -1, -1> & mat, double mean)
+{
+  double sum = 0;
+  forEach(
+    mat, [&](int UNUSED(x), int UNUSED(y), double v) { sum += std::sqrt(std::pow(v - mean, 2)); });
+  return sum / (mat.rows() * mat.cols());
+}
+template <typename Derived>
+double stddev(const Eigen::Matrix<Derived, -1, -1> & mat)
+{
+  return stddev(mat, mat.mean());
+}
+}  // namespace pd::vslam::linalg
+#endif
