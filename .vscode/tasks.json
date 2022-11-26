@@ -32,6 +32,15 @@
             }
         },
         {
+            "label": "build_vslam",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make -j4",
+            "type": "shell",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+            }
+        },
+        {
             "label": "test",
             "detail": "Run all unit tests and show results.",
             "type": "shell",

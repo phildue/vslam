@@ -79,7 +79,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/build/vslam_ros/src/vslam/${input:test}",
       "args": [],
-      //"preLaunchTask": "build",
+      "preLaunchTask": "build_vslam",
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "externalConsole": false,
@@ -193,7 +193,7 @@
           "trajectoryTest",
           "mapTest",
           "frameTest",
-          "systemTest"
+          "ekf_se3Test"
         ]
       },
       {
