@@ -16,8 +16,8 @@
 #ifndef VSLAM_MOTION_PREDICTION
 #define VSLAM_MOTION_PREDICTION
 
+#include "EKFConstantVelocitySE3.h"
 #include "core/core.h"
-#include "kalman/kalman.h"
 namespace pd::vslam
 {
 class MotionModel

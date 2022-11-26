@@ -16,8 +16,8 @@
 #ifndef VSLAM_ICP_OPENCV_H__
 #define VSLAM_ICP_OPENCV_H__
 
-#include "RgbdAlignment.h"
 #include "core/core.h"
+#include "rgbd_alignment/RgbdAlignment.h"
 #include "utils/utils.h"
 namespace pd::vslam
 {

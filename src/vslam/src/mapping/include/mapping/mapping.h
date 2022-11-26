@@ -13,7 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef VSLAM_KALMAN_H__
-#define VSLAM_KALMAN_H__
-#include "EKFConstantVelocitySE3.h"
+#ifndef VSLAM_MAPPING_H__
+#define VSLAM_MAPPING_H__
+
+#include "BundleAdjustment.h"
+#include "KeyFrameSelection.h"
+#include "Map.h"
+#include "OverlayFeatureDisplacement.h"
+#include "motion_model/MotionModel.h"
 #endif

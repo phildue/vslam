@@ -18,7 +18,6 @@
 
 #include "RgbdAlignment.h"
 #include "core/core.h"
-#include "lukas_kanade/lukas_kanade.h"
 
 namespace pd::vslam
 {

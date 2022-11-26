@@ -2,46 +2,39 @@ cmake_minimum_required(VERSION 3.8)
 project(odometry VERSION 1.0.0)
 
 set( sources
-  src/MotionModel.cpp
-  src/KeyFrameSelection.cpp
+  src/motion_model/MotionModel.cpp
+  src/motion_model/EKFConstantVelocitySE3.cpp
   src/iterative_closest_point/IterativeClosestPoint.cpp
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
-  src/direct_image_alignment/SE3Alignment.cpp
-  src/direct_image_alignment/RgbdAlignmentOpenCv.cpp
+  src/rgbd_alignment/SE3Alignment.cpp
+  src/rgbd_alignment/RgbdAlignmentOpenCv.cpp
   src/feature_tracking/OverlayMatchCandidates.cpp
   src/feature_tracking/OverlayFeatures.cpp
   src/feature_tracking/OverlayCorrespondences.cpp
-  src/feature_tracking/OverlayFeatureDisplacement.cpp
   src/feature_tracking/FeatureTracking.cpp
   src/feature_tracking/FeatureTrackingOcv.cpp
-  src/feature_tracking/Matcher.cpp
-  src/mapping/BundleAdjustment.cpp
-  src/mapping/Map.cpp )
+  src/feature_tracking/Matcher.cpp)
 
 set( headers
-  src/MotionModel.h
-  src/KeyFrameSelection.h
-  src/RgbdAlignment.h
+  src/motion_model/MotionModel.h
+  src/motion_model/KalmanFilter.h
+  src/motion_model/EKFConstantVelocitySE3.h
   src/iterative_closest_point/IterativeClosestPoint.h
   src/iterative_closest_point/IterativeClosestPointOcv.h
-  src/direct_image_alignment/SE3Alignment.h
-  src/direct_image_alignment/RgbdAlignmentOpenCv.h
+  src/rgbd_alignment/RgbdAlignment.h
+  src/rgbd_alignment/SE3Alignment.h
+  src/rgbd_alignment/RgbdAlignmentOpenCv.h
   src/feature_tracking/OverlayMatchCandidates.h
   src/feature_tracking/OverlayFeatures.h
   src/feature_tracking/OverlayCorrespondences.h
-  src/feature_tracking/OverlayFeatureDisplacement.h
   src/feature_tracking/FeatureTracking.h
   src/feature_tracking/FeatureTrackingOcv.h
   src/feature_tracking/Matcher.h
-  src/mapping/BundleAdjustment.h
-  src/mapping/Map.h
   include/odometry/odometry.h )
 
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 
-target_link_libraries(${PROJECT_NAME} kalman lukas_kanade utils core)
-
-target_link_libraries(${PROJECT_NAME} core utils least_squares)
+target_link_libraries(${PROJECT_NAME} core utils least_squares lukas_kanade)
 if(UNIX)
   target_link_libraries(${PROJECT_NAME} stdc++fs)
 endif()
@@ -57,13 +50,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${PCL_INCLUDE_DIRS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${PCL_DEFINITIONS})
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES})
 
-find_package(Ceres REQUIRED)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CERES_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${CERES_LIBRARIES})
-
 # Add tests
-option(VSLAM_ODOMETRY_BUILD_TESTS "Enable to build odometry tests" ON)
-if(VSLAM_ODOMETRY_BUILD_TESTS)
+option(VSLAM_BUILD_TESTS "Enable to build tests" ON)
+if(VSLAM_BUILD_TESTS)
   enable_testing()
   find_package(GTest CONFIG REQUIRED)
 
@@ -76,43 +65,6 @@ if(VSLAM_ODOMETRY_BUILD_TESTS)
 
 
 
-  pd_add_test(alignment_se3 ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(alignment_se3_multi_frame ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(odometry_icp ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(odometry_rgbd_cv ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(trajectory ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(odometry ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(tracking ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(ba ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(ceres_ba ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(map ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
 endif()

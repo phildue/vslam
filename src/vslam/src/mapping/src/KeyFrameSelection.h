@@ -16,8 +16,8 @@
 #ifndef VSLAM_KEY_FRAME_SELECTION
 #define VSLAM_KEY_FRAME_SELECTION
 
+#include "Map.h"
 #include "core/core.h"
-#include "mapping/Map.h"
 namespace pd::vslam
 {
 class KeyFrameSelection

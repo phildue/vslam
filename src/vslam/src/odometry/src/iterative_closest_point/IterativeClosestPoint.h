@@ -22,8 +22,8 @@
 #include <pcl/registration/icp.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
-#include "RgbdAlignment.h"
 #include "core/core.h"
+#include "rgbd_alignment/RgbdAlignment.h"
 #include "utils/utils.h"
 namespace pd::vslam
 {

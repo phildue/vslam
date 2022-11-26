@@ -16,7 +16,7 @@
 #include <sophus/ceres_manifold.hpp>
 
 #include "BundleAdjustment.h"
-#include "feature_tracking/OverlayFeatureDisplacement.h"
+#include "OverlayFeatureDisplacement.h"
 #include "utils/utils.h"
 #define LOG_MAPPING(level) CLOG(level, "mapping")
 

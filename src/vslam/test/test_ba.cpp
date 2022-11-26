@@ -25,7 +25,7 @@
 
 #include <sophus/ceres_manifold.hpp>
 
-#include "odometry/odometry.h"
+#include "BundleAdjustment.h"
 using namespace testing;
 using namespace pd;
 using namespace pd::vslam;

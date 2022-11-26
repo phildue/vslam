@@ -103,7 +103,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/)
 
 install(DIRECTORY
-  src/vslam/src/kalman/cfg
+  src/vslam/src/mapping/cfg
   DESTINATION share/${PROJECT_NAME}/)
 
 install(DIRECTORY

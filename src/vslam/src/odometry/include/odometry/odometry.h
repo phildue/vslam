@@ -16,20 +16,18 @@
 #ifndef VSLAM_ODOMETRY_H__
 #define VSLAM_ODOMETRY_H__
 
-#include "KeyFrameSelection.h"
-#include "MotionModel.h"
-#include "RgbdAlignment.h"
-#include "direct_image_alignment/RgbdAlignmentOpenCv.h"
-#include "direct_image_alignment/SE3Alignment.h"
 #include "feature_tracking/FeatureTracking.h"
 #include "feature_tracking/FeatureTrackingOcv.h"
 #include "feature_tracking/Matcher.h"
 #include "feature_tracking/OverlayCorrespondences.h"
-#include "feature_tracking/OverlayFeatureDisplacement.h"
 #include "feature_tracking/OverlayFeatures.h"
 #include "feature_tracking/OverlayMatchCandidates.h"
 #include "iterative_closest_point/IterativeClosestPoint.h"
 #include "iterative_closest_point/IterativeClosestPointOcv.h"
-#include "mapping/BundleAdjustment.h"
-#include "mapping/Map.h"
+#include "motion_model/EKFConstantVelocitySE3.h"
+#include "motion_model/KalmanFilter.h"
+#include "motion_model/MotionModel.h"
+#include "rgbd_alignment/RgbdAlignment.h"
+#include "rgbd_alignment/RgbdAlignmentOpenCv.h"
+#include "rgbd_alignment/SE3Alignment.h"
 #endif

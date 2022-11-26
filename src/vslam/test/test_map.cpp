@@ -19,13 +19,14 @@
 
 #include <core/core.h>
 #include <gtest/gtest.h>
+#include <odometry/odometry.h>
 #include <utils/utils.h>
 
 #include <Eigen/Dense>
 #include <opencv2/highgui.hpp>
 #include <opencv4/opencv2/core/eigen.hpp>
 
-#include "odometry/odometry.h"
+#include "Map.h"
 using namespace testing;
 using namespace pd;
 using namespace pd::vslam;

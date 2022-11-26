@@ -11,12 +11,12 @@ add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/least_squares)
 add_subdirectory(src/lukas_kanade)
-add_subdirectory(src/kalman)
 add_subdirectory(src/odometry)
+add_subdirectory(src/mapping)
 
 add_library(vslam INTERFACE)
 add_library(pd::vslam ALIAS vslam)
-target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils kalman odometry)
+target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping)
 target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
@@ -34,10 +34,62 @@ if(VSLAM_BUILD_TESTS)
   else()
       set(TEST_VISUALIZE false)
   endif()
+  pd_add_test(lukas_kanade_flow ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(warp ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(lukas_kanade_affine ${PROJECT_NAME})
+    #pd_add_test(lukas_kanade_se3 ${PROJECT_NAME})
+    #target_compile_definitions(lukas_kanade_affineTest PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
+    #target_compile_definitions(lukas_kanade_se3Test PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
+
+  pd_add_test(alignment_se3 ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(alignment_se3_multi_frame ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(odometry_icp ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(odometry_rgbd_cv ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(trajectory ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(tracking ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(track_and_optimize ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(ba ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(ceres_ba ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  pd_add_test(map ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
 endif()
 
 # Installation
-install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade kalman odometry
+install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade odometry mapping
     EXPORT ${PROJECT_NAME}Targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
