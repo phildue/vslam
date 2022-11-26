@@ -60,13 +60,17 @@ PoseWithCovariance::ConstShPtr Trajectory::interpolateAt(Timestamp t) const
       break;
     }
   }
-  if (t0 == 0 && t1 == 0) {
+  if (t0 == 0 || t1 == 0) {
+    throw pd::Exception("Cannot interpolate to: [" + std::to_string(t) + "].");
+  }
+  if (_poses.find(t0) == _poses.end() || _poses.find(t1) == _poses.end()) {
     throw pd::Exception("Cannot interpolate to: [" + std::to_string(t) + "].");
   }
   // TODO(unknown): handle corner cases at boundaries
   const int64_t dT = static_cast<int64_t>(t1) - static_cast<int64_t>(t0);
   auto p0 = _poses.find(t0)->second;
   auto p1 = _poses.find(t1)->second;
+
   const Vec6d speed =
     algorithm::computeRelativeTransform(p0->pose(), p1->pose()).log() / static_cast<double>(dT);
   const SE3d dPose = SE3d::exp((static_cast<double>(t) - static_cast<double>(t0)) * speed);
