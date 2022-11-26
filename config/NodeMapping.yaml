@@ -4,9 +4,10 @@ frame:
 odometry:
   method: rgbd
   methods: [rgbd, rgbd_opencv]
+  includeKeyFrame: true
+  trackKeyFrame: false
   rgbd:
-    includeKeyFrame: false
-    trackKeyFrame: true
+    includePrior: true
     features:
       min_gradient: 18
     loss:
@@ -23,7 +24,7 @@ odometry:
     min_step_size: 0.00000000001
 prediction:
   model: ConstantMotion
-  models: [None, ConstantMotion, Kalman]
+  models: [NoMotion, ConstantMotion, Kalman]
 keyframe_selection:
   method: custom
   methods: [custom, idx, never]
