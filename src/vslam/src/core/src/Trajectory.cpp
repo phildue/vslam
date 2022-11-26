@@ -60,9 +60,6 @@ PoseWithCovariance::ConstShPtr Trajectory::interpolateAt(Timestamp t) const
       break;
     }
   }
-  if (t0 == 0 || t1 == 0) {
-    throw pd::Exception("Cannot interpolate to: [" + std::to_string(t) + "].");
-  }
   if (_poses.find(t0) == _poses.end() || _poses.find(t1) == _poses.end()) {
     throw pd::Exception("Cannot interpolate to: [" + std::to_string(t) + "].");
   }
