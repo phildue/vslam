@@ -91,7 +91,26 @@
           "ignoreFailures": true
         }
       ]
-    }
+    },
+    {
+        "name": "(gdb) Launch App",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/app/evaluate_tum",
+        "args": [],
+        "preLaunchTask": "build_app",
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      },
     // Example launch of a python file
     {
       "name": "Python: Current File",
@@ -173,7 +192,8 @@
           "trackingTest",
           "trajectoryTest",
           "mapTest",
-          "frameTest"
+          "frameTest",
+          "systemTest"
         ]
       },
       {

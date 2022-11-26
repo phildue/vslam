@@ -21,11 +21,19 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
 
+add_subdirectory(src/app)
+
 # Add tests
 option(VSLAM_BUILD_TESTS "Enable to build tests" ON)
 if(VSLAM_BUILD_TESTS)
   enable_testing()
-  add_subdirectory(test)
+  find_package(GTest CONFIG REQUIRED)
+  option(VSLAM_TEST_VISUALIZE "Enable test visualizations." ON)
+  if(VSLAM_TEST_VISUALIZE)
+      set(TEST_VISUALIZE true)
+  else()
+      set(TEST_VISUALIZE false)
+  endif()
 endif()
 
 # Installation

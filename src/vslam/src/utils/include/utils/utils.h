@@ -25,8 +25,8 @@
 
 #include "Exceptions.h"
 #include "Log.h"
+#include "tum.h"
 #include "visuals.h"
-
 namespace pd::vslam::utils
 {
 void throw_if_nan(const Eigen::MatrixXd & mat, const std::string & msg);

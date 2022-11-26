@@ -15,11 +15,20 @@
             "label": "build",
             "detail": "Build workspace (default)",
             "type": "shell",
-            "command": "colcon build --symlink-install --event-handler console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=${input:build_type} -DCMAKE_EXPORT_COMPILE_COMMANDS=On -Wall -Wextra -Wpedantic",
+            "command": "colcon build --symlink-install --event-handler console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=${input:build_type} -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DBUILD_TESTING=${input:build_testing} -Wall -Wextra -Wpedantic",
             "problemMatcher": "$gcc",
             "group": {
                 "kind": "build",
                 "isDefault": true
+            }
+        },
+        {
+            "label": "build_app",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/src/app && make -j4",
+            "type": "shell",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
             }
         },
         {
@@ -323,6 +332,16 @@
                 "Release",
                 "Debug"
             ]
+        },
+        {
+            "id": "build_testing",
+            "type": "pickString",
+            "description": "build tests",
+            "options": [
+                "ON",
+                "OFF"
+            ],
+            "default": "ON"
         }
     ]
 }

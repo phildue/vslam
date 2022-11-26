@@ -5,9 +5,11 @@ set( sources
         src/Log.cpp
         src/visuals.cpp
         src/utils.cpp
+        src/tum.cpp
         /usr/local/include/easylogging++.cc )
 
 set( headers
+        src/tum.h
         src/Log.h
         src/visuals.h
         include/utils/utils.h

@@ -48,7 +48,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<INSTALL_INTERFACE:include/>)
 
 add_library(vslam_ros_nodes SHARED
-  src/ros/nodes/NodeRgbdAlignment.cpp
   src/ros/nodes/NodeMapping.cpp
   src/ros/nodes/NodeGtLoader.cpp
   src/ros/nodes/NodeResultWriter.cpp
@@ -58,7 +57,6 @@ set_property(TARGET vslam_ros_nodes PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 rclcpp_components_register_nodes(
     vslam_ros_nodes
-    "vslam_ros::NodeRgbdAlignment"
     "vslam_ros::NodeMapping"
     "vslam_ros::NodeResultWriter"
     "vslam_ros::NodeReplayer"
