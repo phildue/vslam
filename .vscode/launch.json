@@ -77,7 +77,7 @@
       "name": "(gdb) Launch Test",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/${input:module}/${input:test}",
+      "program": "${workspaceFolder}/build/vslam_ros/src/vslam/${input:test}",
       "args": [],
       //"preLaunchTask": "build",
       "stopAtEntry": false,
