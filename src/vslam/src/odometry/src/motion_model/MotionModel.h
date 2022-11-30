@@ -64,6 +64,28 @@ public:
   MotionModelConstantSpeed();
   PoseWithCovariance::UnPtr predictPose(Timestamp timestamp) const override;
 };
+
+class MotionModelMovingAverage : public MotionModel
+{
+public:
+  typedef std::shared_ptr<MotionModelMovingAverage> ShPtr;
+  typedef std::unique_ptr<MotionModelMovingAverage> UnPtr;
+  typedef std::shared_ptr<const MotionModelMovingAverage> ConstShPtr;
+  typedef std::unique_ptr<const MotionModelMovingAverage> ConstUnPtr;
+  MotionModelMovingAverage(Timestamp timeFrame);
+  void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) override;
+  void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) override;
+  PoseWithCovariance::UnPtr predictPose(Timestamp timestamp) const override;
+  PoseWithCovariance::UnPtr pose() const override;
+  PoseWithCovariance::UnPtr speed() const override;
+
+protected:
+  const Timestamp _timeFrame;
+  Trajectory::UnPtr _traj;
+  Vec6d _speed = Vec6d::Zero();
+  PoseWithCovariance::ConstShPtr _lastPose;
+  Timestamp _lastT;
+};
 class MotionModelConstantSpeedKalman : public MotionModel
 {
 public:

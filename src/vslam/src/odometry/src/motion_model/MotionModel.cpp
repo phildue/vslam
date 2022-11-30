@@ -73,6 +73,50 @@ PoseWithCovariance::UnPtr MotionModelConstantSpeed::predictPose(Timestamp timest
     predictedRelativePose * _lastPose->pose(), MatXd::Identity(6, 6));
 }
 
+MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)
+: MotionModel(),
+  _timeFrame(timeFrame),
+  _traj(std::make_unique<Trajectory>()),
+  _speed(Vec6d::Zero()),
+  _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
+  _lastT(0U)
+{
+}
+void MotionModelMovingAverage::update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
+{
+  if (timestamp < _lastT) {
+    throw pd::Exception("New timestamp is older than last one!");
+  }
+  _traj->append(timestamp, pose);
+  if (_traj->tEnd() - _traj->tStart() <= _timeFrame) {
+    const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
+    _speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+
+  } else {
+    _speed =
+      _traj->meanMotion(timestamp - _timeFrame, timestamp, timestamp - _lastT)->pose().log() * 1e9;
+  }
+  _lastPose = pose;
+  _lastT = timestamp;
+}
+void MotionModelMovingAverage::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) {}
+
+PoseWithCovariance::UnPtr MotionModelMovingAverage::predictPose(Timestamp timestamp) const
+{
+  const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
+  const SE3d predictedRelativePose = SE3d::exp(_speed * dT);
+  return std::make_unique<PoseWithCovariance>(
+    predictedRelativePose * _lastPose->pose(), MatXd::Identity(6, 6));
+}
+PoseWithCovariance::UnPtr MotionModelMovingAverage::pose() const
+{
+  return std::make_unique<PoseWithCovariance>(_lastPose->pose(), _lastPose->cov());
+}
+PoseWithCovariance::UnPtr MotionModelMovingAverage::speed() const
+{
+  return std::make_unique<PoseWithCovariance>(SE3d::exp(_speed), _lastPose->cov());
+}
+
 MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess)
 : MotionModel(),
   _kalman(std::make_unique<odometry::EKFConstantVelocitySE3>(covProcess)),

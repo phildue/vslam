@@ -218,11 +218,12 @@ TEST(MotionModel, Compare)
   auto kalman = std::make_shared<MotionModelConstantSpeedKalman>(covProcess);
   auto constantSpeed = std::make_shared<MotionModelConstantSpeed>();
   auto noMotion = std::make_shared<MotionModelNoMotion>();
+  auto movingAverage = std::make_shared<MotionModelMovingAverage>(3 * 1e8);
 
-  std::vector<MotionModel::ShPtr> motionModels = {noMotion, constantSpeed, kalman};
-  //auto movingAverage = std::make_shared<MotionModelMovingAverage>();
-  std::vector<std::string> names = {"NoMotion", "ConstantSpeed", "Kalman"};
-  std::vector<std::string> names2 = {"GroundTruth", "NoMotion", "ConstantSpeed", "Kalman"};
+  std::vector<MotionModel::ShPtr> motionModels = {noMotion, constantSpeed, kalman, movingAverage};
+  std::vector<std::string> names = {"NoMotion", "ConstantSpeed", "Kalman", "MovingAverage"};
+  std::vector<std::string> names2 = {
+    "GroundTruth", "NoMotion", "ConstantSpeed", "Kalman", "MovingAverage"};
 
   for (auto name : {"odometry"}) {
     el::Loggers::getLogger(name);
