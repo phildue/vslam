@@ -16,17 +16,25 @@
 #include <memory>
 
 #include "EKFConstantVelocitySE3.h"
+#include "utils/utils.h"
 
+#define LOG_ODOM(level) CLOG(level, "odometry")
 namespace pd::vslam::odometry
 {
-EKFConstantVelocitySE3::EKFConstantVelocitySE3(const Matd<12, 12> & covarianceProcess, Timestamp t0)
-: _t(t0), _covProcess(covarianceProcess)
+EKFConstantVelocitySE3::EKFConstantVelocitySE3(
+  const Matd<12, 12> & covarianceProcess, Timestamp t0, const Matd<12, 12> & covState)
+: _t(t0),
+  _pose(Vec6d::Zero()),
+  _velocity(Vec6d::Zero()),
+  _covState(covState),
+  _covProcess(covarianceProcess)
 {
+  Log::get("odometry");
 }
 EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t) const
 {
   auto state = std::make_unique<State>();
-  Timestamp dt = t - _t;
+  const double dt = t - _t;
   state->pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
   state->velocity = _velocity;
   Mat<double, 12, 12> Jfx = computeJacobianProcess(SE3d::exp(state->pose));
@@ -38,13 +46,14 @@ EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t
 
 void EKFConstantVelocitySE3::update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t)
 {
-  Timestamp dt = t - _t;
+  const double dt = t - _t;
   //Prediction
   _pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
   _velocity = _velocity;
   Mat<double, 12, 12> Jfx = computeJacobianProcess(SE3d::exp(_pose));
   _covState = Jfx * (_covState * Jfx.transpose()) + _covProcess;
-
+  LOG_ODOM(DEBUG) << "Prediction. Pose: " << _pose.transpose()
+                  << " Twist: " << _velocity.transpose();
   //Correction
   Vec6d e = _velocity * dt;
   Matd<6, 12> Jhx = computeJacobianMeasurement(dt);
@@ -52,16 +61,21 @@ void EKFConstantVelocitySE3::update(const Vec6d & motion, const Matd<6, 6> & cov
 
   Vec6d y = motion - e;
   Matd<6, 6> Z = E + covMotion;
+  LOG_ODOM(DEBUG) << "Correction. Twist: " << y.transpose();
 
   //State update
   MatXd K = _covState * Jhx.transpose() * Z.inverse();
+  LOG_ODOM(DEBUG) << "Gain. |K| = " << K.norm();
 
   MatXd dx = K * y;
   // there is no position update anyway
   _velocity += dx.block(6, 0, 6, 1);
+  LOG_ODOM(DEBUG) << "State Update. Dx: = " << dx.transpose();
 
   _covState -= K * Z * K.transpose();
   _t = t;
+  LOG_ODOM(DEBUG) << "State. Pose = " << _pose.transpose() << " Twist = " << _velocity.transpose()
+                  << " |XX|: " << _covState.determinant();
 }
 
 Matd<12, 12> EKFConstantVelocitySE3::computeJacobianProcess(const SE3d & pose) const
@@ -86,4 +100,4 @@ Matd<6, 12> EKFConstantVelocitySE3::computeJacobianMeasurement(Timestamp dt) con
   return mat;
 }
 
-}  // namespace pd::vslam::kalman
+}  // namespace pd::vslam::odometry

@@ -113,7 +113,7 @@ std::map<Timestamp, SE3d> utils::loadTrajectory(const fs::path & path)
     }
 
     auto sec = std::stoull(tElements[0]);
-    auto nanosec = std::stoull(tElements[1]) * 100000;
+    auto nanosec = std::stoull(tElements[1]) * std::pow(10, 9 - tElements[1].size());
     poses.insert({sec * 1e9 + nanosec, SE3d(q, trans)});
   }
   return poses;

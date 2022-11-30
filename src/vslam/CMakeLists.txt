@@ -70,6 +70,10 @@ if(VSLAM_BUILD_TESTS)
   pd_add_test(ekf_se3 ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
+  
+  pd_add_test(motion_model ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
 
   pd_add_test(tracking ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"

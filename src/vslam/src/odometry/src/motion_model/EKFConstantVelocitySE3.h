@@ -39,11 +39,17 @@ public:
   };
 
   EKFConstantVelocitySE3(
-    const Matd<12, 12> & covarianceProcess, Timestamp t0 = std::numeric_limits<uint64_t>::max());
+    const Matd<12, 12> & covProcess, Timestamp t0 = std::numeric_limits<uint64_t>::max(),
+    const Matd<12, 12> & covState = Matd<12, 12>::Identity());
 
   State::UnPtr predict(Timestamp t) const;
 
   void update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t);
+  const Timestamp & t() const { return _t; }
+  const Vec6d & pose() const { return _pose; }
+  const Vec6d & velocity() const { return _velocity; }
+  const Matd<12, 12> & covState() const { return _covState; }
+  const Matd<12, 12> & covProcess() const { return _covProcess; }
 
 private:
   Matd<12, 12> computeJacobianProcess(const SE3d & pose) const;

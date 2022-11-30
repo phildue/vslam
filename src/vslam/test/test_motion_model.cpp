@@ -53,12 +53,12 @@ public:
   void plot() const override
   {
     vis::plt::figure();
-    vis::plt::subplot(1, 2, 1);
+    vis::plt::subplot(2, 1, 1);
     vis::plt::title("Translational Velocity");
     vis::plt::ylabel("$m$");
     vis::plt::xlabel("$t-t_0 [s]$");
-    //vis::plt::ylim(0.0, 5.0);
-    for (size_t i = 0; i < _twists.size(); i++) {
+    vis::plt::ylim(0.0, 0.1);
+    for (size_t i = 0; i < _names.size(); i++) {
       std::vector<double> v(_ts.size());
       std::transform(
         _twists[i].begin(), _twists[i].end(), v.begin(), [](auto tw) { return tw.head(3).norm(); });
@@ -67,14 +67,14 @@ public:
     }
     vis::plt::legend();
 
-    vis::plt::subplot(1, 2, 2);
+    vis::plt::subplot(2, 1, 2);
     vis::plt::title("Angular Velocity");
     vis::plt::ylabel("$\\circ$");
     vis::plt::xlabel("$t-t_0 [s]$");
-    //vis::plt::ylim(0.0, 5.0);
+    vis::plt::ylim(0.0, 5.0);
 
     //vis::plt::xticks(_ts);
-    for (size_t i = 0; i < _twists.size(); i++) {
+    for (size_t i = 0; i < _names.size(); i++) {
       std::vector<double> va(_ts.size());
       std::transform(_twists[i].begin(), _twists[i].end(), va.begin(), [](auto tw) {
         return tw.tail(3).norm() / M_PI * 180.0;
@@ -106,12 +106,12 @@ public:
     vis::plt::figure();
     const std::vector<std::string> dims = {"x", "y", "z"};
     for (size_t i = 0U; i < dims.size(); i++) {
-      vis::plt::subplot(1, dims.size(), i + 1);
+      vis::plt::subplot(dims.size(), 1, i + 1);
       vis::plt::title(format("$\\Delta t_{}$", dims[i]));
       vis::plt::ylabel("$m$");
       vis::plt::xlabel("$t-t_0 [s]$");
       vis::plt::ylim(-0.25, 0.25);
-      for (size_t j = 0; j < _egomotion.size(); j++) {
+      for (size_t j = 0; j < _names.size(); j++) {
         std::vector<double> v(_ts.size());
         std::transform(
           _egomotion[j].begin(), _egomotion[j].end(), v.begin(), [&](auto tw) { return tw(i); });
@@ -129,42 +129,70 @@ private:
   std::vector<std::string> _names;
   std::vector<double> _ts;
 };
-class PlotCovariances : public vis::Plot
+class PlotRMSE : public vis::Plot
 {
 public:
-  PlotCovariances(
-    const std::vector<std::vector<MatXd>> & covariances, const std::vector<double> & ts,
-    const std::vector<std::string> & names)
-  : _covariances(covariances), _names(names), _ts(ts)
-  {
-  }
-
+  PlotRMSE(const std::vector<std::string> & names) : _names(names), _errors(names.size()) {}
   void plot() const override
   {
     vis::plt::figure();
-    vis::plt::subplot(1, 2, 1);
-    vis::plt::title("Covariances");
-    vis::plt::ylabel("$|\\Sigma|$");
+    vis::plt::subplot(2, 1, 1);
+    vis::plt::title("$Translational Error$");
+    vis::plt::ylabel("$|t|_2 [m]$");
     vis::plt::xlabel("$t-t_0 [s]$");
-    for (size_t i = 0; i < _covariances.size(); i++) {
+    vis::plt::grid(true);
+
+    vis::plt::ylim(0.0, 0.1);
+    for (size_t i = 0; i < _names.size(); i++) {
       std::vector<double> c(_ts.size());
-      std::transform(_covariances[i].begin(), _covariances[i].end(), c.begin(), [](auto c) {
-        return c.determinant();
+      std::transform(_errors[i].begin(), _errors[i].end(), c.begin(), [](auto c) {
+        return c.translation().norm();
       });
+      Eigen::Map<VecXd> rmseT(c.data(), c.size());
+      std::cout << _names[i] << "\n |Translation|"
+                << "\n |RMSE: " << std::sqrt(rmseT.dot(rmseT) / c.size())
+                << "\n |Max: " << rmseT.maxCoeff() << "\n |Mean: " << rmseT.mean()
+                << "\n |Min: " << rmseT.minCoeff() << std::endl;
 
       vis::plt::named_plot(_names[i], _ts, c, ".--");
     }
     vis::plt::legend();
+    vis::plt::subplot(2, 1, 2);
+    vis::plt::title("$Rotational Error$");
+    vis::plt::ylabel("$|\\theta|_2   [°]$");
+    vis::plt::xlabel("$t-t_0 [s]$");
+    vis::plt::grid(true);
+    vis::plt::ylim(0, 1);
+    for (size_t i = 0; i < _names.size(); i++) {
+      std::vector<double> c(_ts.size());
+      std::transform(_errors[i].begin(), _errors[i].end(), c.begin(), [](auto c) {
+        return c.log().tail(3).norm() / M_PI * 180.0;
+      });
+      Eigen::Map<VecXd> rmse(c.data(), c.size());
+      std::cout << _names[i] << "\n |Rotation|"
+                << "\n |RMSE: " << std::sqrt(rmse.dot(rmse) / c.size())
+                << "\n |Max: " << rmse.maxCoeff() << "\n |Mean: " << rmse.mean()
+                << "\n |Min: " << rmse.minCoeff() << std::endl;
+      vis::plt::named_plot(_names[i], _ts, c, ".--");
+    }
+    vis::plt::legend();
+  }
+  void extend(double t, const std::vector<SE3d> & errors)
+  {
+    _ts.push_back(t);
+    for (size_t i = 0; i < _names.size(); i++) {
+      _errors[i].push_back(errors[i]);
+    }
   }
   std::string csv() const override { return ""; }
 
 private:
-  std::vector<std::vector<MatXd>> _covariances;
-  std::vector<std::string> _names;
+  const std::vector<std::string> _names;
+  std::vector<std::vector<SE3d>> _errors;
   std::vector<double> _ts;
 };
 
-TEST(EKFSE3, RunWithGt)
+TEST(MotionModel, Compare)
 {
   auto trajectoryGt = std::make_shared<Trajectory>(
     utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt"));
@@ -181,21 +209,21 @@ TEST(EKFSE3, RunWithGt)
     "Acceleration Statistics\ndT = {:.3f} [f/s] Mean = {}\n Cov = {}", 0.1,
     meanAcceleration->mean().transpose(), meanAcceleration->cov());
 
-  std::vector<Vec6d> twistsKalman, twistsGt, twistsAlgo;
-  twistsKalman.reserve(trajectoryGt->poses().size());
-  twistsGt.reserve(trajectoryGt->poses().size());
-  std::vector<double> timestamps;
-  timestamps.reserve(trajectoryGt->poses().size());
-  std::vector<MatXd> covsMeasurement, covsState, covsProcess;
-
   auto it = trajectoryAlgo->poses().begin();
   const Timestamp t0 = it->first;
   auto itPrev = it;
   ++it;
   Matd<12, 12> covProcess = Matd<12, 12>::Identity();
   covProcess.block(6, 6, 6, 6) = meanAcceleration->cov();
-  auto kalman =
-    std::make_shared<odometry::EKFConstantVelocitySE3>(covProcess, t0, Matd<12, 12>::Identity());
+  auto kalman = std::make_shared<MotionModelConstantSpeedKalman>(covProcess);
+  auto constantSpeed = std::make_shared<MotionModelConstantSpeed>();
+  auto noMotion = std::make_shared<MotionModelNoMotion>();
+
+  std::vector<MotionModel::ShPtr> motionModels = {noMotion, constantSpeed, kalman};
+  //auto movingAverage = std::make_shared<MotionModelMovingAverage>();
+  std::vector<std::string> names = {"NoMotion", "ConstantSpeed", "Kalman"};
+  std::vector<std::string> names2 = {"GroundTruth", "NoMotion", "ConstantSpeed", "Kalman"};
+
   for (auto name : {"odometry"}) {
     el::Loggers::getLogger(name);
     el::Configurations defaultConf;
@@ -205,47 +233,41 @@ TEST(EKFSE3, RunWithGt)
     defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
     el::Loggers::reconfigureLogger(name, defaultConf);
   }
-  int i = 0;
+  std::vector<std::vector<Vec6d>> egomotions(motionModels.size() + 1);
+  auto plotRmse = std::make_shared<PlotRMSE>(names);
+
+  std::vector<double> timestamps;
+  SE3d poseGtPrev;
   for (; it != trajectoryAlgo->poses().end(); ++it) {
     const Timestamp t = it->first;
-    const auto p = it->second;
     const Timestamp tp = itPrev->first;
-    const auto pp = itPrev->second;
-    const double dt = static_cast<double>(t - tp) / 1e9;
     try {
-      auto dxAlgo = algorithm::computeRelativeTransform(pp->pose(), p->pose()).log();
-      auto dxGt = trajectoryGt->motionBetween(tp, t)->pose().log();
-      auto covMeasurement = MatXd::Identity(6, 6);
-      kalman->update(dxAlgo, covMeasurement, t);
-      // print("twist_gt = {}\n", (dxGt / dt).transpose());
-      twistsKalman.push_back(kalman->velocity() * 1e9 * dt);
-      twistsGt.push_back(dxGt);
-      twistsAlgo.push_back(dxAlgo);
-
-      covsMeasurement.push_back(covMeasurement);
-      covsProcess.push_back(kalman->covProcess());
-      covsState.push_back(kalman->covState());
-      timestamps.push_back(static_cast<double>(t - t0) / 1e9);
+      const auto poseGt = trajectoryGt->poseAt(t);
+      //auto motionGt = trajectoryGt->motionBetween(tp, t)->pose(); std::vector<std::string>({"GroundTruth", "ConstantSpeed"})
+      auto motionGt = algorithm::computeRelativeTransform(poseGtPrev, poseGt->pose());
+      egomotions[0].push_back(motionGt.log());
+      std::vector<SE3d> errors(motionModels.size());
+      for (size_t i = 0U; i < motionModels.size(); i++) {
+        auto predictedPose = motionModels[i]->predictPose(t);
+        auto motionPred = algorithm::computeRelativeTransform(poseGtPrev, predictedPose->pose());
+        auto error = algorithm::computeRelativeTransform(motionGt, motionPred);
+        egomotions[i + 1].push_back(motionPred.log());
+        errors[i] = error;
+        motionModels[i]->update(poseGt, t);
+      }
+      plotRmse->extend((t - t0) / 1e9, errors);
+      poseGtPrev = poseGt->pose();
+      timestamps.push_back((t - t0) / 1e9);
     } catch (const pd::Exception & e) {
-      print("{}", e.what());
+      print("{}\n", e.what());
     }
 
     ++itPrev;
-    if (i++ > 100) {
-      break;
-    }
   }
-  print("Computed twist for {} timestamps.\n", timestamps.size());
-  auto plot = std::make_shared<PlotEgomotion>(
-    std::vector<std::vector<Vec6d>>({twistsGt, twistsKalman, twistsAlgo}), timestamps,
-    std::vector<std::string>({"GroundTruth", "Kalman", "Algo"}));
+  auto plot = std::make_shared<PlotEgomotion>(egomotions, timestamps, names2);
   plot->plot();
-  auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(
-    std::vector<std::vector<Vec6d>>({twistsGt, twistsKalman, twistsAlgo}), timestamps,
-    std::vector<std::string>({"GroundTruth", "Kalman", "Algo"}));
+  auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(egomotions, timestamps, names2);
   plotTranslation->plot();
-  auto plotCov = std::make_shared<PlotCovariances>(
-    std::vector<std::vector<MatXd>>({covsState}), timestamps, std::vector<std::string>({"State"}));
-  plotCov->plot();
+  plotRmse->plot();
   vis::plt::show();
 }

@@ -35,6 +35,15 @@ public:
   PoseWithCovariance::ConstShPtr poseAt(Timestamp t, bool interpolate = true) const;
   PoseWithCovariance::ConstShPtr motionBetween(
     Timestamp t0, Timestamp t1, bool interpolate = true) const;
+  PoseWithCovariance::ConstShPtr meanMotion(Timestamp t0, Timestamp t1) const;
+  PoseWithCovariance::ConstShPtr meanMotion() const;
+  PoseWithCovariance::ConstShPtr meanMotion(Timestamp dT) const;
+  PoseWithCovariance::ConstShPtr meanMotion(Timestamp t0, Timestamp t1, Timestamp dT) const;
+  PoseWithCovariance::ConstShPtr meanAcceleration(Timestamp t0, Timestamp t1) const;
+  PoseWithCovariance::ConstShPtr meanAcceleration() const;
+  PoseWithCovariance::ConstShPtr meanAcceleration(Timestamp dT) const;
+  PoseWithCovariance::ConstShPtr meanAcceleration(Timestamp t0, Timestamp t1, Timestamp dT) const;
+
   void append(Timestamp t, PoseWithCovariance::ConstShPtr pose);
   const std::map<Timestamp, PoseWithCovariance::ConstShPtr> & poses() const { return _poses; }
   Timestamp tStart() const;
@@ -42,6 +51,7 @@ public:
 
 private:
   PoseWithCovariance::ConstShPtr interpolateAt(Timestamp t) const;
+  PoseWithCovariance::ConstShPtr computeMean(const std::vector<Vec6d> & poses) const;
 
   std::map<Timestamp, PoseWithCovariance::ConstShPtr> _poses;
 };

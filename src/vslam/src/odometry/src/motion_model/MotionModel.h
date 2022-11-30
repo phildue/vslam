@@ -71,7 +71,7 @@ public:
   typedef std::unique_ptr<MotionModelConstantSpeedKalman> UnPtr;
   typedef std::shared_ptr<const MotionModelConstantSpeedKalman> ConstShPtr;
   typedef std::unique_ptr<const MotionModelConstantSpeedKalman> ConstUnPtr;
-  MotionModelConstantSpeedKalman();
+  MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess);
   void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) override;
   void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) override;
 

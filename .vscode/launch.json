@@ -189,11 +189,12 @@
         "type": "pickString",
         "description": "vslam unit test",
         "options":[
-          "trackingTest",
+            "motion_modelTest",
+            "ekf_se3Test",
+            "trackingTest",
           "trajectoryTest",
           "mapTest",
           "frameTest",
-          "ekf_se3Test"
         ]
       },
       {

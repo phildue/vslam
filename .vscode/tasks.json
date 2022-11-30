@@ -33,7 +33,7 @@
         },
         {
             "label": "build_vslam",
-            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make -j4",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make ${input:test} -j4",
             "type": "shell",
             "problemMatcher": "$gcc",
             "group": {
@@ -351,6 +351,18 @@
                 "OFF"
             ],
             "default": "ON"
-        }
+        },{
+            "id": "test",
+            "type": "pickString",
+            "description": "vslam unit test",
+            "options":[
+                "motion_modelTest",
+                "ekf_se3Test",
+                "trackingTest",
+              "trajectoryTest",
+              "mapTest",
+              "frameTest",
+            ]
+          },
     ]
 }

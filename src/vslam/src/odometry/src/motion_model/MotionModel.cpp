@@ -73,17 +73,19 @@ PoseWithCovariance::UnPtr MotionModelConstantSpeed::predictPose(Timestamp timest
     predictedRelativePose * _lastPose->pose(), MatXd::Identity(6, 6));
 }
 
-MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman()
+MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess)
 : MotionModel(),
-  _kalman(std::make_unique<odometry::EKFConstantVelocitySE3>(Matd<12, 12>::Identity())),
+  _kalman(std::make_unique<odometry::EKFConstantVelocitySE3>(covProcess)),
   _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
   _lastT(0U)
 {
 }
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
-  odometry::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(timestamp);
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->pose), state->covPose);
+  //TODO we should use the prediction of kalman here but it seems buggy, anyway do we need the pose in the state at all?
+  auto motion = _kalman->velocity() * (timestamp - _lastT);
+  return std::make_unique<PoseWithCovariance>(
+    SE3d::exp(motion) * _lastPose->pose(), Matd<6, 6>::Identity());
 }
 void MotionModelConstantSpeedKalman::update(
   PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
@@ -91,9 +93,8 @@ void MotionModelConstantSpeedKalman::update(
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
   }
-  const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
 
-  auto speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+  auto speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log();
   _lastPose = pose;
   _lastT = timestamp;
   _kalman->update(speed, Matd<6, 6>::Identity(), timestamp);
@@ -104,11 +105,8 @@ void MotionModelConstantSpeedKalman::update(Frame::ConstShPtr frameRef, Frame::C
   if (frameCur->t() < frameRef->t()) {
     throw pd::Exception("New timestamp is older than last one!");
   }
-  const double dT = (static_cast<double>(frameCur->t()) - static_cast<double>(frameRef->t())) / 1e9;
-
   auto speed =
-    algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log() /
-    dT;
+    algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log();
   _lastPose = std::make_shared<PoseWithCovariance>(frameCur->pose());
   _lastT = frameCur->t();
   _kalman->update(speed, Matd<6, 6>::Identity(), frameCur->t());
