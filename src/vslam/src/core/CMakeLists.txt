@@ -33,6 +33,11 @@ target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 find_package(Sophus REQUIRED)
 target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
 
+# While format is not implemented in gcc we use this thirdparty
+find_package(fmt)
+target_link_libraries(${PROJECT_NAME} fmt::fmt)
+
+
 # Try for OpenCV 4.X, but settle for whatever is installed
 find_package(OpenCV 4 QUIET)
 if(NOT OpenCV_FOUND)

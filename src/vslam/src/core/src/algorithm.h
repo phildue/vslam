@@ -21,6 +21,7 @@
 #define ALGORITHM_H__
 #include <Eigen/Dense>
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <random>
 #include <vector>
@@ -229,5 +230,10 @@ uint64_t U(uint64_t min, uint64_t max);
 int sign();
 Eigen::VectorXd N(const Eigen::MatrixXd & cov);
 }  // namespace random
+
+namespace time
+{
+std::chrono::time_point<std::chrono::high_resolution_clock> to_time_point(Timestamp t);
+}
 }  // namespace pd::vslam
 #endif  // ALGORITHM_H__

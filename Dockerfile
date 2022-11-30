@@ -42,6 +42,10 @@ cmake .. -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF && make -j2 && make install &&
 #RUN git clone https://github.com/goromal/ceres-factors.git && cd ceres-factors && mkdir build && cd build && cmake .. && make && make install
 RUN git clone https://github.com/strasdat/Sophus.git && cd Sophus && mkdir build && cd build && cmake .. && make -j2 && make install && cd .. && rm build -r
 
+# fmt
+RUN git clone https://github.com/fmtlib/fmt.git && cd fmt && mkdir build && cd build && cmake .. && make -j4 && make install && cd .. && rm build -r
+
+# ROS Dependencies
 RUN mkdir -p ros_deps_ws/src && cd ros_deps_ws/src && \
 git clone https://github.com/ros-perception/image_pipeline.git && cd image_pipeline && git checkout 457c0c70d9 && \
 git clone https://github.com/ros-perception/vision_opencv.git && cd vision_opencv && git checkout 7bbc5ecc232e8 && \

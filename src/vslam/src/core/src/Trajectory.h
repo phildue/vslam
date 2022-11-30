@@ -37,6 +37,8 @@ public:
     Timestamp t0, Timestamp t1, bool interpolate = true) const;
   void append(Timestamp t, PoseWithCovariance::ConstShPtr pose);
   const std::map<Timestamp, PoseWithCovariance::ConstShPtr> & poses() const { return _poses; }
+  Timestamp tStart() const;
+  Timestamp tEnd() const;
 
 private:
   PoseWithCovariance::ConstShPtr interpolateAt(Timestamp t) const;

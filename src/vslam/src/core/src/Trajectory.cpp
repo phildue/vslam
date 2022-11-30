@@ -13,6 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+using fmt::format;
+
 #include "Trajectory.h"
 namespace pd::vslam
 {
@@ -48,25 +52,23 @@ PoseWithCovariance::ConstShPtr Trajectory::motionBetween(
 
 PoseWithCovariance::ConstShPtr Trajectory::interpolateAt(Timestamp t) const
 {
-  Timestamp t0 = 0U, t1 = 0U;
-  for (const auto & t_pose : _poses) {
-    if (t_pose.first <= t) {
-      t0 = t_pose.first;
-    }
-    if (t_pose.first > t) {
-      t1 = t_pose.first;
-    }
-    if (t0 != 0 && t1 != 0) {
-      break;
-    }
+  using time::to_time_point;
+  auto it = std::find_if(_poses.begin(), _poses.end(), [&](auto p) { return t < p.first; });
+  if (it == _poses.begin() || it == _poses.end()) {
+    auto ref = (it == _poses.begin()) ? _poses.begin()->first : _poses.rbegin()->first;
+    throw pd::Exception(format(
+      "Cannot interpolate to: [{:%Y-%m-%d %H:%M:%S}] it is outside the time range of [{:%Y-%m-%d "
+      "%H:%M:%S}] to [{:%Y-%m-%d %H:%M:%S}] by [{:%S}] seconds.",
+      to_time_point(t), to_time_point(_poses.begin()->first), to_time_point(_poses.rbegin()->first),
+      to_time_point(t - ref)));
   }
-  if (_poses.find(t0) == _poses.end() || _poses.find(t1) == _poses.end()) {
-    throw pd::Exception("Cannot interpolate to: [" + std::to_string(t) + "].");
-  }
-  // TODO(unknown): handle corner cases at boundaries
+  Timestamp t1 = it->first;
+  auto p1 = it->second;
+  --it;
+  Timestamp t0 = it->first;
+  auto p0 = it->second;
+
   const int64_t dT = static_cast<int64_t>(t1) - static_cast<int64_t>(t0);
-  auto p0 = _poses.find(t0)->second;
-  auto p1 = _poses.find(t1)->second;
 
   const Vec6d speed =
     algorithm::computeRelativeTransform(p0->pose(), p1->pose()).log() / static_cast<double>(dT);
@@ -74,5 +76,7 @@ PoseWithCovariance::ConstShPtr Trajectory::interpolateAt(Timestamp t) const
   return std::make_shared<PoseWithCovariance>(dPose * p0->pose(), p0->cov());
 }
 void Trajectory::append(Timestamp t, PoseWithCovariance::ConstShPtr pose) { _poses[t] = pose; }
+Timestamp Trajectory::tStart() const { return _poses.begin()->first; }
+Timestamp Trajectory::tEnd() const { return _poses.rbegin()->first; }
 
 }  // namespace pd::vslam
