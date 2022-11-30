@@ -44,3 +44,28 @@ TEST(TrajectoryTest, Interpolate)
   auto pose1 = poseGraph->poseAt(1);
   EXPECT_NEAR(pose1->pose().translation().x(), 1.0, 1e-7);
 }
+
+TEST(TrajectoryTest, Statistics)
+{
+  SE3d pose0, pose1, pose2, pose3;
+  pose0.translation().x() += 0.0;
+  pose1.translation().x() += 1.0;
+  pose2.translation().x() += 2.0;
+  pose3.translation().x() += 3.0;
+
+  std::map<Timestamp, SE3d> poses;
+  poses[0] = pose0;
+  poses[1] = pose1;
+  poses[2] = pose2;
+  poses[3] = pose3;
+  auto traj = std::make_shared<Trajectory>(poses);
+  auto twist = traj->meanMotion();
+  EXPECT_NEAR(twist->pose().translation().x(), 1.0, 1e-7);
+  EXPECT_NEAR(twist->pose().translation().y(), 0.0, 1e-7);
+  EXPECT_NEAR(twist->cov().norm(), 0.0, 1e-7);
+
+  auto twist02 = traj->meanMotion(0, 3);
+  EXPECT_NEAR(twist02->pose().translation().x(), 1.0, 1e-7);
+  EXPECT_NEAR(twist02->pose().translation().y(), 0.0, 1e-7);
+  EXPECT_NEAR(twist02->cov().norm(), 0.0, 1e-7);
+}

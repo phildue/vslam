@@ -81,17 +81,18 @@ Timestamp Trajectory::tEnd() const { return _poses.rbegin()->first; }
 PoseWithCovariance::ConstShPtr Trajectory::meanMotion(Timestamp t0, Timestamp t1) const
 {
   auto itRef = std::find_if(_poses.begin(), _poses.end(), [&](auto p) { return t0 >= p.first; });
-  auto end = std::find_if(itRef, _poses.end(), [&](auto p) { return t1 >= p.first; });
+  auto end = std::find_if(_poses.begin(), _poses.end(), [&](auto p) { return t1 <= p.first; });
 
   std::vector<Vec6d> relativePoses;
   relativePoses.reserve(_poses.size());
   auto itCur = itRef;
   ++itCur;
 
-  for (; itCur != end; ++itCur) {
+  while (itCur != end) {
     const double dT = itCur->first - itRef->first;
     relativePoses.push_back(
       algorithm::computeRelativeTransform(itRef->second->pose(), itCur->second->pose()).log() / dT);
+    ++itCur;
     ++itRef;
   }
   return computeMean(relativePoses);
@@ -118,9 +119,9 @@ PoseWithCovariance::ConstShPtr Trajectory::meanMotion(
 {
   std::vector<Vec6d> relativePoses;
   relativePoses.reserve(_poses.size());
-  for (Timestamp t = t0; t + dT < t1; t += dT) {
+  for (Timestamp t = t0 + dT; t < t1; t += dT) {
     relativePoses.push_back(
-      algorithm::computeRelativeTransform(poseAt(t)->pose(), poseAt(t + dT)->pose()).log() /
+      algorithm::computeRelativeTransform(poseAt(t - dT)->pose(), poseAt(t)->pose()).log() /
       static_cast<double>(dT));
   }
   return computeMean(relativePoses);
@@ -132,20 +133,21 @@ PoseWithCovariance::ConstShPtr Trajectory::meanMotion(Timestamp dT) const
 PoseWithCovariance::ConstShPtr Trajectory::meanAcceleration(Timestamp t0, Timestamp t1) const
 {
   auto itRef = std::find_if(_poses.begin(), _poses.end(), [&](auto p) { return t0 >= p.first; });
-  auto end = std::find_if(itRef, _poses.end(), [&](auto p) { return t1 >= p.first; });
+  auto end = std::find_if(_poses.begin(), _poses.end(), [&](auto p) { return t1 <= p.first; });
 
   std::vector<Vec6d> relativePoses;
-  relativePoses.reserve(_poses.size());
   std::vector<double> dTs;
+  relativePoses.reserve(_poses.size());
   auto itCur = itRef;
   ++itCur;
 
-  for (; itCur != end; ++itCur) {
+  while (itCur != end) {
     const double dT = itCur->first - itRef->first;
     relativePoses.push_back(
       algorithm::computeRelativeTransform(itRef->second->pose(), itCur->second->pose()).log() / dT);
-    dTs.push_back(dT);
+    ++itCur;
     ++itRef;
+    dTs.push_back(dT);
   }
 
   std::vector<Vec6d> accelerations(relativePoses.size() - 1);
@@ -188,9 +190,9 @@ PoseWithCovariance::ConstShPtr Trajectory::meanAcceleration(
 {
   std::vector<Vec6d> relativePoses;
   relativePoses.reserve(_poses.size());
-  for (Timestamp t = t0; t + dT < t1; t += dT) {
+  for (Timestamp t = t0 + dT; t < t1; t += dT) {
     relativePoses.push_back(
-      algorithm::computeRelativeTransform(poseAt(t)->pose(), poseAt(t + dT)->pose()).log() /
+      algorithm::computeRelativeTransform(poseAt(t - dT)->pose(), poseAt(t)->pose()).log() /
       static_cast<double>(dT));
   }
   std::vector<Vec6d> accelerations(relativePoses.size() - 1);
@@ -212,7 +214,7 @@ PoseWithCovariance::ConstShPtr Trajectory::computeMean(const std::vector<Vec6d> 
     throw pd::Exception(format("Not enough available poses to compute statistics."));
   }
   Vec6d sum = Vec6d::Zero();
-  for (size_t i = 1; i < poses.size(); i++) {
+  for (size_t i = 0; i < poses.size(); i++) {
     sum += poses[i];
   }
   const Vec6d mean = sum / poses.size();
