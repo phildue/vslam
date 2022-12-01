@@ -106,16 +106,17 @@ double median(const Eigen::VectorXd & d, bool isSorted)
   return median(r, isSorted);
 }
 
-double median(std::vector<double> & v, bool isSorted)
+double median(const std::vector<double> & v, bool isSorted)
 {
-  if (!isSorted) {
-    std::sort(v.begin(), v.end());
-  }
   const int n = v.size();
+  std::vector<double> vv = v;
+  if (isSorted) {
+    std::sort(vv.begin(), vv.end());
+  }
   if (n % 2 == 0) {
-    return (v[n / 2 - 1] + v[n / 2 + 1]) / 2;
+    return (vv[n / 2 - 1] + vv[n / 2 + 1]) / 2;
   } else {
-    return v[n / 2];
+    return vv[n / 2];
   }
 }
 

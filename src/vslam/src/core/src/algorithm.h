@@ -152,7 +152,7 @@ void insertionSort(std::vector<Derived> & v, Derived e)
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> conv2d(
   const Eigen::Matrix<double, -1, -1> & mat, const Eigen::Matrix<double, -1, -1> & kernel);
 double median(const Eigen::VectorXd & d, bool isSorted = false);
-double median(std::vector<double> & v, bool isSorted = false);
+double median(const std::vector<double> & v, bool isSorted = false);
 
 template <typename Derived>
 Eigen::Matrix<Derived, Eigen::Dynamic, Eigen::Dynamic> medianBlur(
