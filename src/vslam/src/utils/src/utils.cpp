@@ -74,7 +74,7 @@ Eigen::MatrixXd utils::loadDepth(const fs::path & path, int height, int width)
   cv::cv2eigen(mat, img);
   return img.array().isNaN().select(0, img);
 }
-std::map<Timestamp, SE3d> utils::loadTrajectory(const fs::path & path)
+Trajectory::UnPtr utils::loadTrajectory(const fs::path & path, bool invertPoses)
 {
   if (!fs::exists(path)) {
     throw pd::Exception(fmt::format("Could not find [{}]", path.string()));
@@ -114,9 +114,10 @@ std::map<Timestamp, SE3d> utils::loadTrajectory(const fs::path & path)
 
     auto sec = std::stoull(tElements[0]);
     auto nanosec = std::stoull(tElements[1]) * std::pow(10, 9 - tElements[1].size());
-    poses.insert({sec * 1e9 + nanosec, SE3d(q, trans)});
+    auto se3 = invertPoses ? SE3d(q, trans) : SE3d(q, trans).inverse();
+    poses.insert({sec * 1e9 + nanosec, se3});
   }
-  return poses;
+  return std::make_unique<Trajectory>(poses);
 }
 
 void utils::saveImage(const Image & img, const fs::path & path)

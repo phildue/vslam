@@ -40,7 +40,7 @@ Eigen::MatrixXd loadDepth(const std::filesystem::path & path, int height = -1, i
    * @param path filepath
    * @return std::map<Timestamp,SE3d>
    */
-std::map<Timestamp, SE3d> loadTrajectory(const std::filesystem::path & path);
+Trajectory::UnPtr loadTrajectory(const std::filesystem::path & path, bool invertPoses = false);
 
 /**
    * @brief Write trajectory to txt file (TUM RGBD Format)
