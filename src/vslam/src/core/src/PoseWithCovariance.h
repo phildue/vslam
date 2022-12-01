@@ -38,7 +38,12 @@ public:
 
   const SE3d & pose() const { return _pose; }
   SE3d & pose() { return _pose; }
+  const SE3d & SE3() const { return _pose; }
+  SE3d & SE3() { return _pose; }
+
+  Vec6d twist() const { return _pose.log(); }
   Matd<6, 6> cov() const { return _cov; }
+  Matd<6, 6> twistCov() const { return _cov; }
   Vec6d mean() const { return _pose.log(); }
   PoseWithCovariance inverse() const { return PoseWithCovariance(_pose.inverse().log(), _cov); }
 
@@ -49,5 +54,7 @@ private:
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0);
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstUnPtr & p0);
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstShPtr & p0);
+
+typedef PoseWithCovariance Pose;
 }  // namespace pd::vslam
 #endif

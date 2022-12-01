@@ -42,6 +42,25 @@ PoseWithCovariance::ConstShPtr Trajectory::poseAt(Timestamp t, bool interpolate)
     return it->second;
   }
 }
+std::pair<Timestamp, PoseWithCovariance::ConstShPtr> Trajectory::nearestPoseAt(Timestamp t) const
+{
+  std::pair<Timestamp, PoseWithCovariance::ConstShPtr> min;
+  double minDiff = std::numeric_limits<double>::max();
+  double lastDiff = std::numeric_limits<double>::max();
+  for (auto t_p : _poses) {
+    double diff = std::abs(static_cast<double>(min.first) - static_cast<double>(t));
+    if (diff < minDiff) {
+      min = t_p;
+      minDiff = diff;
+    }
+    if (diff > lastDiff) {
+      break;
+    }
+    lastDiff = diff;
+  }
+  return min;
+}
+
 PoseWithCovariance::ConstShPtr Trajectory::motionBetween(
   Timestamp t0, Timestamp t1, bool interpolate) const
 {
@@ -97,6 +116,15 @@ PoseWithCovariance::ConstShPtr Trajectory::meanMotion(Timestamp t0, Timestamp t1
   }
   return computeMean(relativePoses);
 }
+Trajectory Trajectory::inverse() const
+{
+  std::map<Timestamp, Pose::ConstShPtr> posesInverted;
+  for (auto t_p : _poses) {
+    posesInverted[t_p.first] = std::make_shared<Pose>(t_p.second->inverse());
+  }
+  return Trajectory(posesInverted);
+}
+
 PoseWithCovariance::ConstShPtr Trajectory::meanMotion() const
 {
   std::vector<Vec6d> relativePoses;

@@ -33,6 +33,8 @@ public:
   Trajectory(const std::map<Timestamp, PoseWithCovariance::ConstShPtr> & poses);
   Trajectory(const std::map<Timestamp, SE3d> & poses);
   PoseWithCovariance::ConstShPtr poseAt(Timestamp t, bool interpolate = true) const;
+  std::pair<Timestamp, PoseWithCovariance::ConstShPtr> nearestPoseAt(Timestamp t) const;
+
   PoseWithCovariance::ConstShPtr motionBetween(
     Timestamp t0, Timestamp t1, bool interpolate = true) const;
   PoseWithCovariance::ConstShPtr meanMotion(Timestamp t0, Timestamp t1) const;
@@ -45,6 +47,7 @@ public:
   PoseWithCovariance::ConstShPtr meanAcceleration(Timestamp t0, Timestamp t1, Timestamp dT) const;
 
   void append(Timestamp t, PoseWithCovariance::ConstShPtr pose);
+  Trajectory inverse() const;
   const std::map<Timestamp, PoseWithCovariance::ConstShPtr> & poses() const { return _poses; }
   Timestamp tStart() const;
   Timestamp tEnd() const;

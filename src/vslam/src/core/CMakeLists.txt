@@ -8,7 +8,10 @@ set( sources
   src/Frame.cpp
   src/Trajectory.cpp
   src/Point3D.cpp
-  src/Feature2D.cpp )
+  src/Feature2D.cpp
+  src/linalg.cpp
+
+   )
 
 set( headers
   src/Camera.h
