@@ -15,33 +15,24 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 //
-// Created by phil on 02.07.21.
+// Created by phil on 01.12.22.
 //
 
-#ifndef VSLAM_LINALG_H__
-#define VSLAM_LINALG_H__
-#include <Eigen/Dense>
-
-#include "image_transform.h"
-#include "macros.h"
-#include "types.h"
+#include "linalg.h"
 namespace pd::vslam::linalg
 {
-template <typename Derived>
-double stddev(const Eigen::Matrix<Derived, -1, -1> & mat, double mean)
+double stddev(const std::vector<double> & vs)
+{
+  Eigen::Map<const VecXd> vvs(vs.data(), vs.size());
+  return stddev(vs, vvs.mean());
+}
+double stddev(const std::vector<double> & vs, double mean)
 {
   double sum = 0;
-  forEach(
-    mat, [&](int UNUSED(x), int UNUSED(y), double v) { sum += std::sqrt(std::pow(v - mean, 2)); });
-  return sum / (mat.rows() * mat.cols());
+  for (auto v : vs) {
+    sum += std::sqrt(std::pow(v - mean, 2));
+  }
+  return sum / vs.size();
 }
-template <typename Derived>
-double stddev(const Eigen::Matrix<Derived, -1, -1> & mat)
-{
-  return stddev(mat, mat.mean());
-}
-double stddev(const std::vector<double> & vs);
-double stddev(const std::vector<double> & vs, double mean);
 
 }  // namespace pd::vslam::linalg
-#endif
