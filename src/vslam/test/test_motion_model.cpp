@@ -34,6 +34,7 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 #include <gtest/gtest.h>
 
 #include "core/core.h"
+#include "evaluation/evaluation.h"
 #include "odometry/odometry.h"
 #include "utils/utils.h"
 using namespace testing;
@@ -129,75 +130,45 @@ private:
   std::vector<std::string> _names;
   std::vector<double> _ts;
 };
-class PlotRMSE : public vis::Plot
+class PlotTrajectory : public vis::Plot
 {
 public:
-  PlotRMSE(const std::vector<std::string> & names) : _names(names), _errors(names.size()) {}
+  PlotTrajectory(const std::map<std::string, Trajectory::ConstShPtr> & trajectories)
+  : _trajectories(trajectories)
+  {
+  }
+  PlotTrajectory(const std::map<std::string, Trajectory::ShPtr> & trajectories)
+  {
+    for (auto n_t : trajectories) {
+      _trajectories[n_t.first] = n_t.second;
+    }
+  }
   void plot() const override
   {
     vis::plt::figure();
-    vis::plt::subplot(2, 1, 1);
-    vis::plt::title("$Translational Error$");
-    vis::plt::ylabel("$|t|_2 [m]$");
-    vis::plt::xlabel("$t-t_0 [s]$");
-    vis::plt::grid(true);
+    for (auto traj : _trajectories) {
+      std::vector<double> x, y;
+      for (auto p : traj.second->poses()) {
+        x.push_back(p.second->SE3().translation().x());
+        y.push_back(p.second->SE3().translation().y());
+      }
+      vis::plt::named_plot(traj.first, x, y);
+    }
+    vis::plt::axis("equal");
 
-    vis::plt::ylim(0.0, 0.1);
-    for (size_t i = 0; i < _names.size(); i++) {
-      std::vector<double> c(_ts.size());
-      std::transform(_errors[i].begin(), _errors[i].end(), c.begin(), [](auto c) {
-        return c.translation().norm();
-      });
-      Eigen::Map<VecXd> rmseT(c.data(), c.size());
-      std::cout << _names[i] << "\n |Translation|"
-                << "\n |RMSE: " << std::sqrt(rmseT.dot(rmseT) / c.size())
-                << "\n |Max: " << rmseT.maxCoeff() << "\n |Mean: " << rmseT.mean()
-                << "\n |Min: " << rmseT.minCoeff() << std::endl;
-
-      vis::plt::named_plot(_names[i], _ts, c, ".--");
-    }
     vis::plt::legend();
-    vis::plt::subplot(2, 1, 2);
-    vis::plt::title("$Rotational Error$");
-    vis::plt::ylabel("$|\\theta|_2   [°]$");
-    vis::plt::xlabel("$t-t_0 [s]$");
-    vis::plt::grid(true);
-    vis::plt::ylim(0, 1);
-    for (size_t i = 0; i < _names.size(); i++) {
-      std::vector<double> c(_ts.size());
-      std::transform(_errors[i].begin(), _errors[i].end(), c.begin(), [](auto c) {
-        return c.log().tail(3).norm() / M_PI * 180.0;
-      });
-      Eigen::Map<VecXd> rmse(c.data(), c.size());
-      std::cout << _names[i] << "\n |Rotation|"
-                << "\n |RMSE: " << std::sqrt(rmse.dot(rmse) / c.size())
-                << "\n |Max: " << rmse.maxCoeff() << "\n |Mean: " << rmse.mean()
-                << "\n |Min: " << rmse.minCoeff() << std::endl;
-      vis::plt::named_plot(_names[i], _ts, c, ".--");
-    }
-    vis::plt::legend();
-  }
-  void extend(double t, const std::vector<SE3d> & errors)
-  {
-    _ts.push_back(t);
-    for (size_t i = 0; i < _names.size(); i++) {
-      _errors[i].push_back(errors[i]);
-    }
   }
   std::string csv() const override { return ""; }
 
 private:
-  const std::vector<std::string> _names;
-  std::vector<std::vector<SE3d>> _errors;
-  std::vector<double> _ts;
+  std::map<std::string, Trajectory::ConstShPtr> _trajectories;
 };
-
 TEST(MotionModel, Compare)
 {
-  auto trajectoryGt = std::make_shared<Trajectory>(
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt"));
-  auto trajectoryAlgo = std::make_shared<Trajectory>(
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-algo.txt"));
+  Trajectory::ConstShPtr trajectoryGt =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt", true);
+  Trajectory::ConstShPtr trajectoryAlgo =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-algo.txt", true);
 
   using time::to_time_point;
 
@@ -206,9 +177,8 @@ TEST(MotionModel, Compare)
     to_time_point(trajectoryGt->tStart()), to_time_point(trajectoryGt->tEnd()));
   auto meanAcceleration = trajectoryGt->meanAcceleration(0.1 * 1e9);
   print(
-    "Acceleration Statistics\ndT = {:.3f} [f/s] Mean = {}\n Cov = {}", 0.1,
+    "Acceleration Statistics\ndT = {:.3f} [f/s] Mean = {}\n Cov = {}\n", 0.1,
     meanAcceleration->mean().transpose(), meanAcceleration->cov());
-
   auto it = trajectoryAlgo->poses().begin();
   const Timestamp t0 = it->first;
   auto itPrev = it;
@@ -220,10 +190,14 @@ TEST(MotionModel, Compare)
   auto noMotion = std::make_shared<MotionModelNoMotion>();
   auto movingAverage = std::make_shared<MotionModelMovingAverage>(3 * 1e8);
 
-  std::vector<MotionModel::ShPtr> motionModels = {noMotion, constantSpeed, kalman, movingAverage};
-  std::vector<std::string> names = {"NoMotion", "ConstantSpeed", "Kalman", "MovingAverage"};
-  std::vector<std::string> names2 = {
-    "GroundTruth", "NoMotion", "ConstantSpeed", "Kalman", "MovingAverage"};
+  std::map<std::string, MotionModel::ShPtr> motionModels = {
+    {"NoMotion", noMotion},
+    //{"ConstantSpeed", constantSpeed},
+    {"Kalman", kalman},
+    //{"MovingAverage", movingAverage}
+  };
+  std::vector<std::string> names2 = {"GroundTruth",   "Algorithm", "NoMotion",
+                                     "ConstantSpeed", "Kalman",    "MovingAverage"};
 
   for (auto name : {"odometry"}) {
     el::Loggers::getLogger(name);
@@ -234,41 +208,65 @@ TEST(MotionModel, Compare)
     defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
     el::Loggers::reconfigureLogger(name, defaultConf);
   }
-  std::vector<std::vector<Vec6d>> egomotions(motionModels.size() + 1);
-  auto plotRmse = std::make_shared<PlotRMSE>(names);
+  std::vector<std::vector<Vec6d>> egomotions(motionModels.size() + 2);
 
   std::vector<double> timestamps;
   SE3d poseGtPrev;
+  SE3d poseAlgoPrev;
+  std::map<std::string, Trajectory::ShPtr> trajectories;
+  for (const auto n_m : motionModels) {
+    trajectories[n_m.first] = std::make_shared<Trajectory>();
+    n_m.second->update(trajectoryAlgo->poseAt(t0), t0);
+  }
+  std::uint16_t fNo = 0;
   for (; it != trajectoryAlgo->poses().end(); ++it) {
     const Timestamp t = it->first;
-    const Timestamp tp = itPrev->first;
     try {
       const auto poseGt = trajectoryGt->poseAt(t);
-      //auto motionGt = trajectoryGt->motionBetween(tp, t)->pose(); std::vector<std::string>({"GroundTruth", "ConstantSpeed"})
+      const auto poseAlgo = it->second;
       auto motionGt = algorithm::computeRelativeTransform(poseGtPrev, poseGt->pose());
+      auto motionAlgo = algorithm::computeRelativeTransform(poseAlgoPrev, poseAlgo->pose());
       egomotions[0].push_back(motionGt.log());
-      std::vector<SE3d> errors(motionModels.size());
-      for (size_t i = 0U; i < motionModels.size(); i++) {
-        auto predictedPose = motionModels[i]->predictPose(t);
-        auto motionPred = algorithm::computeRelativeTransform(poseGtPrev, predictedPose->pose());
-        auto error = algorithm::computeRelativeTransform(motionGt, motionPred);
-        egomotions[i + 1].push_back(motionPred.log());
-        errors[i] = error;
-        motionModels[i]->update(poseGt, t);
+      egomotions[1].push_back(motionAlgo.log());
+      int i = 0;
+      for (const auto & n_m : motionModels) {
+        const auto name = n_m.first;
+        const auto model = n_m.second;
+        Pose::ConstShPtr predictedPose = model->predictPose(t);
+        trajectories[n_m.first]->append(t, predictedPose);
+        auto motionPred = algorithm::computeRelativeTransform(poseAlgoPrev, predictedPose->SE3());
+        egomotions[i + 2].push_back(motionPred.log());
+        model->update(poseAlgo, t);
+        i++;
       }
-      plotRmse->extend((t - t0) / 1e9, errors);
       poseGtPrev = poseGt->pose();
+      poseAlgoPrev = poseAlgo->pose();
       timestamps.push_back((t - t0) / 1e9);
     } catch (const pd::Exception & e) {
       print("{}\n", e.what());
     }
-
+    fNo++;
     ++itPrev;
   }
-  auto plot = std::make_shared<PlotEgomotion>(egomotions, timestamps, names2);
-  plot->plot();
-  auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(egomotions, timestamps, names2);
-  plotTranslation->plot();
-  plotRmse->plot();
+
+  std::map<std::string, evaluation::RelativePoseError::ConstShPtr> rpes;
+  for (const auto & n_m : trajectories) {
+    auto rpe = evaluation::RelativePoseError::compute(n_m.second, trajectoryGt, 0.05);
+    std::cout << n_m.first << "\n" << rpe->toString() << std::endl;
+    rpes[n_m.first] = std::move(rpe);
+  }
+  evaluation::PlotRPE(rpes).plot();
+  PlotTrajectory({
+                   {"GroundTruth", trajectoryGt},
+                   {"Algorithm", trajectoryAlgo},
+                   {"NoMotion", trajectories["NoMotion"]},
+                   {"Kalman", trajectories["Kalman"]},
+                 })
+    .plot();
+  //auto plot = std::make_shared<PlotEgomotion>(egomotions, timestamps, names2);
+  // plot->plot();
+  //auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(egomotions, timestamps, names2);
+  //plotTranslation->plot();
+
   vis::plt::show();
 }

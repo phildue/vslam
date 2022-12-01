@@ -13,10 +13,11 @@ add_subdirectory(src/least_squares)
 add_subdirectory(src/lukas_kanade)
 add_subdirectory(src/odometry)
 add_subdirectory(src/mapping)
+add_subdirectory(src/evaluation)
 
 add_library(vslam INTERFACE)
 add_library(pd::vslam ALIAS vslam)
-target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping)
+target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping evaluation)
 target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
@@ -75,6 +76,10 @@ if(VSLAM_BUILD_TESTS)
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
 
+  pd_add_test(rpe ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
+
   pd_add_test(tracking ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
@@ -97,7 +102,7 @@ if(VSLAM_BUILD_TESTS)
 endif()
 
 # Installation
-install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade odometry mapping
+install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade odometry mapping evaluation
     EXPORT ${PROJECT_NAME}Targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
