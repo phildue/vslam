@@ -47,23 +47,24 @@ EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t
 void EKFConstantVelocitySE3::update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t)
 {
   const double dt = t - _t;
-  //Prediction
+  // Prediction
   _pose = (SE3d::exp(_pose) * SE3d::exp(_velocity * dt)).log();
   _velocity = _velocity;
   Mat<double, 12, 12> Jfx = computeJacobianProcess(SE3d::exp(_pose));
   _covState = Jfx * (_covState * Jfx.transpose()) + _covProcess;
   LOG_ODOM(DEBUG) << "Prediction. Pose: " << _pose.transpose()
                   << " Twist: " << _velocity.transpose();
-  //Correction
+  // Expectation
   Vec6d e = _velocity * dt;
   Matd<6, 12> Jhx = computeJacobianMeasurement(dt);
   Matd<6, 6> E = Jhx * _covState * Jhx.transpose();
 
+  // Correction
   Vec6d y = motion - e;
   Matd<6, 6> Z = E + covMotion;
   LOG_ODOM(DEBUG) << "Correction. Twist: " << y.transpose();
 
-  //State update
+  // State update
   MatXd K = _covState * Jhx.transpose() * Z.inverse();
   LOG_ODOM(DEBUG) << "Gain. |K| = " << K.norm();
 

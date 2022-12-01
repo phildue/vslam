@@ -126,10 +126,8 @@ MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(const Matd<12, 12
 }
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
-  //TODO we should use the prediction of kalman here but it seems buggy, anyway do we need the pose in the state at all?
-  auto motion = _kalman->velocity() * (timestamp - _lastT);
-  return std::make_unique<PoseWithCovariance>(
-    SE3d::exp(motion) * _lastPose->pose(), Matd<6, 6>::Identity());
+  auto state = _kalman->predict(timestamp);
+  return std::make_unique<PoseWithCovariance>(state->pose, state->covPose);
 }
 void MotionModelConstantSpeedKalman::update(
   PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
