@@ -68,8 +68,7 @@ public:
     _datasetPath = TEST_RESOURCE "/rgbd_dataset_freiburg2_desk";
     _cam = std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5);
     readAssocTextfile(_datasetPath + "/assoc.txt", _imgFilenames, _depthFilenames, _timestamps);
-    _trajectoryGt =
-      std::make_shared<Trajectory>(utils::loadTrajectory(_datasetPath + "/groundtruth.txt"));
+    _trajectoryGt = utils::loadTrajectory(_datasetPath + "/groundtruth.txt");
 
     auto solver = std::make_shared<GaussNewton>(1e-7, 25);
     auto loss = std::make_shared<HuberLoss>(std::make_shared<MeanScaler>());

@@ -124,7 +124,16 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
     _motionModel = std::make_shared<MotionModelConstantSpeed>();
   } else if (get_parameter("prediction.model").as_string() == "Kalman") {
-    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>();
+    Matd<6, 6> covConstantVel;
+    covConstantVel << 4.43799e-36, 8.26448e-37, -1.67565e-36, 5.60168e-38, -1.48752e-36,
+      -7.90401e-37, 8.26448e-37, 4.20937e-36, 1.35359e-36, 1.45756e-36, -4.93781e-38, -7.6944e-37,
+      -1.67565e-36, 1.35359e-36, 4.58383e-36, 7.77025e-37, 1.06878e-36, 2.86771e-39, 5.60168e-38,
+      1.45756e-36, 7.77025e-37, 9.08575e-37, -5.95007e-39, 3.22266e-38, -1.48752e-36, -4.93781e-38,
+      1.06878e-36, -5.95007e-39, 8.99202e-37, 7.02648e-38, -7.90401e-37, -7.6944e-37, 2.86771e-39,
+      3.22266e-38, 7.02648e-38, 8.21283e-37;
+    Matd<12, 12> covProcess = Matd<12, 12>::Identity();
+    covProcess.block(6, 6, 6, 6) = covConstantVel;
+    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(covProcess);
   } else {
     RCLCPP_ERROR(
       get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",

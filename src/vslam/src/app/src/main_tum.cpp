@@ -14,8 +14,7 @@ public:
 
     tum::readAssocTextfile(
       _datasetPath + "/assoc.txt", _imgFilenames, _depthFilenames, _timestamps);
-    _trajectoryGt =
-      std::make_shared<Trajectory>(utils::loadTrajectory(_datasetPath + "/groundtruth.txt"));
+    _trajectoryGt = utils::loadTrajectory(_datasetPath + "/groundtruth.txt");
 
     auto solver = std::make_shared<least_squares::GaussNewton>(1e-7, 25);
     auto loss =

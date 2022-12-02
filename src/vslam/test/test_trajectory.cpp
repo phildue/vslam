@@ -30,8 +30,7 @@ using namespace pd::vslam;
 
 TEST(TrajectoryTest, Create)
 {
-  auto poseGraph =
-    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
+  auto poseGraph = utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt");
 }
 TEST(TrajectoryTest, Interpolate)
 {

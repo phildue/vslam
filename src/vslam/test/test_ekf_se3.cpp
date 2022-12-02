@@ -166,10 +166,10 @@ private:
 
 TEST(EKFSE3, RunWithGt)
 {
-  auto trajectoryGt = std::make_shared<Trajectory>(
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt"));
-  auto trajectoryAlgo = std::make_shared<Trajectory>(
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-algo.txt"));
+  auto trajectoryGt =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt");
+  auto trajectoryAlgo =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-algo.txt");
 
   using time::to_time_point;
 

@@ -47,8 +47,7 @@ TEST(TrackingTest, TrackAndOptimize)
     utils::loadImage(TEST_RESOURCE "/1311868166.763333.png"),
     utils::loadDepth(TEST_RESOURCE "/1311868166.715787.png") / 5000.0, cam, 1311868166763333000U);
 
-  auto trajectoryGt =
-    std::make_shared<Trajectory>(utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt"));
+  auto trajectoryGt = utils::loadTrajectory(TEST_RESOURCE "/trajectory.txt");
   f0->set(trajectoryGt->poseAt(f0->t())->inverse());
   f1->set(trajectoryGt->poseAt(f1->t())->inverse());
   f2->set(trajectoryGt->poseAt(f2->t())->inverse());
