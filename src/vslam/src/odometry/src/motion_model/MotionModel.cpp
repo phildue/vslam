@@ -31,8 +31,9 @@ void MotionModelNoMotion::update(PoseWithCovariance::ConstShPtr pose, Timestamp 
     throw pd::Exception("New timestamp is older than last one!");
   }
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
-
-  _speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+  if (dT > 0) {
+    _speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+  }
   _lastPose = pose;
   _lastT = timestamp;
 }
@@ -42,10 +43,12 @@ void MotionModelNoMotion::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr f
     throw pd::Exception("New timestamp is older than last one!");
   }
   const double dT = (static_cast<double>(frameCur->t()) - static_cast<double>(frameRef->t())) / 1e9;
+  if (dT > 0) {
+    _speed =
+      algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log() /
+      dT;
+  }
 
-  _speed =
-    algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log() /
-    dT;
   _lastPose = std::make_shared<PoseWithCovariance>(frameCur->pose());
   _lastT = frameCur->t();
 }
@@ -126,20 +129,26 @@ MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(const Matd<12, 12
 }
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
-  auto state = _kalman->predict(timestamp);
-  return std::make_unique<PoseWithCovariance>(state->pose, state->covPose);
+  if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
+    return std::make_unique<PoseWithCovariance>(*_lastPose);
+  } else {
+    auto state = _kalman->predict(timestamp);
+    return std::make_unique<PoseWithCovariance>(state->pose, state->covPose);
+  }
 }
 void MotionModelConstantSpeedKalman::update(
   PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
 {
-  if (timestamp < _lastT) {
-    throw pd::Exception("New timestamp is older than last one!");
-  }
-
-  auto speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log();
+  //Since the system model of kalman is x' = x * exp(v * dt) we have to compute v*dT = log(x.inv() * x')
+  auto motion = (_lastPose->pose().inverse() * pose->pose()).log();
   _lastPose = pose;
   _lastT = timestamp;
-  _kalman->update(speed, Matd<6, 6>::Identity(), timestamp);
+  if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
+    _kalman->t() = timestamp;
+    _kalman->pose() = pose->twist();
+  } else {
+    _kalman->update(motion, Matd<6, 6>::Identity(), timestamp);
+  }
 }
 
 void MotionModelConstantSpeedKalman::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur)

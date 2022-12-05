@@ -67,6 +67,8 @@ public:
   bool & block() { return _block; }
   bool & show() { return _show; }
   bool & save() { return _save; }
+  void set(bool show = false, bool block = false, bool save = false);
+
   std::string toString() const;
 
 private:

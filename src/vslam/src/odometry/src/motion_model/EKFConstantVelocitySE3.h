@@ -16,9 +16,23 @@
 #ifndef VSLAM_KALMAN_FILTER_SE3_H__
 #define VSLAM_KALMAN_FILTER_SE3_H__
 
+#include "PlotKalman.h"
 #include "core/core.h"
 namespace pd::vslam::odometry
 {
+/**
+     * Extended Kalman Filter with Constant Velocity Model in SE3
+     * 
+     * State Vector x:                [pose, twist]
+     * System Function F(x):          pose = log(exp(pose) * exp(twist*dt)) | p (+) v*dt
+     *                                twist = twist 
+     *                 J_F_x:         Ad_Exp(v*dt)^(-1)
+     * 
+     * Measurement Function H(x):     motion = 0*p + vx * dT
+     *                 J_H_x:         
+     *        
+     * 
+    */
 class EKFConstantVelocitySE3
 {
 public:
@@ -32,10 +46,10 @@ public:
     typedef std::unique_ptr<State> UnPtr;
     typedef std::shared_ptr<const State> ConstPtr;
 
-    Vec6d pose;
-    Vec6d velocity;
-    Matd<6, 6> covPose;
-    Matd<6, 6> covVel;
+    Vec6d pose = Vec6d::Zero();
+    Vec6d velocity = Vec6d::Zero();
+    Matd<6, 6> covPose = Matd<6, 6>::Identity();
+    Matd<6, 6> covVel = Matd<6, 6>::Identity();
   };
 
   EKFConstantVelocitySE3(
@@ -50,16 +64,24 @@ public:
   const Vec6d & velocity() const { return _velocity; }
   const Matd<12, 12> & covState() const { return _covState; }
   const Matd<12, 12> & covProcess() const { return _covProcess; }
+  Timestamp & t() { return _t; }
+  Matd<12, 12> & covProcess() { return _covProcess; }
+  Vec6d & pose() { return _pose; }
+  Vec12d state() const;
+
+  PlotKalman::ConstShPtr plot() const { return _plot; }
 
 private:
-  Matd<12, 12> computeJacobianProcess(const SE3d & pose) const;
-  Matd<6, 12> computeJacobianMeasurement(Timestamp t) const;
+  Matd<12, 12> computeJacobianProcess(const SE3d & vdt) const;
+  Matd<6, 12> computeJacobianMeasurement(double dt) const;
 
   Timestamp _t;
   Vec6d _pose;
   Vec6d _velocity;
   Matd<12, 12> _covState;
   Matd<12, 12> _covProcess;
+
+  PlotKalman::ShPtr _plot;
 };
 }  // namespace pd::vslam::odometry
 #endif  //VSLAM_KALMAN_H__

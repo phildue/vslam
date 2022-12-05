@@ -138,6 +138,13 @@ LogPlot::LogPlot(const std::string & name, bool block, bool show, bool save)
 : _block(block), _show(show), _save(save), _name(name)
 {
 }
+
+void LogPlot::set(bool show, bool block, bool save)
+{
+  _block = block;
+  _show = show;
+  _save = save;
+}
 void operator<<(LogPlot::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
 
 LogImage::LogImage(const std::string & name, bool block, bool show, bool save)
@@ -153,6 +160,7 @@ void LogImage::createDirectories()
     fs::create_directories(rootFolder() + "/" + _folder);
   }
 }
+
 void LogImage::set(bool show, bool block, bool save)
 {
   _block = block;

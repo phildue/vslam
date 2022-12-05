@@ -31,6 +31,7 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 {
 };
 //  ^ code unit type
+#include <evaluation/evaluation.h>
 #include <gtest/gtest.h>
 
 #include "core/core.h"
@@ -39,213 +40,237 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 using namespace testing;
 using namespace pd;
 using namespace pd::vslam;
+using namespace pd::vslam::evaluation;
 
-class PlotEgomotion : public vis::Plot
+class TestKalmanSE3 : public Test
 {
 public:
-  PlotEgomotion(
-    const std::vector<std::vector<Vec6d>> & egomotion, const std::vector<double> & ts,
-    const std::vector<std::string> & names)
-  : _twists(egomotion), _names(names), _ts(ts)
+  TestKalmanSE3()
   {
-  }
+    LOG_PLT("Kalman")->set(TEST_VISUALIZE);
 
-  void plot() const override
-  {
-    vis::plt::figure();
-    vis::plt::subplot(1, 2, 1);
-    vis::plt::title("Translational Velocity");
-    vis::plt::ylabel("$m$");
-    vis::plt::xlabel("$t-t_0 [s]$");
-    //vis::plt::ylim(0.0, 5.0);
-    for (size_t i = 0; i < _twists.size(); i++) {
-      std::vector<double> v(_ts.size());
-      std::transform(
-        _twists[i].begin(), _twists[i].end(), v.begin(), [](auto tw) { return tw.head(3).norm(); });
+    _kalman = std::make_shared<odometry::EKFConstantVelocitySE3>(Matd<12, 12>::Identity(), 0);
 
-      vis::plt::named_plot(_names[i], _ts, v, ".--");
+    for (auto name : {"odometry"}) {
+      el::Loggers::getLogger(name);
+      el::Configurations defaultConf;
+      defaultConf.setToDefault();
+      defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
+      defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+      defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
+      el::Loggers::reconfigureLogger(name, defaultConf);
     }
-    vis::plt::legend();
-
-    vis::plt::subplot(1, 2, 2);
-    vis::plt::title("Angular Velocity");
-    vis::plt::ylabel("$\\circ$");
-    vis::plt::xlabel("$t-t_0 [s]$");
-    //vis::plt::ylim(0.0, 5.0);
-
-    //vis::plt::xticks(_ts);
-    for (size_t i = 0; i < _twists.size(); i++) {
-      std::vector<double> va(_ts.size());
-      std::transform(_twists[i].begin(), _twists[i].end(), va.begin(), [](auto tw) {
-        return tw.tail(3).norm() / M_PI * 180.0;
-      });
-
-      vis::plt::named_plot(_names[i], _ts, va, ".--");
-    }
-    vis::plt::legend();
-  }
-  std::string csv() const override { return ""; }
-
-private:
-  std::vector<std::vector<Vec6d>> _twists;
-  std::vector<std::string> _names;
-  std::vector<double> _ts;
-};
-class PlotEgomotionTranslation : public vis::Plot
-{
-public:
-  PlotEgomotionTranslation(
-    const std::vector<std::vector<Vec6d>> & egomotion, const std::vector<double> & ts,
-    const std::vector<std::string> & names)
-  : _egomotion(egomotion), _names(names), _ts(ts)
-  {
+    LOG_PLT("Test")->set(TEST_VISUALIZE, false);
   }
 
-  void plot() const override
-  {
-    vis::plt::figure();
-    const std::vector<std::string> dims = {"x", "y", "z"};
-    for (size_t i = 0U; i < dims.size(); i++) {
-      vis::plt::subplot(1, dims.size(), i + 1);
-      vis::plt::title(format("$\\Delta t_{}$", dims[i]));
-      vis::plt::ylabel("$m$");
-      vis::plt::xlabel("$t-t_0 [s]$");
-      vis::plt::ylim(-0.25, 0.25);
-      for (size_t j = 0; j < _egomotion.size(); j++) {
-        std::vector<double> v(_ts.size());
-        std::transform(
-          _egomotion[j].begin(), _egomotion[j].end(), v.begin(), [&](auto tw) { return tw(i); });
-
-        vis::plt::named_plot(_names[j], _ts, v, ".--");
-      }
-    }
-
-    vis::plt::legend();
-  }
-  std::string csv() const override { return ""; }
-
-private:
-  std::vector<std::vector<Vec6d>> _egomotion;
-  std::vector<std::string> _names;
-  std::vector<double> _ts;
-};
-class PlotCovariances : public vis::Plot
-{
-public:
-  PlotCovariances(
-    const std::vector<std::vector<MatXd>> & covariances, const std::vector<double> & ts,
-    const std::vector<std::string> & names)
-  : _covariances(covariances), _names(names), _ts(ts)
-  {
-  }
-
-  void plot() const override
-  {
-    vis::plt::figure();
-    vis::plt::subplot(1, 2, 1);
-    vis::plt::title("Covariances");
-    vis::plt::ylabel("$|\\Sigma|$");
-    vis::plt::xlabel("$t-t_0 [s]$");
-    for (size_t i = 0; i < _covariances.size(); i++) {
-      std::vector<double> c(_ts.size());
-      std::transform(_covariances[i].begin(), _covariances[i].end(), c.begin(), [](auto c) {
-        return c.determinant();
-      });
-
-      vis::plt::named_plot(_names[i], _ts, c, ".--");
-    }
-    vis::plt::legend();
-  }
-  std::string csv() const override { return ""; }
-
-private:
-  std::vector<std::vector<MatXd>> _covariances;
-  std::vector<std::string> _names;
-  std::vector<double> _ts;
+protected:
+  odometry::EKFConstantVelocitySE3::ShPtr _kalman;
+  std::map<std::string, Trajectory::ShPtr> _trajectories;
+  std::map<std::string, RelativePoseError::ConstShPtr> _rpes;
 };
 
-TEST(EKFSE3, RunWithGt)
+TEST_F(TestKalmanSE3, DISABLED_RunWithGt)
 {
-  auto trajectoryGt =
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-groundtruth.txt");
-  auto trajectoryAlgo =
-    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg2_desk-algo.txt");
+  Trajectory::ConstShPtr trajectoryGt =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-groundtruth.txt", true);
 
-  using time::to_time_point;
-
-  print(
-    "GT time range [{:%Y-%m-%d %H:%M:%S}] -> [{:%Y-%m-%d %H:%M:%S}]\n",
-    to_time_point(trajectoryGt->tStart()), to_time_point(trajectoryGt->tEnd()));
-  auto meanAcceleration = trajectoryGt->meanAcceleration(0.1 * 1e9);
-  print(
-    "Acceleration Statistics\ndT = {:.3f} [f/s] Mean = {}\n Cov = {}", 0.1,
-    meanAcceleration->mean().transpose(), meanAcceleration->cov());
-
-  std::vector<Vec6d> twistsKalman, twistsGt, twistsAlgo;
-  twistsKalman.reserve(trajectoryGt->poses().size());
-  twistsGt.reserve(trajectoryGt->poses().size());
+  std::uint16_t fNo = 0;
+  _kalman->pose() = trajectoryGt->poseAt(trajectoryGt->tStart())->twist();
+  _kalman->covProcess().block(0, 0, 6, 6) = Matd<6, 6>::Identity() * 1e-9;
+  _kalman->covProcess().block(6, 6, 6, 6) = Matd<6, 6>::Identity() * 1e3;
+  //_kalman->covProcess().setZero();
+  _kalman->t() = trajectoryGt->tStart();
+  SE3d poseRef = trajectoryGt->poseAt(trajectoryGt->tStart())->SE3();
+  Trajectory::ShPtr trajectory = std::make_shared<Trajectory>();
+  Trajectory::ShPtr trajectoryLastMotion = std::make_shared<Trajectory>();
+  SE3d poseLastMotion = poseRef;
+  Vec6d lastVel = Vec6d::Zero();
+  Timestamp t_1 = trajectoryGt->tStart();
+  std::vector<double> dts;
   std::vector<double> timestamps;
-  timestamps.reserve(trajectoryGt->poses().size());
-  std::vector<MatXd> covsMeasurement, covsState, covsProcess;
 
-  auto it = trajectoryAlgo->poses().begin();
-  const Timestamp t0 = it->first;
-  auto itPrev = it;
-  ++it;
-  Matd<12, 12> covProcess = Matd<12, 12>::Identity();
-  covProcess.block(6, 6, 6, 6) = meanAcceleration->cov();
-  auto kalman =
-    std::make_shared<odometry::EKFConstantVelocitySE3>(covProcess, t0, Matd<12, 12>::Identity());
+  for (auto t_p : trajectoryGt->poses()) {
+    try {
+      const auto t = t_p.first;
+      const double dT = t - t_1;
+      const auto pose = t_p.second->SE3();
+      poseLastMotion = poseLastMotion * SE3d::exp(lastVel * dT);
+      auto pred = _kalman->predict(t);
+      auto motionGt = (poseRef.inverse() * pose).log();
+
+      _kalman->update(motionGt, Matd<6, 6>::Identity(), t);
+      trajectory->append(t, std::make_shared<Pose>(pred->pose, pred->covPose));
+      trajectoryLastMotion->append(
+        t, std::make_shared<Pose>(poseLastMotion, Matd<6, 6>::Identity()));
+      dts.push_back(dT);
+      timestamps.push_back(t - trajectoryGt->tStart());
+      poseRef = pose;
+      t_1 = t;
+      if (dT > 0) {
+        lastVel = motionGt / dT;
+      }
+    } catch (const pd::Exception & e) {
+      print("{}\n", e.what());
+    }
+    fNo++;
+  }
+  std::map<std::string, Trajectory::ConstShPtr> trajectories;
+  trajectories["GroundTruth"] = trajectoryGt;
+  trajectories["Kalman"] = trajectory;
+  trajectories["LastMotion"] = trajectoryLastMotion;
+  std::map<std::string, evaluation::RelativePoseError::ConstShPtr> rpes;
+
+  evaluation::RelativePoseError::ConstShPtr rpe =
+    evaluation::RelativePoseError::compute(trajectory, trajectoryGt, 0.05);
+  evaluation::RelativePoseError::ConstShPtr rpeLastMotion =
+    evaluation::RelativePoseError::compute(trajectoryLastMotion, trajectoryGt, 0.05);
+
+  EXPECT_NEAR(rpe->translation().rmse, rpeLastMotion->translation().rmse, 0.001)
+    << "With high state uncertainty kalman should always use the last velocity for prediction and "
+       "thus achieve similar error.";
+  EXPECT_NEAR(rpe->angle().rmse, rpeLastMotion->angle().rmse, 0.001)
+    << "With high state uncertainty kalman should always use the last velocity for prediction and "
+       "thus achieve similar error.";
+  rpes["Kalman"] = rpe;
+  rpes["LastMotion"] = rpeLastMotion;
+  print("LastMotion\n: {}\n", rpeLastMotion->toString());
+  print("Kalman:\n{}\n", rpe->toString());
+
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotRPE>(rpes);
+  LOG_PLT("Test") << _kalman->plot();
+  vis::plt::figure();
+  vis::plt::title("dts");
+
+  vis::plt::plot(timestamps, dts);
+  vis::plt::show();
+}
+
+TEST_F(TestKalmanSE3, RunWithAlgo)
+{
+  Trajectory::ShPtr trajectoryGt =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-groundtruth.txt", true);
+  Trajectory::ShPtr trajectoryAlgo =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-algo.txt", true);
+
+  std::uint16_t fNo = 0;
+  _kalman->pose() = trajectoryAlgo->poseAt(trajectoryAlgo->tStart())->twist();
+  _kalman->covProcess().block(0, 0, 6, 6) = Matd<6, 6>::Identity() * 1e-9;
+  _kalman->covProcess().block(6, 6, 3, 3) = Matd<3, 3>::Identity() * 1e-15;
+  _kalman->covProcess().block(9, 9, 3, 3) = Matd<3, 3>::Identity() * 1e-15;
+
+  //_kalman->covProcess().setZero();
+  _kalman->t() = trajectoryAlgo->tStart();
+  SE3d poseRef = trajectoryAlgo->poseAt(trajectoryAlgo->tStart())->SE3();
+  _trajectories["LastMotion"] = std::make_shared<Trajectory>();
+  _trajectories["Kalman"] = std::make_shared<Trajectory>();
+  _trajectories["GroundTruth"] = std::make_shared<Trajectory>();
+  _trajectories["Algorithm"] = std::make_shared<Trajectory>();
+  SE3d poseLastMotion = poseRef;
+  Vec6d lastVel = Vec6d::Zero();
+  Timestamp t_1 = trajectoryGt->tStart();
+  std::vector<double> dts;
+  std::vector<double> timestamps;
+  const std::uint16_t nFrames = 5000;
+  for (auto t_p : trajectoryAlgo->poses()) {
+    try {
+      const auto t = t_p.first;
+      const double dT = t - t_1;
+      const auto pose = t_p.second->SE3();
+      poseLastMotion = poseLastMotion * SE3d::exp(lastVel * dT);
+      auto pred = _kalman->predict(t);
+      auto motion = (poseRef.inverse() * pose).log();
+
+      _kalman->update(motion, Matd<6, 6>::Identity(), t);
+      _trajectories["Kalman"]->append(t, std::make_shared<Pose>(pred->pose, pred->covPose));
+      _trajectories["LastMotion"]->append(
+        t, std::make_shared<Pose>(poseLastMotion, Matd<6, 6>::Identity()));
+      _trajectories["GroundTruth"]->append(t, trajectoryGt->poseAt(t));
+      _trajectories["Algorithm"]->append(t, trajectoryAlgo->poseAt(t));
+
+      dts.push_back(dT);
+      timestamps.push_back(t - trajectoryAlgo->tStart());
+      poseRef = pose;
+      t_1 = t;
+      if (dT > 0) {
+        lastVel = motion / dT;
+      }
+    } catch (const pd::Exception & e) {
+      print("{}\n", e.what());
+    }
+    if (fNo++ > nFrames) {
+      break;
+    }
+  }
+  for (auto n_t : _trajectories) {
+    _rpes[n_t.first] = RelativePoseError::compute(n_t.second, trajectoryGt, 0.1);
+    print("{}\n{}\n", n_t.first, _rpes[n_t.first]->toString());
+  }
+
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(_trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(_trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryMotion>(_trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotRPE>(_rpes);
+  LOG_PLT("Test") << _kalman->plot();
+  vis::plt::figure();
+  vis::plt::title("dts");
+
+  vis::plt::plot(timestamps, dts);
+  vis::plt::show();
+}
+
+TEST(EKFSE3, DISABLED_SyntheticData)
+{
+  auto kalman = std::make_shared<odometry::EKFConstantVelocitySE3>(Matd<12, 12>::Identity(), 0UL);
+
   for (auto name : {"odometry"}) {
     el::Loggers::getLogger(name);
     el::Configurations defaultConf;
     defaultConf.setToDefault();
     defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
-    defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+    defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "true");
     defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
     el::Loggers::reconfigureLogger(name, defaultConf);
   }
-  int i = 0;
-  for (; it != trajectoryAlgo->poses().end(); ++it) {
-    const Timestamp t = it->first;
-    const auto p = it->second;
-    const Timestamp tp = itPrev->first;
-    const auto pp = itPrev->second;
-    const double dt = static_cast<double>(t - tp) / 1e9;
+  std::vector<double> timestamps;
+  Trajectory::ShPtr trajectory = std::make_shared<Trajectory>();
+  Trajectory::ShPtr trajectoryGt = std::make_shared<Trajectory>();
+  const Timestamp dT = 1;
+  std::uint16_t fNo = 0;
+  SE3d motionGtSE3;
+  motionGtSE3.translation().x() = 0.1;
+  Vec6d motionGt = motionGtSE3.log();
+  SE3d poseGt;
+  for (Timestamp t = 0UL; t < 100; t += dT) {
     try {
-      auto dxAlgo = algorithm::computeRelativeTransform(pp->pose(), p->pose()).log();
-      auto dxGt = trajectoryGt->motionBetween(tp, t)->pose().log();
-      auto covMeasurement = MatXd::Identity(6, 6);
-      kalman->update(dxAlgo, covMeasurement, t);
-      // print("twist_gt = {}\n", (dxGt / dt).transpose());
-      twistsKalman.push_back(kalman->velocity() * 1e9 * dt);
-      twistsGt.push_back(dxGt);
-      twistsAlgo.push_back(dxAlgo);
+      auto pred = kalman->predict(t);
 
-      covsMeasurement.push_back(covMeasurement);
-      covsProcess.push_back(kalman->covProcess());
-      covsState.push_back(kalman->covState());
-      timestamps.push_back(static_cast<double>(t - t0) / 1e9);
+      EXPECT_NEAR(
+        (SE3d::exp(motionGt).inverse() * SE3d::exp(pred->velocity * dT)).log().norm(), 0.0, 0.01)
+        << "With high state uncertainty kalman should always use the last measured velocity.";
+
+      poseGt = poseGt * SE3d::exp(motionGt);
+
+      EXPECT_NEAR((poseGt.inverse() * SE3d::exp(pred->pose)).log().norm(), 0.0, 0.01)
+        << "The predicted pose should be the last pose updated with the current velocity * dt.\n"
+        << "Gt: " << poseGt.log().transpose() << "\n"
+        << "Pred: " << pred->pose.transpose() << "\n";
+
+      kalman->update(poseGt.log(), Matd<6, 6>::Identity(), t);
+      trajectoryGt->append(t, std::make_shared<Pose>(poseGt, Matd<6, 6>::Identity()));
+      trajectory->append(t, std::make_shared<Pose>(pred->pose, pred->covPose));
+      timestamps.push_back((t) / 1e9);
     } catch (const pd::Exception & e) {
-      print("{}", e.what());
+      print("{}\n", e.what());
     }
-
-    ++itPrev;
-    if (i++ > 100) {
-      break;
-    }
+    fNo++;
   }
-  print("Computed twist for {} timestamps.\n", timestamps.size());
-  auto plot = std::make_shared<PlotEgomotion>(
-    std::vector<std::vector<Vec6d>>({twistsGt, twistsKalman, twistsAlgo}), timestamps,
-    std::vector<std::string>({"GroundTruth", "Kalman", "Algo"}));
-  plot->plot();
-  auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(
-    std::vector<std::vector<Vec6d>>({twistsGt, twistsKalman, twistsAlgo}), timestamps,
-    std::vector<std::string>({"GroundTruth", "Kalman", "Algo"}));
-  plotTranslation->plot();
-  auto plotCov = std::make_shared<PlotCovariances>(
-    std::vector<std::vector<MatXd>>({covsState}), timestamps, std::vector<std::string>({"State"}));
-  plotCov->plot();
+  std::map<std::string, Trajectory::ConstShPtr> trajectories;
+  trajectories["GroundTruth"] = trajectoryGt;
+  trajectories["Kalman"] = trajectory;
+  LOG_PLT("Test")->set(TEST_VISUALIZE, false);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
+  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
   vis::plt::show();
 }

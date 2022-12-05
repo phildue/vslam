@@ -54,7 +54,9 @@ void RelativePoseError::compute()
       print("{}\n", e.what());
     }
   }
-
+  if (_errorsTranslation.empty() || _errorsAngles.empty()) {
+    throw pd::Exception(format("Can't compute, Don't have enough valid samples"));
+  }
   Eigen::Map<VecXd> rmseT(_errorsTranslation.data(), _errorsTranslation.size());
   _statTranslation.rmse = std::sqrt(rmseT.dot(rmseT) / _errorsTranslation.size());
   _statTranslation.mean = rmseT.mean();

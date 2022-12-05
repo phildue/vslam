@@ -15,5 +15,6 @@
 
 #ifndef VSLAM_EVALUATION_H__
 #define VSLAM_EVALUATION_H__
+#include "PlotTrajectory.h"
 #include "RelativePoseError.h"
 #endif  // VSLAM_EVALUATION_H__

@@ -23,7 +23,7 @@ odometry:
     max_iterations: 20
     min_step_size: 0.00000000001
 prediction:
-  model: ConstantMotion
+  model: Kalman
   models: [NoMotion, ConstantMotion, Kalman]
 keyframe_selection:
   method: custom
@@ -63,9 +63,9 @@ log:
       show: false
       block: false
     KeyFrames:
-      show: true
+      show: false
       block: false
-      save: true
+      save: false
   plot:
     ErrorDistribution:
       show: false

@@ -4,6 +4,7 @@ project(odometry VERSION 1.0.0)
 set( sources
   src/motion_model/MotionModel.cpp
   src/motion_model/EKFConstantVelocitySE3.cpp
+  src/motion_model/PlotKalman.cpp
   src/iterative_closest_point/IterativeClosestPoint.cpp
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
   src/rgbd_alignment/SE3Alignment.cpp
@@ -19,6 +20,7 @@ set( headers
   src/motion_model/MotionModel.h
   src/motion_model/KalmanFilter.h
   src/motion_model/EKFConstantVelocitySE3.h
+  src/motion_model/PlotKalman.h
   src/iterative_closest_point/IterativeClosestPoint.h
   src/iterative_closest_point/IterativeClosestPointOcv.h
   src/rgbd_alignment/RgbdAlignment.h

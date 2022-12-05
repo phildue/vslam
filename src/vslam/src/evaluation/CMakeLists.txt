@@ -3,10 +3,12 @@ project(evaluation VERSION 1.0.0)
 
 set( sources
   src/RelativePoseError.cpp
+  src/PlotTrajectory.cpp
    )
 
 set( headers
 src/RelativePoseError.h
+src/PlotTrajectory.h
   include/evaluation/evaluation.h )
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 target_link_libraries(${PROJECT_NAME} core utils)
