@@ -41,6 +41,8 @@ target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
 
 find_package(matplotlib_cpp)
 target_link_libraries(${PROJECT_NAME} matplotlib_cpp::matplotlib_cpp)
+# Avoid crash with multiple headers see https://github.com/lava/matplotlib-cpp/issues/178
+target_compile_definitions(${PROJECT_NAME} PUBLIC WITHOUT_NUMPY)
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_FEATURE_PERFORMANCE_TRACKING)
 option(VSLAM_LOG_PERFORMANCE_TRACKING ON)
