@@ -86,7 +86,9 @@ Trajectory::UnPtr utils::loadTrajectory(const fs::path & path, bool invertPoses)
     throw std::runtime_error("Could not open file at: " + path.string());
   }
 
-  std::map<Timestamp, SE3d> poses;
+  //TODO shouldn't this better be objects or unique ptrs
+  std::map<Timestamp, PoseWithCovariance::ConstShPtr> poses;
+
   std::string line;
   while (getline(gtFile, line)) {
     std::vector<std::string> elements;
@@ -100,22 +102,35 @@ Trajectory::UnPtr utils::loadTrajectory(const fs::path & path, bool invertPoses)
       continue;
     }  //Skip comments
 
+    //Pose
     Eigen::Vector3d trans;
     trans << std::stod(elements[1]), std::stod(elements[2]), std::stod(elements[3]);
     Eigen::Quaterniond q(
       std::stod(elements[7]), std::stod(elements[4]), std::stod(elements[5]),
       std::stod(elements[6]));
+    auto se3 = invertPoses ? SE3d(q, trans) : SE3d(q, trans).inverse();
+
+    //Covariance
+    Eigen::Matrix<double, 6, 6> cov = Eigen::Matrix<double, 6, 6>::Identity();
+    if (elements.size() >= 8 + 36) {
+      for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) {
+          cov(i, j) = std::stod(elements[8 + i * 6 + j]);
+        }
+      }
+    }
+
+    //Timestamp
     std::vector<std::string> tElements;
     std::string st;
     std::istringstream tLine(elements[0]);
     while (getline(tLine, st, '.')) {
       tElements.push_back(st);
     }
-
     auto sec = std::stoull(tElements[0]);
     auto nanosec = std::stoull(tElements[1]) * std::pow(10, 9 - tElements[1].size());
-    auto se3 = invertPoses ? SE3d(q, trans) : SE3d(q, trans).inverse();
-    poses.insert({sec * 1e9 + nanosec, se3});
+
+    poses.insert({sec * 1e9 + nanosec, std::make_shared<PoseWithCovariance>(se3, cov)});
   }
   return std::make_unique<Trajectory>(poses);
 }
