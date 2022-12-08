@@ -47,6 +47,9 @@ target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 find_package(Sophus REQUIRED)
 target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
 
+find_package(manif REQUIRED)
+target_link_libraries(${PROJECT_NAME} MANIF::manif)
+
 find_package(PCL REQUIRED)
 target_include_directories(${PROJECT_NAME} PUBLIC ${PCL_INCLUDE_DIRS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${PCL_DEFINITIONS})

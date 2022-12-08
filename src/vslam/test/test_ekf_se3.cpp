@@ -34,9 +34,16 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 #include <evaluation/evaluation.h>
 #include <gtest/gtest.h>
 
+#include <iomanip>
+#include <iostream>
+
 #include "core/core.h"
+#include "manif/SE3.h"
 #include "odometry/odometry.h"
 #include "utils/utils.h"
+using std::cout;
+using std::endl;
+
 using namespace testing;
 using namespace pd;
 using namespace pd::vslam;
@@ -56,7 +63,7 @@ public:
       el::Configurations defaultConf;
       defaultConf.setToDefault();
       defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
-      defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
+      defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "true");
       defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
       el::Loggers::reconfigureLogger(name, defaultConf);
     }
@@ -75,9 +82,8 @@ TEST_F(TestKalmanSE3, DISABLED_RunWithGt)
     utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-groundtruth.txt", true);
 
   std::uint16_t fNo = 0;
-  _kalman->pose() = trajectoryGt->poseAt(trajectoryGt->tStart())->twist();
-  _kalman->covProcess().block(0, 0, 6, 6) = Matd<6, 6>::Identity() * 1e-9;
-  _kalman->covProcess().block(6, 6, 6, 6) = Matd<6, 6>::Identity() * 1e3;
+  _kalman->state().block(0, 0, 6, 1) = trajectoryGt->poseAt(trajectoryGt->tStart())->twist();
+  _kalman->covProcess() = Matd<12, 12>::Identity() * 1e-15;
   //_kalman->covProcess().setZero();
   _kalman->t() = trajectoryGt->tStart();
   SE3d poseRef = trajectoryGt->poseAt(trajectoryGt->tStart())->SE3();
@@ -147,7 +153,7 @@ TEST_F(TestKalmanSE3, DISABLED_RunWithGt)
   vis::plt::show();
 }
 
-TEST_F(TestKalmanSE3, RunWithAlgo)
+TEST_F(TestKalmanSE3, DISABLED_RunWithAlgo)
 {
   Trajectory::ShPtr trajectoryGt =
     utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-groundtruth.txt", true);
@@ -155,10 +161,8 @@ TEST_F(TestKalmanSE3, RunWithAlgo)
     utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-algo.txt", true);
 
   std::uint16_t fNo = 0;
-  _kalman->pose() = trajectoryAlgo->poseAt(trajectoryAlgo->tStart())->twist();
-  _kalman->covProcess().block(0, 0, 6, 6) = Matd<6, 6>::Identity() * 1e-9;
-  _kalman->covProcess().block(6, 6, 3, 3) = Matd<3, 3>::Identity() * 1e-15;
-  _kalman->covProcess().block(9, 9, 3, 3) = Matd<3, 3>::Identity() * 1e-15;
+  _kalman->state().block(0, 0, 6, 1) = trajectoryGt->poseAt(trajectoryGt->tStart())->twist();
+  _kalman->covProcess() = Matd<12, 12>::Identity() * 1e-15;
 
   //_kalman->covProcess().setZero();
   _kalman->t() = trajectoryAlgo->tStart();
@@ -172,7 +176,7 @@ TEST_F(TestKalmanSE3, RunWithAlgo)
   Timestamp t_1 = trajectoryGt->tStart();
   std::vector<double> dts;
   std::vector<double> timestamps;
-  const std::uint16_t nFrames = 5000;
+  const std::uint16_t nFrames = 5;
   for (auto t_p : trajectoryAlgo->poses()) {
     try {
       const auto t = t_p.first;
@@ -182,7 +186,7 @@ TEST_F(TestKalmanSE3, RunWithAlgo)
       auto pred = _kalman->predict(t);
       auto motion = (poseRef.inverse() * pose).log();
 
-      _kalman->update(motion, Matd<6, 6>::Identity(), t);
+      _kalman->update(pose.log(), Matd<6, 6>::Identity(), t);
       _trajectories["Kalman"]->append(t, std::make_shared<Pose>(pred->pose, pred->covPose));
       _trajectories["LastMotion"]->append(
         t, std::make_shared<Pose>(poseLastMotion, Matd<6, 6>::Identity()));
@@ -220,57 +224,126 @@ TEST_F(TestKalmanSE3, RunWithAlgo)
   vis::plt::show();
 }
 
-TEST(EKFSE3, DISABLED_SyntheticData)
+using namespace Eigen;
+
+typedef Matrix<double, 12, 12> Mat12d;
+typedef Matrix<double, 6, 6> Mat6d;
+typedef Array<double, 3, 1> Array3d;
+typedef Array<double, 6, 1> Array6d;
+typedef Matrix<double, 6, 1> Vector6d;
+typedef Matrix<double, 6, 6> Matrix6d;
+TEST(EKFSE3, PoC)
 {
-  auto kalman = std::make_shared<odometry::EKFConstantVelocitySE3>(Matd<12, 12>::Identity(), 0UL);
+  /**
+     * Adapted example from manif library.
+     * State consists of [pose, velocity] .
+     * Where pose is the integrated velocity 
+     * and the velocity is assumed to be constant
+     * with some noise to allow for derivations.
+     * pose(t) = pose(t-1) * exp(vel*dt) 
+     * vel(t) = vel(t-1) + w(t-1)
+     * Simple test on synthetic data.
+    */
+  std::srand((unsigned int)std::time(0));
 
-  for (auto name : {"odometry"}) {
-    el::Loggers::getLogger(name);
-    el::Configurations defaultConf;
-    defaultConf.setToDefault();
-    defaultConf.set(el::Level::Debug, el::ConfigurationType::Format, "%datetime %level %msg");
-    defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "true");
-    defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
-    el::Loggers::reconfigureLogger(name, defaultConf);
+  /*State (Estimated, Simulated, Without Filtering)*/
+  manif::SE3d Xp, Xp_simulation, Xp_unfiltered;
+  manif::SE3d Xv, Xv_simulation, Xv_unfiltered;
+
+  Xp_simulation.setIdentity();
+  Xp.setIdentity();
+  Xp_unfiltered.setIdentity();
+  Xv.setIdentity();
+  Xv_unfiltered.setIdentity();
+  /*Estimated uncertainty*/
+  Mat12d P;
+  //Initialize with high value to give high weight on uncertainties at the beginning
+  P.setIdentity() * 1000;
+
+  /*Process noise*/
+  Mat12d Q = Mat12d::Identity() * 1e-15;  //Trade-Off between adaptation and smoothing, hand tuned
+
+  // Define a velocity vector and its noise and covariance
+  Vec6d velocity;
+  velocity << 0.1, 0.0, 0.0, 0.0, 0.0, 0.05;
+  Xv_simulation = manif::SE3Tangentd(velocity).exp();
+  Array6d measurement_sigmas;
+  measurement_sigmas << 0.01, 0.01, 0.01, 0.00, 0.00, 0.01;
+
+  // Covariance matrix of the measurements
+  Matrix6d R = (measurement_sigmas * measurement_sigmas).matrix().asDiagonal();
+
+  // Declare the Jacobian of the measurements wrt to robot state
+  Matd<6, 12> J_h_x;
+  J_h_x << MatXd::Zero(6, 6), MatXd::Identity(6, 6);
+
+  LOG_PLT("Kalman")->set(TEST_VISUALIZE);
+  auto plot = PlotKalman::get();
+  std::map<std::string, Trajectory::ShPtr> trajectories;
+  trajectories["Unfiltered"] = std::make_shared<Trajectory>();
+  trajectories["Kalman"] = std::make_shared<Trajectory>();
+  trajectories["GroundTruth"] = std::make_shared<Trajectory>();
+  for (int t = 0; t < 200; t++) {
+    //// I. Simulation ###############################################################################
+
+    /// move robot by true velocity - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    Xp_simulation =
+      Xp_simulation + manif::SE3Tangentd(velocity);  // overloaded X.rplus(u) = X * exp(u)
+    trajectories["GroundTruth"]->append(t, Pose(Xp_simulation.log().coeffs()));
+
+    /// simulate noise on velocity
+    auto measurement_noise = measurement_sigmas * Array6d::Random();  // control noise
+    auto velocity_noisy = velocity + measurement_noise.matrix();      // noisy control
+
+    // move also an unfiltered version for comparison purposes
+    Xp_unfiltered = Xp_unfiltered + manif::SE3Tangentd(velocity_noisy);
+    Xv_unfiltered = manif::SE3Tangentd(velocity_noisy).exp();
+    trajectories["Unfiltered"]->append(t, Pose(Xp_unfiltered.log().coeffs()));
+    //// II. Estimation ###############################################################################
+
+    /// First we move - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    manif::SE3d::Jacobian J_xp, J_xv;
+    Xp = Xp.plus(Xv.log(), J_xp, J_xv);  // X * exp(u), with Jacobians
+    Mat12d J_x = Mat12d::Zero();
+    J_x.block(0, 0, 6, 6) = J_xp;
+    J_x.block(6, 0, 6, 6) = J_xv;
+    P = J_x * P * J_x.transpose() + Q;
+
+    // expectation
+    Vec6d e = Xv.log().coeffs();
+    Mat6d E = J_h_x * P * J_h_x.transpose();
+
+    // innovation
+    Vec6d z = velocity_noisy - e;
+    Mat6d Z = E + R;
+
+    // Kalman gain
+    auto K = P * J_h_x.transpose() * Z.inverse();  // K = P * H.tr * ( H * P * H.tr + R).inv
+
+    // Correction step
+    Vec12d dx = K * z;  // dx is in the tangent space at X
+    manif::SE3Tangentd dxp = dx.block(0, 0, 6, 1);
+    manif::SE3Tangentd dxv = dx.block(6, 0, 6, 1);
+
+    // Update
+    Xp = Xp + dxp;  // overloaded X.rplus(dx) = X * exp(dx)
+    Xv = Xv + dxv;  // overloaded X.rplus(dx) = X * exp(dx)
+    P = P - K * Z * K.transpose();
+    Vec12d state;
+    state << Xp.log().coeffs(), Xv.log().coeffs();
+    plot->append(t, {state, e, velocity_noisy, z, dx, P, E, R, K});
+    trajectories["Kalman"]->append(t, Pose(Xp.log().coeffs(), P.block(0, 0, 6, 6)));
   }
-  std::vector<double> timestamps;
-  Trajectory::ShPtr trajectory = std::make_shared<Trajectory>();
-  Trajectory::ShPtr trajectoryGt = std::make_shared<Trajectory>();
-  const Timestamp dT = 1;
-  std::uint16_t fNo = 0;
-  SE3d motionGtSE3;
-  motionGtSE3.translation().x() = 0.1;
-  Vec6d motionGt = motionGtSE3.log();
-  SE3d poseGt;
-  for (Timestamp t = 0UL; t < 100; t += dT) {
-    try {
-      auto pred = kalman->predict(t);
 
-      EXPECT_NEAR(
-        (SE3d::exp(motionGt).inverse() * SE3d::exp(pred->velocity * dT)).log().norm(), 0.0, 0.01)
-        << "With high state uncertainty kalman should always use the last measured velocity.";
+  EXPECT_NEAR((Xv.log().coeffs() - velocity.coeffs).norm(), 0.0, 0.0001)
+    << "After 200 iterations filter should converge to the true velocity.";
 
-      poseGt = poseGt * SE3d::exp(motionGt);
-
-      EXPECT_NEAR((poseGt.inverse() * SE3d::exp(pred->pose)).log().norm(), 0.0, 0.01)
-        << "The predicted pose should be the last pose updated with the current velocity * dt.\n"
-        << "Gt: " << poseGt.log().transpose() << "\n"
-        << "Pred: " << pred->pose.transpose() << "\n";
-
-      kalman->update(poseGt.log(), Matd<6, 6>::Identity(), t);
-      trajectoryGt->append(t, std::make_shared<Pose>(poseGt, Matd<6, 6>::Identity()));
-      trajectory->append(t, std::make_shared<Pose>(pred->pose, pred->covPose));
-      timestamps.push_back((t) / 1e9);
-    } catch (const pd::Exception & e) {
-      print("{}\n", e.what());
-    }
-    fNo++;
+  if (TEST_VISUALIZE) {
+    LOG_PLT("Test")->set(TEST_VISUALIZE, false);
+    LOG_PLT("Test") << plot;
+    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
+    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
+    vis::plt::show();
   }
-  std::map<std::string, Trajectory::ConstShPtr> trajectories;
-  trajectories["GroundTruth"] = trajectoryGt;
-  trajectories["Kalman"] = trajectory;
-  LOG_PLT("Test")->set(TEST_VISUALIZE, false);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
-  vis::plt::show();
 }
