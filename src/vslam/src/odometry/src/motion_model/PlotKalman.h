@@ -25,14 +25,15 @@ public:
   typedef std::unique_ptr<const PlotKalman> ConstUnPtr;
   struct Entry
   {
+    Timestamp t;
     VecXd state, expectation, measurement, correction, update;
     MatXd covState, covExpectation, covMeasurement, kalmanGain;
   };
 
-  virtual void append(Timestamp t, const Entry & e);
+  virtual void append(const Entry & e);
   void plot() const override;
   std::string csv() const override { return ""; }
-  static UnPtr make();
+  static ShPtr make();
   static ShPtr get();
   Trajectory::ConstShPtr & trajectoryGt() { return _trajGt; }
   const Trajectory::ConstShPtr & trajectoryGt() const { return _trajGt; }
@@ -46,6 +47,8 @@ private:
     const std::string & name) const;
   void createCorrectionPlot(
     const std::vector<double> & t, const std::vector<double> & c, const std::string & name) const;
+  void createVelocityPlot(
+    const std::vector<double> & t, const std::vector<double> & x, const std::string & name) const;
   void createUpdatePlot(
     const std::vector<double> & t, const std::vector<double> & u, const std::string & name) const;
   void plotStateCov(
@@ -54,14 +57,16 @@ private:
     const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const;
   void plotKalmanGain(
     const std::vector<double> & t, const std::vector<double> & k, const std::string & name) const;
-
+  void plotMeasurementCov(
+    const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const;
   //TODO remove singleton and provide instances via Log:: interface
   static ShPtr _instance;
 };
+void operator<<(PlotKalman::ShPtr log, const PlotKalman::Entry & e);
 
 class PlotKalmanNull : public PlotKalman
 {
-  void append(Timestamp UNUSED(t), const Entry & UNUSED(e)) {}
+  void append(const Entry & UNUSED(e)) {}
   void plot() const override {}
 };
 }  // namespace pd::vslam

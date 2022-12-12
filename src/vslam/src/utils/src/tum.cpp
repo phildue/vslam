@@ -43,4 +43,18 @@ void readAssocTextfile(
 
 Camera::ShPtr Camera() { return std::make_shared<pd::vslam::Camera>(525.0, 525.0, 319.5, 239.5); }
 
+DataLoader::DataLoader(const std::string & path) : _datasetPath(path), _cam(tum::Camera())
+{
+  tum::readAssocTextfile(_datasetPath + "/assoc.txt", _imgFilenames, _depthFilenames, _timestamps);
+  _trajectoryGt = utils::loadTrajectory(_datasetPath + "/groundtruth.txt", true);
+}
+Frame::UnPtr DataLoader::loadFrame(std::uint64_t fNo) const
+{
+  // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
+  return std::make_unique<Frame>(
+    utils::loadImage(_datasetPath + "/" + _imgFilenames.at(fNo)),
+    utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam,
+    _timestamps.at(fNo));
+}
+
 }  // namespace pd::vslam::tum

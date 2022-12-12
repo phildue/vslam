@@ -54,6 +54,9 @@ make install && \
 cd .. && \
 rm build -r
 
+# manif
+RUN git clone https://github.com/artivis/manif && cd manif && mkdir build && cd build && cmake .. && make -j2 && make install && cd .. && rm build -r
+
 # ROS Dependencies
 RUN mkdir -p ros_deps_ws/src && cd ros_deps_ws/src && \
 git clone https://github.com/ros-perception/image_pipeline.git && cd image_pipeline && git checkout 457c0c70d9 && \

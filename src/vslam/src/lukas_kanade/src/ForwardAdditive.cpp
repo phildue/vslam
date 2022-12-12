@@ -13,10 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "ForwardAdditive.h"
-
 #include <execution>
 
+#include "ForwardAdditive.h"
 #include "core/core.h"
 #include "utils/utils.h"
 
@@ -25,7 +24,7 @@ namespace pd::vslam::lukas_kanade
 ForwardAdditive::ForwardAdditive(
   const Image & templ, const MatXd & dIdx, const MatXd & dIdy, const Image & image,
   std::shared_ptr<Warp> w0, least_squares::Loss::ShPtr l, double minGradient,
-  std::shared_ptr<const least_squares::Prior> prior)
+  least_squares::Prior::ConstShPtr prior)
 : least_squares::Problem(w0->nParameters()),
   _T(templ),
   _Iref(image),
@@ -125,9 +124,7 @@ least_squares::NormalEquations::ConstShPtr ForwardAdditive::computeNormalEquatio
   ne->A().noalias() = ne->A() / static_cast<double>(ne->nConstraints());
   ne->b().noalias() = ne->b() / static_cast<double>(ne->nConstraints());
 
-  if (_prior) {
-    _prior->apply(ne, _w->x());
-  }
+  _prior->apply(ne, _w->x());
 
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;

@@ -13,9 +13,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+
 #include "MotionModel.h"
 #include "utils/utils.h"
-#define LOG_MOTION_PREDICTION(level) CLOG(level, "motion_prediction")
+using fmt::format;
+using fmt::print;
+template <typename T>
+struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>, T>, char>>
+: ostream_formatter
+{
+};
+#define LOG_ODOM(level) CLOG(level, "odometry")
 namespace pd::vslam
 {
 MotionModelNoMotion::MotionModelNoMotion()
@@ -120,21 +130,27 @@ PoseWithCovariance::UnPtr MotionModelMovingAverage::speed() const
   return std::make_unique<PoseWithCovariance>(SE3d::exp(_speed), _lastPose->cov());
 }
 
-MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess)
+MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(
+  const Matd<12, 12> & covProcess, const Matd<12, 12> & covState)
 : MotionModel(),
-  _kalman(std::make_unique<odometry::EKFConstantVelocitySE3>(covProcess)),
+  _kalman(std::make_unique<EKFConstantVelocitySE3>(
+    covProcess, std::numeric_limits<Timestamp>::max(), covState)),
   _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
   _lastT(0U)
 {
 }
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
+  Pose::UnPtr pose;
   if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
-    return std::make_unique<PoseWithCovariance>(*_lastPose);
+    pose = std::make_unique<PoseWithCovariance>(*_lastPose);
   } else {
     auto state = _kalman->predict(timestamp);
-    return std::make_unique<PoseWithCovariance>(state->pose, state->covPose);
+    pose = std::make_unique<PoseWithCovariance>(state->pose(), state->covPose());
   }
+  LOG_ODOM(DEBUG) << format(
+    "Prediction: {} +- {}", pose->mean().transpose(), pose->twistCov().diagonal().transpose());
+  return pose;
 }
 void MotionModelConstantSpeedKalman::update(
   PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
@@ -143,9 +159,8 @@ void MotionModelConstantSpeedKalman::update(
   auto motion = (_lastPose->pose().inverse() * pose->pose()).log();
   _lastPose = pose;
   _lastT = timestamp;
-  if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
-    _kalman->t() = timestamp;
-    _kalman->pose() = pose->twist();
+  if (_kalman->t() == std::numeric_limits<Timestamp>::max()) {
+    _kalman->reset(timestamp, {pose->twist(), Vec6d::Zero(), _kalman->state()->covariance()});
   } else {
     _kalman->update(motion, Matd<6, 6>::Identity(), timestamp);
   }
@@ -165,13 +180,14 @@ void MotionModelConstantSpeedKalman::update(Frame::ConstShPtr frameRef, Frame::C
 
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::speed() const
 {
-  odometry::EKFConstantVelocitySE3::State::ConstPtr state = _kalman->predict(0);
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->velocity), state->covVel);
+  auto state = _kalman->state();
+  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->velocity()), state->covVelocity());
 }
 
 PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::pose() const
 {
-  return predictPose(_lastT);
+  auto state = _kalman->state();
+  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->pose()), state->covPose());
 }
 
 }  // namespace pd::vslam

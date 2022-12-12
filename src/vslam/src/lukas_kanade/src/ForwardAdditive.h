@@ -29,7 +29,8 @@ public:
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0, std::shared_ptr<const least_squares::Prior> prior = nullptr);
+    double minGradient = 0,
+    std::shared_ptr<const least_squares::Prior> prior = std::make_shared<least_squares::NoPrior>());
   const std::shared_ptr<const Warp> warp();
 
   void updateX(const Eigen::VectorXd & dx) override;

@@ -32,7 +32,7 @@ def create_algo_node(use_sim_time, experiment_folder):
         # remappings=[('/image', '/burgerimage')],
         parameters=[params_algo,
                     {"use_sim_time": use_sim_time},
-                    {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'cfg', 'log')},
+                    {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'config', 'log')},
                     {"log.root_dir": os.path.join(experiment_folder, 'log')},
                     ],
         extra_arguments=[{'use_intra_process_comms': True}])

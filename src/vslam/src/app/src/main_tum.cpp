@@ -1,53 +1,64 @@
 
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+using fmt::format;
+using fmt::print;
 
 #include "vslam/vslam.h"
 
 using namespace pd;
 using namespace pd::vslam;
+using namespace pd::vslam::evaluation;
+
 class Main
 {
 public:
   Main(int UNUSED(argc), char ** UNUSED(argv))
   {
-    _datasetPath = "/mnt/dataset/tum_rgbd/rgbd_dataset_freiburg2_desk/rgbd_dataset_freiburg2_desk";
-    _cam = tum::Camera();
-
-    tum::readAssocTextfile(
-      _datasetPath + "/assoc.txt", _imgFilenames, _depthFilenames, _timestamps);
-    _trajectoryGt = utils::loadTrajectory(_datasetPath + "/groundtruth.txt");
-
+    _dl = std::make_unique<tum::DataLoader>(
+      "/mnt/dataset/tum_rgbd/rgbd_dataset_freiburg2_desk/rgbd_dataset_freiburg2_desk");
     auto solver = std::make_shared<least_squares::GaussNewton>(1e-7, 25);
     auto loss =
-      std::make_shared<least_squares::HuberLoss>(std::make_shared<least_squares::MeanScaler>());
+      std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
     _map = std::make_shared<Map>(5, 3);
-    _rgbdAlignment = std::make_shared<SE3Alignment>(18, solver, loss, true);
-    _motionModel = std::make_shared<MotionModelConstantSpeed>();
+    _rgbdAlignment = std::make_shared<SE3Alignment>(18, solver, loss, false, true);
+    Matd<12, 12> covProcess = Matd<12, 12>::Identity();
+    for (int i = 0; i < 6; i++) {
+      covProcess(i, i) = 1e-9;
+    }
+    covProcess(6, 6) = 1e-6;
+    covProcess(7, 7) = 1e-6;
+    covProcess(8, 8) = 1e-6;
+    covProcess(9, 9) = 1e-6;
+    covProcess(10, 10) = 1e-6;
+    covProcess(11, 11) = 1e-6;
+
+    LOG_IMG("Kalman")->set(true, true, true);
+
+    _motionModel =
+      std::make_shared<MotionModelConstantSpeedKalman>(covProcess, Matd<12, 12>::Identity() * 100);
+    //_motionModel = std::make_shared<MotionModelConstantSpeed>();
     _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(_map, 100, 0.1);
     _ba = std::make_shared<mapping::BundleAdjustment>(0, 1.43);
 
     _matcher = std::make_shared<vslam::Matcher>(vslam::Matcher::reprojectionHamming, 5.0, 0.8);
     _tracking = std::make_shared<FeatureTracking>(_matcher);
+    LogImage::rootFolder() = format("{}/algorithm_results/app/log/", _dl->datasetPath());
+    for (const auto & name : Log::registeredLogs()) {
+      print("Found logger: {}\n", name.c_str());
+      Log::get(name)->configure(format("{}/log/{}.conf", CONFIG_DIR, name));
+    }
 
     for (auto log : Log::registeredLogsImage()) {
       LOG_IMG(log)->set(false, false);
     }
-    for (auto name : {"solver", "odometry"}) {
-      el::Loggers::getLogger(name);
-      el::Configurations defaultConf;
-      defaultConf.setToDefault();
-      defaultConf.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
-      defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
-      el::Loggers::reconfigureLogger(name, defaultConf);
-    }
+    LOG_IMG("Kalman")->set(true, true, true);
   }
 
-  Frame::ShPtr loadFrame(size_t fNo)
+  Frame::UnPtr loadFrame(size_t fNo)
   {
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-    auto f = std::make_shared<Frame>(
-      utils::loadImage(_datasetPath + "/" + _imgFilenames.at(fNo)),
-      utils::loadDepth(_datasetPath + "/" + _depthFilenames.at(fNo)) / 5000.0, _cam,
-      _timestamps.at(fNo));
+    auto f = _dl->loadFrame(fNo);
     f->computePyramid(3);
     f->computeDerivatives();
     f->computePcl();
@@ -56,23 +67,19 @@ public:
 
   void run()
   {
-    const int nFrames = _imgFilenames.size();
-
-    Trajectory traj;
-    std::vector<double> rmseTranslation, rmseRotation;
-    rmseTranslation.reserve(nFrames);
-    rmseRotation.reserve(nFrames);
-    for (int fId = 0; fId < nFrames; fId++) {
-      auto frame = loadFrame(fId);
+    Trajectory::ShPtr traj = std::make_shared<Trajectory>();
+    for (size_t fId = 0; fId < 50; fId++) {
+      Frame::ShPtr frame = loadFrame(fId);
 
       auto frameRef = _map->lastKf();
 
       if (frameRef) {
         frame->set(*_motionModel->predictPose(frame->t()));
-        auto pose = _map->lastFrame() ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
-                                      : _rgbdAlignment->align(frameRef, frame);
+        Pose::ConstShPtr pose = _includeLastFrame && _map->lastFrame()
+                                  ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
+                                  : _rgbdAlignment->align(frameRef, frame);
+        _motionModel->update(pose, frame->t());
         frame->set(*pose);
-        _motionModel->update(frameRef, frame);
         //frame->set(*_motionModel->pose());
       }
 
@@ -99,44 +106,34 @@ public:
             Map::ConstShPtr(_map)->keyFrames());
         }
       }
-      traj.append(frame->t(), std::make_shared<PoseWithCovariance>(frame->pose().inverse()));
+      auto x = frame->pose().pose().inverse().log();
+      auto cx = frame->pose().cov();
+
+      print(
+        "Pose: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f} | Cov | {:.3f}\n", x(0), x(1), x(2),
+        x(3), x(4), x(5), cx.norm());
+      print(
+        "Translational Speed: {:.3f} | Cov | {:.3f}\n",
+        _motionModel->speed()->SE3().translation().norm(),
+        _motionModel->speed()->twistCov().block(0, 0, 3, 3).norm());
+
+      traj->append(frame->t(), std::make_shared<PoseWithCovariance>(frame->pose()));
       try {
-        auto relativePose = algorithm::computeRelativeTransform(
-          traj.poseAt(frame->t() - 1 * 1e9)->pose().inverse(), frame->pose().pose());
-        auto relativePoseGt = algorithm::computeRelativeTransform(
-          _trajectoryGt->poseAt(frame->t() - 1 * 1e9)->pose().inverse(),
-          _trajectoryGt->poseAt(frame->t())->pose().inverse());
-        auto error = (relativePose.inverse() * relativePoseGt).log();
-        rmseTranslation.push_back(error.head(3).norm());
-        rmseRotation.push_back(error.tail(3).norm());
-        Eigen::Map<VecXd> rmseT(rmseTranslation.data(), rmseTranslation.size());
-        Eigen::Map<VecXd> rmseR(rmseRotation.data(), rmseTranslation.size());
-        std::cout << fId << "/" << nFrames << ": " << frame->pose().pose().log().transpose()
-                  << "\n |Translation|"
-                  << "\n |Current: " << rmseTranslation.at(rmseTranslation.size() - 1)
-                  << "\n |RMSE: " << std::sqrt(rmseT.dot(rmseT) / rmseTranslation.size())
-                  << "\n |Max: " << rmseT.maxCoeff() << "\n |Mean: " << rmseT.mean()
-                  << "\n |Min: " << rmseT.minCoeff() << "\n |Rotation|"
-                  << "\n |Current: " << rmseRotation.at(rmseRotation.size() - 1)
-                  << "\n |RMSE: " << std::sqrt(rmseR.dot(rmseR) / rmseRotation.size())
-                  << "\n |Max: " << rmseR.maxCoeff() << "\n |Mean: " << rmseR.mean()
-                  << "\n |Min: " << rmseR.minCoeff() << std::endl;
+        auto rpe = RelativePoseError::compute(traj, _dl->trajectoryGt(), 1.0);
+        print("{}\n", rpe->toString());
       } catch (const pd::Exception & e) {
         std::cerr << e.what() << std::endl;
-        std::cout << fId << "/" << nFrames << ": " << frame->pose().pose().log().transpose()
+        std::cout << fId << "/" << _dl->nFrames() << ": " << frame->pose().pose().log().transpose()
                   << std::endl;
       }
-      utils::writeTrajectory(traj, "trajectory.txt");
+      utils::writeTrajectory(
+        *traj, format("{}/algorithm_results/{}", _dl->datasetPath(), "trajectory.txt"));
     }
-    // TODO(unknown): call evaluation script?
+    LOG_IMG("Kalman") << PlotKalman::get();
   }
 
 protected:
-  std::vector<std::string> _depthFilenames;
-  std::vector<std::string> _imgFilenames;
-  std::vector<Timestamp> _timestamps;
-  Trajectory::ConstShPtr _trajectoryGt;
-  Camera::ConstShPtr _cam;
+  tum::DataLoader::ConstUnPtr _dl;
   RgbdAlignment::ShPtr _rgbdAlignment;
   KeyFrameSelection::ShPtr _keyFrameSelection;
   MotionModel::ShPtr _motionModel;
@@ -144,8 +141,7 @@ protected:
   FeatureTracking::ShPtr _tracking;
   vslam::Matcher::ShPtr _matcher;
   mapping::BundleAdjustment::ShPtr _ba;
-
-  std::string _datasetPath;
+  bool _includeLastFrame = true;
 };
 
 int main(int argc, char ** argv)

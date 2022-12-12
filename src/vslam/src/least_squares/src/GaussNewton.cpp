@@ -13,10 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "GaussNewton.h"
-
 #include <memory>
 
+#include "GaussNewton.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam::least_squares
@@ -97,7 +96,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
       break;
     }
   }
-  LOG_PLT("SolverGN") << std::make_shared<vis::PlotGaussNewton>(r->iteration, r->chi2, r->stepSize);
+  LOG_IMG("SolverGN") << std::make_shared<vis::PlotGaussNewton>(r->iteration, r->chi2, r->stepSize);
   return r;
 }
 

@@ -52,18 +52,20 @@ public:
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0, std::shared_ptr<const least_squares::Prior> prior = nullptr);
+    double minGradient = 0,
+    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
 
   InverseCompositional(
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    std::shared_ptr<const least_squares::Prior> prior = nullptr);
+    least_squares::Prior::ConstShPtr prior = nullptr);
 
   InverseCompositional(
     const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0, std::shared_ptr<const least_squares::Prior> prior = nullptr);
+    double minGradient = 0,
+    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
   std::shared_ptr<const Warp> warp() { return _w; }
 
   void updateX(const Eigen::VectorXd & dx) override;

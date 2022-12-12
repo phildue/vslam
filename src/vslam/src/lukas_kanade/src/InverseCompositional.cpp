@@ -13,11 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "InverseCompositional.h"
-
 #include <algorithm>
 #include <execution>
 
+#include "InverseCompositional.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam::lukas_kanade
@@ -63,7 +62,7 @@ InverseCompositional::InverseCompositional(
 InverseCompositional::InverseCompositional(
   const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
   std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
-  least_squares::Loss::ShPtr l, std::shared_ptr<const least_squares::Prior> prior)
+  least_squares::Loss::ShPtr l, least_squares::Prior::ConstShPtr prior)
 : least_squares::Problem(w0->nParameters()),
   _T(templ),
   _I(image),
@@ -94,7 +93,7 @@ InverseCompositional::InverseCompositional(
 InverseCompositional::InverseCompositional(
   const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
   std::shared_ptr<least_squares::Loss> l, double minGradient,
-  std::shared_ptr<const least_squares::Prior> prior)
+  least_squares::Prior::ConstShPtr prior)
 : InverseCompositional(
     templ, algorithm::gradX(templ).cast<double>(), algorithm::gradY(templ).cast<double>(), image,
     w0, l, minGradient, prior)
@@ -142,9 +141,7 @@ least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEq
     ne->chi2() = ne->chi2() / static_cast<double>(ne->nConstraints());
   }
 
-  if (_prior) {
-    _prior->apply(ne, _w->x());
-  }
+  _prior->apply(ne, _w->x());
 
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;

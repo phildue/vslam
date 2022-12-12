@@ -32,17 +32,24 @@ public:
 
   SE3Alignment(
     double minGradient, vslam::least_squares::Solver::ShPtr solver,
-    vslam::least_squares::Loss::ShPtr loss, bool includePrior = false);
+    vslam::least_squares::Loss::ShPtr loss, bool includePrior = false,
+    bool initializeOnPrediction = true);
 
   PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
   PoseWithCovariance::UnPtr align(
-    const Frame::VecConstShPtr& from, Frame::ConstShPtr to) const override;
+    const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const override;
+
+  //TODO do we really need this modifiable? should simple be set at start
+  bool & includePrior() { return _includePrior; }
+  bool & initializeOnPrediction() { return _initializeOnPrediction; }
+  const bool & includePrior() const { return _includePrior; }
+  const bool & initializeOnPrediction() const { return _initializeOnPrediction; }
 
 protected:
   const double _minGradient2;
   const vslam::least_squares::Loss::ShPtr _loss;
   const vslam::least_squares::Solver::ShPtr _solver;
-  const bool _includePrior;
+  bool _includePrior, _initializeOnPrediction;
 };
 }  // namespace pd::vslam
 #endif  // VSLAM_SE3_ALIGNMENT

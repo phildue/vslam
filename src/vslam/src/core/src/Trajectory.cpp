@@ -95,6 +95,10 @@ PoseWithCovariance::ConstShPtr Trajectory::interpolateAt(Timestamp t) const
   return std::make_shared<PoseWithCovariance>(dPose * p0->pose(), p0->cov());
 }
 void Trajectory::append(Timestamp t, PoseWithCovariance::ConstShPtr pose) { _poses[t] = pose; }
+void Trajectory::append(Timestamp t, const Pose & pose)
+{
+  _poses[t] = std::make_shared<Pose>(pose);
+}
 Timestamp Trajectory::tStart() const { return _poses.begin()->first; }
 Timestamp Trajectory::tEnd() const { return _poses.rbegin()->first; }
 PoseWithCovariance::ConstShPtr Trajectory::meanMotion(Timestamp t0, Timestamp t1) const
@@ -236,6 +240,19 @@ PoseWithCovariance::ConstShPtr Trajectory::meanAcceleration(Timestamp dT) const
 {
   return meanAcceleration(tStart(), tEnd(), dT);
 }
+Timestamp Trajectory::averageSampleTime() const
+{
+  Timestamp dTSum = 0UL;
+  Timestamp tLast = tStart();
+  auto it = _poses.begin();
+  ++it;
+  for (; it != _poses.end(); ++it) {
+    dTSum += it->first - tLast;
+    tLast = it->first;
+  }
+  return dTSum / static_cast<double>(_poses.size() - 1);
+}
+
 PoseWithCovariance::ConstShPtr Trajectory::computeMean(const std::vector<Vec6d> & poses) const
 {
   if (poses.size() < 2) {
@@ -245,13 +262,13 @@ PoseWithCovariance::ConstShPtr Trajectory::computeMean(const std::vector<Vec6d> 
   for (size_t i = 0; i < poses.size(); i++) {
     sum += poses[i];
   }
-  const Vec6d mean = sum / poses.size();
+  const Vec6d mean = sum / static_cast<double>(poses.size());
   Matd<6, 6> cov = Matd<6, 6>::Zero();
   for (size_t i = 0; i < poses.size(); i++) {
     const auto diff = poses[i] - mean;
     cov += diff * diff.transpose();
   }
-  cov /= poses.size() - 1;
+  cov /= static_cast<double>(poses.size() - 1);
   return std::make_shared<PoseWithCovariance>(SE3d::exp(mean), cov);
 }
 

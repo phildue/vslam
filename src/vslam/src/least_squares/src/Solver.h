@@ -57,6 +57,8 @@ public:
     Eigen::MatrixXd x;
     std::vector<NormalEquations::ConstShPtr> normalEquations;
     size_t iteration;
+    VecXd solution() const;
+    MatXd covariance() const;
   };
 
   virtual Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) = 0;

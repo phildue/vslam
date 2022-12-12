@@ -103,15 +103,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/)
 
 install(DIRECTORY
-  src/vslam/src/mapping/cfg
-  DESTINATION share/${PROJECT_NAME}/)
-
-install(DIRECTORY
-  src/vslam/src/least_squares/cfg
-  DESTINATION share/${PROJECT_NAME}/)
-
-install(DIRECTORY
-  src/vslam/src/odometry/cfg
+  src/vslam/config
   DESTINATION share/${PROJECT_NAME}/)
 
 install(

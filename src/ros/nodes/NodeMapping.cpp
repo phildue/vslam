@@ -21,7 +21,16 @@
 #include "vslam_ros/converters.h"
 using namespace pd::vslam;
 using namespace std::chrono_literals;
+#include <fmt/core.h>
+#include <fmt/ostream.h>
 
+using fmt::format;
+using fmt::print;
+template <typename T>
+struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>, T>, char>>
+: ostream_formatter
+{
+};
 namespace vslam_ros
 {
 NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
@@ -74,7 +83,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("keyframe_selection.custom.min_visible_points", 50);
   declare_parameter("keyframe_selection.custom.max_translation", 0.2);
   declare_parameter("prediction.model", "NoMotion");
-  declare_parameter("prediction.kalman.process_noise.pose", 1e-9);
+  declare_parameter("prediction.kalman.process_noise.pose", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.rotation", 1e-15);
 
@@ -108,6 +117,10 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
         std::make_shared<least_squares::ScalerTDistribution>(
           get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
         get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
+    } else {
+      loss =
+        std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
+      RCLCPP_WARN(get_logger(), "Unknown loss selected. Assuming None");
     }
 
     auto solver = std::make_shared<least_squares::GaussNewton>(
@@ -144,7 +157,8 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
       get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
     covProcess(11, 11) =
       get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
-    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(covProcess);
+    _motionModel =
+      std::make_shared<MotionModelConstantSpeedKalman>(covProcess, Matd<12, 12>::Identity() * 1000);
   } else {
     RCLCPP_ERROR(
       get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",
@@ -189,19 +203,15 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
     declare_parameter("log.image." + name + ".show", false);
     declare_parameter("log.image." + name + ".block", false);
     declare_parameter("log.image." + name + ".save", false);
+    declare_parameter("log.image." + name + ".rate", 1);
     LOG_IMG(name)->set(
       get_parameter("log.image." + name + ".show").as_bool(),
       get_parameter("log.image." + name + ".block").as_bool(),
-      get_parameter("log.image." + name + ".save").as_bool());
+      get_parameter("log.image." + name + ".save").as_bool(),
+      get_parameter("log.image." + name + ".rate").as_int());
     RCLCPP_INFO(get_logger(), "Found image logger:\n%s", LOG_IMG(name)->toString().c_str());
   }
-  for (const auto & name : Log::registeredLogsPlot()) {
-    declare_parameter("log.plot." + name + ".show", false);
-    declare_parameter("log.plot." + name + ".block", false);
-    LOG_PLT(name)->show() = get_parameter("log.plot." + name + ".show").as_bool();
-    LOG_PLT(name)->block() = get_parameter("log.plot." + name + ".block").as_bool();
-    RCLCPP_INFO(get_logger(), "Found plot logger:\n%s", LOG_PLT(name)->toString().c_str());
-  }
+
   RCLCPP_INFO(get_logger(), "Ready.");
 }
 
@@ -219,11 +229,11 @@ void NodeMapping::processFrame(
 
     if (frameRef) {
       frame->set(*_motionModel->predictPose(frame->t()));
-      auto pose = _includeKeyFrame && _map->lastFrame()
-                    ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
-                    : _rgbdAlignment->align(frameRef, frame);
+      Pose::ConstShPtr pose = _includeKeyFrame && _map->lastFrame()
+                                ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
+                                : _rgbdAlignment->align(frameRef, frame);
+      _motionModel->update(pose, frame->t());
       frame->set(*pose);
-      _motionModel->update(std::make_shared<Pose>(frame->pose()), frame->t());
       //frame->set(*_motionModel->pose());
     }
 
@@ -322,8 +332,17 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
   }
 
   auto x = frame->pose().pose().inverse().log();
+  auto cx = frame->pose().cov();
+
   RCLCPP_INFO(
-    get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f", x(0), x(1), x(2), x(3), x(4), x(5));
+    get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", x(0), x(1), x(2), x(3),
+    x(4), x(5), cx.norm());
+  RCLCPP_INFO(
+    get_logger(),
+    format(
+      "Translational Speed: {} [m/s] | Cov | {}", _motionModel->speed()->SE3().translation() * 1e9,
+      _motionModel->speed()->twistCov().block(0, 0, 3, 3).diagonal() * 1e9)
+      .c_str());
 
   // Send the transformation from fixed frame to origin of optical frame
   // TODO(unknown): possibly only needs to be sent once

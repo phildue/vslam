@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "Scaler.h"
-
 #include <utils/utils.h>
+
+#include "Scaler.h"
 namespace pd::vslam::least_squares
 {
 Scaler::Scale MedianScaler::compute(const VecXd & r) const
@@ -30,7 +30,7 @@ Scaler::Scale MedianScaler::compute(const VecXd & r) const
 
   auto median = algorithm::median(r, false);
   auto std = std::sqrt((r.array() - median).array().abs().sum() / (r.rows() - 1));
-  LOG_PLT("MedianScaler") << std::make_shared<vis::Histogram>(r, "ErrorDistribution", 30);
+  LOG_IMG("MedianScaler") << std::make_shared<vis::Histogram>(r, "ErrorDistribution", 30);
   return {median, std};
 }
 
@@ -42,7 +42,7 @@ Scaler::Scale MeanScaler::compute(const VecXd & r) const
   }
   auto mean = r.mean();
   auto std = std::sqrt((r.array() - mean).array().abs().sum() / (r.rows() - 1));
-  LOG_PLT("MedianScaler") << std::make_shared<vis::Histogram>(r, "ErrorDistribution", 30);
+  LOG_IMG("MedianScaler") << std::make_shared<vis::Histogram>(r, "ErrorDistribution", 30);
   return {mean, std};
 }
 

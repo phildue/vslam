@@ -30,7 +30,17 @@ public:
 
   virtual void apply(typename NormalEquations::ShPtr ne, const Eigen::VectorXd & x) const = 0;
 };
+class NoPrior : public Prior
+{
+public:
+  typedef std::shared_ptr<Prior> ShPtr;
+  typedef std::unique_ptr<Prior> UnPtr;
+  typedef std::shared_ptr<const Prior> ConstShPtr;
+  typedef std::unique_ptr<const Prior> ConstUnPtr;
 
+  void apply(
+    typename NormalEquations::ShPtr UNUSED(ne), const Eigen::VectorXd & UNUSED(x)) const override{};
+};
 }  // namespace pd::vslam::least_squares
 
 #endif

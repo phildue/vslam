@@ -47,10 +47,14 @@ public:
   PoseWithCovariance::ConstShPtr meanAcceleration(Timestamp t0, Timestamp t1, Timestamp dT) const;
 
   void append(Timestamp t, PoseWithCovariance::ConstShPtr pose);
+  void append(Timestamp t, const Pose & pose);
+
   Trajectory inverse() const;
   const std::map<Timestamp, PoseWithCovariance::ConstShPtr> & poses() const { return _poses; }
   Timestamp tStart() const;
   Timestamp tEnd() const;
+  Timestamp averageSampleTime() const;
+  size_t size() const { return _poses.size(); }
 
 private:
   PoseWithCovariance::ConstShPtr interpolateAt(Timestamp t) const;

@@ -17,7 +17,7 @@
 // Created by phil on 07.08.21.
 //
 #include <fmt/core.h>
-
+using fmt::format;
 #include <eigen3/Eigen/Dense>
 #include <experimental/filesystem>
 #include <filesystem>
@@ -32,7 +32,6 @@ INITIALIZE_EASYLOGGINGPP
 namespace pd::vslam
 {
 std::map<std::string, std::shared_ptr<Log>> Log::_logs = {};
-std::map<std::string, std::shared_ptr<LogPlot>> Log::_logsPlot = {};
 std::map<std::string, std::shared_ptr<LogImage>> Log::_logsImage = {};
 Level Log::_blockLevel = Level::Unknown;
 Level Log::_showLevel = Level::Unknown;
@@ -62,20 +61,6 @@ std::shared_ptr<LogImage> Log::getImageLog(const std::string & name)
     return _logsImage[name];
   }
 }
-std::shared_ptr<LogPlot> Log::getPlotLog(const std::string & name)
-{
-  auto it = _logsPlot.find(name);
-  if (it != _logsPlot.end()) {
-    return it->second;
-  } else {
-#ifdef ELPP_DISABLE_ALL_LOGS
-    _logsPlot[name] = std::make_shared<LogPlotNull>(name);
-#else
-    _logsPlot[name] = std::make_shared<LogPlot>(name);
-#endif
-    return _logsPlot[name];
-  }
-}
 
 Log::Log(const std::string & name) : _name(name)
 {
@@ -101,15 +86,6 @@ std::string LogImage::toString() const
   return ss.str();
 }
 
-std::string LogPlot::toString() const
-{
-  std::stringstream ss;
-  ss << "[" << _name << "]"
-     << "\nBlock: " << (_block ? "On" : "Off") << "\nShow: " << (_show ? "On" : "Off")
-     << "\nSave: " << (_save ? "On" : "Off");
-  return ss.str();
-}
-
 std::vector<std::string> Log::registeredLogs()
 {
   std::vector<std::string> keys;
@@ -126,26 +102,36 @@ std::vector<std::string> Log::registeredLogsImage()
     [&](auto id_l) { return id_l.first; });
   return keys;
 }
-std::vector<std::string> Log::registeredLogsPlot()
-{
-  std::vector<std::string> keys;
-  std::transform(
-    Log::_logsPlot.begin(), Log::_logsPlot.end(), std::back_inserter(keys),
-    [&](auto id_l) { return id_l.first; });
-  return keys;
-}
-LogPlot::LogPlot(const std::string & name, bool block, bool show, bool save)
-: _block(block), _show(show), _save(save), _name(name)
-{
-}
 
-void LogPlot::set(bool show, bool block, bool save)
+void LogImage::append(vis::Plot::ConstShPtr plot)
 {
-  _block = block;
-  _show = show;
-  _save = save;
+  if (_ctr++ % _rate != 0) {
+    return;
+  }
+  if (_show || _save) {
+    plot->plot();
+    if (_show) {
+      vis::plt::show(_block);
+    }
+    if (_save) {
+      std::stringstream ss;
+      ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
+      vis::plt::save(ss.str());
+    }
+  }
 }
-void operator<<(LogPlot::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
+void LogImage::append(const cv::Mat & mat)
+{
+  if (_show || _save) {
+    logMat(mat);
+  }
+}
+void LogImage::append(vis::Drawable::ConstShPtr drawable)
+{
+  if (_show || _save) {
+    logMat(drawable->draw());
+  }
+}
 
 LogImage::LogImage(const std::string & name, bool block, bool show, bool save)
 : _block(block), _show(show), _save(save), _name(name), _folder(name), _ctr(0U)
@@ -161,11 +147,12 @@ void LogImage::createDirectories()
   }
 }
 
-void LogImage::set(bool show, bool block, bool save)
+void LogImage::set(bool show, bool block, bool save, int rate)
 {
   _block = block;
   _show = show;
   _save = save;
+  _rate = rate;
   if (_save) {
     createDirectories();
   }
@@ -173,9 +160,13 @@ void LogImage::set(bool show, bool block, bool save)
 
 void LogImage::logMat(const cv::Mat & mat)
 {
+  if (_ctr++ % _rate != 0) {
+    return;
+  }
   if (mat.cols == 0 || mat.rows == 0) {
     throw pd::Exception("Image is empty!");
   }
+
   if (_show) {
     cv::imshow(_name, mat);
     // cv::waitKey(_blockLevel <= _blockLevelDes ? -1 : 30);
@@ -183,10 +174,12 @@ void LogImage::logMat(const cv::Mat & mat)
   }
   if (_save) {
     std::stringstream ss;
-    ss << fmt::format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr++);
+    ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
     cv::imwrite(ss.str(), mat);
   }
 }
 
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable) { log->append(drawable); }
+void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
+
 }  // namespace pd::vslam

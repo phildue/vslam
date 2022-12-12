@@ -18,7 +18,8 @@
 
 #include "PlotKalman.h"
 #include "core/core.h"
-namespace pd::vslam::odometry
+
+namespace pd::vslam
 {
 /**
      * Extended Kalman Filter with Constant Velocity Model in SE3
@@ -28,9 +29,10 @@ namespace pd::vslam::odometry
      *                                twist = twist 
      *                 J_F_x:         Ad_Exp(v*dt)^(-1)
      * 
-     * Measurement Function H(x):     motion = 0*p + vx * dT
-     *                 J_H_x:         
-     *        
+     * Measurement Function H(x):     pose* = pose
+     *                     J_H_x:     1    
+     *                                  1
+     *                                    
      * 
     */
 class EKFConstantVelocitySE3
@@ -38,50 +40,69 @@ class EKFConstantVelocitySE3
 public:
   typedef std::shared_ptr<EKFConstantVelocitySE3> ShPtr;
   typedef std::unique_ptr<EKFConstantVelocitySE3> UnPtr;
-  typedef std::shared_ptr<const EKFConstantVelocitySE3> ConstPtr;
+  typedef std::shared_ptr<const EKFConstantVelocitySE3> ConstShPtr;
+  using Mat12d = Matd<12, 12>;
+  using Mat6d = Matd<6, 6>;
 
-  struct State
+  class State
   {
+  public:
     typedef std::shared_ptr<State> ShPtr;
     typedef std::unique_ptr<State> UnPtr;
-    typedef std::shared_ptr<const State> ConstPtr;
+    typedef std::shared_ptr<const State> ConstShPtr;
+    typedef std::unique_ptr<const State> ConstUnPtr;
+    State(const Vec6d & pose, const Vec6d & velocity, const Mat12d & covariance);
 
-    Vec6d pose = Vec6d::Zero();
-    Vec6d velocity = Vec6d::Zero();
-    Matd<6, 6> covPose = Matd<6, 6>::Identity();
-    Matd<6, 6> covVel = Matd<6, 6>::Identity();
+    Vec6d pose() const { return _state.block(0, 0, 6, 1); }
+    Mat6d covPose() const { return _covariance.block(0, 0, 6, 6); }
+    Vec6d velocity() const { return _state.block(6, 0, 6, 1); }
+    Mat6d covVelocity() const { return _covariance.block(0, 0, 6, 6); }
+    const Mat12d & covariance() const { return _covariance; }
+    const Vec12d & state() const { return _state; }
+    const Mat12d & P() const { return _covariance; }
+    const Vec12d & x() const { return _state; }
+
+  private:
+    Vec12d _state;
+    Mat12d _covariance;
   };
 
   EKFConstantVelocitySE3(
     const Matd<12, 12> & covProcess, Timestamp t0 = std::numeric_limits<uint64_t>::max(),
-    const Matd<12, 12> & covState = Matd<12, 12>::Identity());
+    const Matd<12, 12> & covState = Matd<12, 12>::Identity() * 200);
 
   State::UnPtr predict(Timestamp t) const;
 
   void update(const Vec6d & motion, const Matd<6, 6> & covMotion, Timestamp t);
-  const Timestamp & t() const { return _t; }
-  const Vec6d & pose() const { return _pose; }
-  const Vec6d & velocity() const { return _velocity; }
-  const Matd<12, 12> & covState() const { return _covState; }
-  const Matd<12, 12> & covProcess() const { return _covProcess; }
-  Timestamp & t() { return _t; }
-  Matd<12, 12> & covProcess() { return _covProcess; }
-  Vec6d & pose() { return _pose; }
-  Vec12d state() const;
 
-  PlotKalman::ConstShPtr plot() const { return _plot; }
+  void reset(Timestamp t, const State & state);
+
+  const Timestamp & t() const { return _t; }
+
+  const Mat12d & covarianceProcess() const { return _covProcess; }
+  const Matd<12, 12> & Q() const { return covarianceProcess(); }
+  Matd<12, 12> & covarianceProcess() { return _covProcess; }
+  Matd<12, 12> & Q() { return covarianceProcess(); }
+
+  State::UnPtr state() const { return std::make_unique<State>(*_state); }
 
 private:
-  Matd<12, 12> computeJacobianProcess(const SE3d & vdt) const;
-  Matd<6, 12> computeJacobianMeasurement(double dt) const;
+  Matd<12, 12> computeJ_f_x(const SE3d & pose, const SE3d & vdt) const;
+  Matd<6, 12> computeJ_h_x(double dt) const;
+  Matd<12, 12> computeProcessNoise(double dt) const;
+  State::UnPtr predict(Timestamp t, Mat12d & J_f_x) const;
 
   Timestamp _t;
-  Vec6d _pose;
-  Vec6d _velocity;
-  Matd<12, 12> _covState;
+  State::UnPtr _state;
   Matd<12, 12> _covProcess;
+  Matd<12, 6> _K;
 
   PlotKalman::ShPtr _plot;
+  double _q;
+  size_t _windowSize;
+  std::vector<Matd<12, 12>> _stateTransitionMats;
+  std::vector<Matd<6, 6>> _innovMats;
+  size_t _nSamples;
 };
-}  // namespace pd::vslam::odometry
+}  // namespace pd::vslam
 #endif  //VSLAM_KALMAN_H__

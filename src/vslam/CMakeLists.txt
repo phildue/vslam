@@ -4,7 +4,7 @@ project(vslam VERSION 1.0.0)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/tools ${CMAKE_BINARY_DIR}/)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
-
+set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
 add_subdirectory(src/core)
@@ -48,13 +48,10 @@ if(VSLAM_BUILD_TESTS)
     #target_compile_definitions(lukas_kanade_affineTest PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
     #target_compile_definitions(lukas_kanade_se3Test PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
 
-  pd_add_test(alignment_se3 ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(alignment_se3_multi_frame ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  pd_add_test(rgbd_alignment ${PROJECT_NAME} 
+    TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+    TEST_VISUALIZE=${TEST_VISUALIZE})
+  
 
   pd_add_test(odometry_icp ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
