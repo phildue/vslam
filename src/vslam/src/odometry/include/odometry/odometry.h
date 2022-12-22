@@ -27,6 +27,7 @@
 #include "motion_model/EKFConstantVelocitySE3.h"
 #include "motion_model/KalmanFilter.h"
 #include "motion_model/MotionModel.h"
+#include "rgbd_alignment/RgbdAligner.h"
 #include "rgbd_alignment/RgbdAlignment.h"
 #include "rgbd_alignment/RgbdAlignmentOpenCv.h"
 #include "rgbd_alignment/SE3Alignment.h"

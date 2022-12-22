@@ -30,6 +30,29 @@ public:
   typedef std::shared_ptr<const SE3Alignment> ConstShPtr;
   typedef std::unique_ptr<const SE3Alignment> ConstUnPtr;
 
+  class InterestPointSelection
+  {
+  public:
+    typedef std::shared_ptr<InterestPointSelection> ShPtr;
+    typedef std::unique_ptr<InterestPointSelection> UnPtr;
+    typedef std::shared_ptr<const InterestPointSelection> ConstShPtr;
+    typedef std::unique_ptr<const InterestPointSelection> ConstUnPtr;
+
+    InterestPointSelection(
+      const std::vector<double> & minGradient, double minDepth = 0.1, double maxDepth = 50,
+      double maxPointsPart = 0.09);
+    std::vector<Eigen::Vector2i> select(
+      Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur, int level) const;
+    std::vector<Eigen::Vector2i> selectRandomSubset(
+      const std::vector<Eigen::Vector2i> & interestPoints, int height, int width,
+      double part) const;
+    std::vector<double> _minGradient2;
+    double _minDepth;
+    double _maxDepth;
+    double _maxDepthDiff;
+    double _maxPointsPart;
+  };
+
   SE3Alignment(
     double minGradient, vslam::least_squares::Solver::ShPtr solver,
     vslam::least_squares::Loss::ShPtr loss, bool includePrior = false,
@@ -46,10 +69,11 @@ public:
   const bool & initializeOnPrediction() const { return _initializeOnPrediction; }
 
 protected:
-  const double _minGradient2;
+  const double _minGradient;
   const vslam::least_squares::Loss::ShPtr _loss;
   const vslam::least_squares::Solver::ShPtr _solver;
   bool _includePrior, _initializeOnPrediction;
+  InterestPointSelection::ConstUnPtr _interestPointSelection;
 };
 }  // namespace pd::vslam
 #endif  // VSLAM_SE3_ALIGNMENT

@@ -33,6 +33,9 @@ public:
   typedef std::unique_ptr<const GaussNewton> ConstUnPtr;
 
   GaussNewton(double minStepSize, size_t maxIterations);
+  GaussNewton(
+    double minStepSize, size_t maxIterations, double minGradient, double minReduction,
+    double maxIncrease);
 
   typename Solver::Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) override;
 
@@ -41,6 +44,7 @@ private:
   const double _minGradient;
   const double _minReduction;
   const size_t _maxIterations;
+  const double _maxIncrease;
 };
 
 }  // namespace pd::vslam::least_squares

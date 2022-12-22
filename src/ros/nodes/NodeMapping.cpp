@@ -71,10 +71,14 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("odometry.trackKeyFrame", false);
   declare_parameter("odometry.includeKeyFrame", false);
   declare_parameter("odometry.rgbd.includePrior", false);
+  declare_parameter("odometry.rgbd.initOnPrior", false);
   declare_parameter("odometry.rgbd.features.min_gradient", 1);
   declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
   declare_parameter("odometry.rgbd.solver.max_iterations", 100);
   declare_parameter("odometry.rgbd.solver.min_step_size", 1e-7);
+  declare_parameter("odometry.rgbd.solver.min_gradient", 1e-7);
+  declare_parameter("odometry.rgbd.solver.max_increase", 1e-7);
+  declare_parameter("odometry.rgbd.solver.min_reduction", 0.0);
   declare_parameter("odometry.rgbd.loss.function", "None");
   declare_parameter("odometry.rgbd.loss.huber.c", 10.0);
   declare_parameter("odometry.rgbd.loss.tdistribution.v", 5.0);
@@ -86,12 +90,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("prediction.kalman.process_noise.pose", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.rotation", 1e-15);
-
+  declare_parameter("prediction.kalman.initial_state_uncertainty", 100.0);
   declare_parameter("map.n_keyframes", 7);
   declare_parameter("map.n_frames", 7);
-
-  Log::_blockLevel = Level::Unknown;
-  Log::_showLevel = Level::Unknown;
 
   RCLCPP_INFO(get_logger(), "Setting up..");
   _map = std::make_shared<Map>(
@@ -101,7 +102,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   if (_trackKeyFrame && _includeKeyFrame) {
     throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
   }
-  if (get_parameter("odometry.method").as_string() == "rgbd") {
+  if (
+    get_parameter("odometry.method").as_string() == "rgbd" ||
+    get_parameter("odometry.method").as_string() == "rgbd2") {
     least_squares::Loss::ShPtr loss = nullptr;
     least_squares::Scaler::ShPtr scaler;
     auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
@@ -125,15 +128,26 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
 
     auto solver = std::make_shared<least_squares::GaussNewton>(
       get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
-      get_parameter("odometry.rgbd.solver.max_iterations").as_int());
+      get_parameter("odometry.rgbd.solver.max_iterations").as_int(),
+      get_parameter("odometry.rgbd.solver.min_gradient").as_double(),
+      get_parameter("odometry.rgbd.solver.min_reduction").as_double(),
+      get_parameter("odometry.rgbd.solver.max_increase").as_double());
+    if (get_parameter("odometry.method").as_string() == "rgbd2") {
+      _rgbdAlignment = std::make_shared<RGBDAligner>(
+        get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss);
+    } else {
+      _rgbdAlignment = std::make_shared<SE3Alignment>(
+        get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss,
+        get_parameter("odometry.rgbd.includePrior").as_bool(),
+        get_parameter("odometry.rgbd.initOnPrior").as_bool());
+    }
 
-    _rgbdAlignment = std::make_shared<SE3Alignment>(
-      get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss,
-      get_parameter("odometry.rgbd.includePrior").as_bool());
   } else if (get_parameter("odometry.method").as_string() == "rgbd_opencv") {
-    _rgbdAlignment = std::make_shared<RgbdAlignmentOpenCv>();
+    //_rgbdAlignment = std::make_shared<RgbdAlignmentOpenCv>();
   } else {
-    RCLCPP_ERROR(get_logger(), "Unknown odometry method available are: [rgbd, rgbd_opencv]");
+    RCLCPP_ERROR(
+      get_logger(), "Unknown odometry method [%s] available are: [rgbd, rgbd_opencv, rgbd2]",
+      get_parameter("odometry.method").as_string().c_str());
   }
 
   if (get_parameter("prediction.model").as_string() == "NoMotion") {
@@ -157,8 +171,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
       get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
     covProcess(11, 11) =
       get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
-    _motionModel =
-      std::make_shared<MotionModelConstantSpeedKalman>(covProcess, Matd<12, 12>::Identity() * 1000);
+    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(
+      covProcess, Matd<12, 12>::Identity() *
+                    get_parameter("prediction.kalman.initial_state_uncertainty").as_double());
   } else {
     RCLCPP_ERROR(
       get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",
@@ -225,14 +240,11 @@ void NodeMapping::processFrame(
   try {
     auto frame = createFrame(msgImg, msgDepth);
 
-    auto frameRef = _map->lastKf();
+    auto frameRef = _map->lastFrame();
 
     if (frameRef) {
-      frame->set(*_motionModel->predictPose(frame->t()));
-      Pose::ConstShPtr pose = _includeKeyFrame && _map->lastFrame()
-                                ? _rgbdAlignment->align({_map->lastFrame(), frameRef}, frame)
-                                : _rgbdAlignment->align(frameRef, frame);
-      _motionModel->update(pose, frame->t());
+      frame->set(frameRef->pose());
+      Pose::ConstShPtr pose = _rgbdAlignment->align(frameRef, frame);
       frame->set(*pose);
       //frame->set(*_motionModel->pose());
     }
@@ -240,26 +252,6 @@ void NodeMapping::processFrame(
     _keyFrameSelection->update(frame);
 
     _map->insert(frame, _keyFrameSelection->isKeyFrame());
-    /*
-    auto outBa = _keyFrameSelection->isKeyFrame()
-                   ? _ba->optimize(Map::ConstShPtr(_map)->keyFrames())
-                   : _ba->optimize({frame}, Map::ConstShPtr(_map)->keyFrames());*/
-    if (_keyFrameSelection->isKeyFrame()) {
-      auto points = _tracking->track(frame, _map->keyFrames());
-      _map->insert(points);
-      if (_map->nKeyFrames() >= 2) {
-        LOG_IMG("KeyFrames") << std::make_shared<OverlayFeatureDisplacement>(
-          Map::ConstShPtr(_map)->keyFrames());
-
-        auto outBa = _ba->optimize(
-          {Map::ConstShPtr(_map)->keyFrame(0)},
-          Map::ConstShPtr(_map)->keyFrames(1, _map->nKeyFrames()));
-
-        _map->updatePointsAndPoses(outBa->poses, outBa->positions);
-        LOG_IMG("KeyFrames") << std::make_shared<OverlayFeatureDisplacement>(
-          Map::ConstShPtr(_map)->keyFrames());
-      }
-    }
 
     publish(msgImg, frame);
 
@@ -267,7 +259,7 @@ void NodeMapping::processFrame(
   } catch (const std::runtime_error & e) {
     RCLCPP_WARN(this->get_logger(), "%s", e.what());
   }
-}
+}  // namespace vslam_ros
 
 void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
@@ -337,11 +329,13 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
   RCLCPP_INFO(
     get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", x(0), x(1), x(2), x(3),
     x(4), x(5), cx.norm());
+
   RCLCPP_INFO(
     get_logger(),
     format(
-      "Translational Speed: {} [m/s] | Cov | {}", _motionModel->speed()->SE3().translation() * 1e9,
-      _motionModel->speed()->twistCov().block(0, 0, 3, 3).diagonal() * 1e9)
+      "Translational Speed: {} [m/s] | Cov | {}",
+      _motionModel->speed()->SE3().translation().transpose() * 1e9,
+      _motionModel->speed()->twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
       .c_str());
 
   // Send the transformation from fixed frame to origin of optical frame

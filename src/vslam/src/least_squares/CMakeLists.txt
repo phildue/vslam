@@ -5,6 +5,7 @@ set( sources
   src/Loss.cpp
   src/Scaler.cpp
   src/NormalEquations.cpp
+  src/Solver.cpp
   src/GaussNewton.cpp )
 
 set( headers

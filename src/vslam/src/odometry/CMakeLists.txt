@@ -8,7 +8,8 @@ set( sources
   src/iterative_closest_point/IterativeClosestPoint.cpp
   src/iterative_closest_point/IterativeClosestPointOcv.cpp
   src/rgbd_alignment/SE3Alignment.cpp
-  src/rgbd_alignment/RgbdAlignmentOpenCv.cpp
+  src/rgbd_alignment/RgbdAligner.cpp
+  #src/rgbd_alignment/RgbdAlignmentOpenCv.cpp
   src/feature_tracking/OverlayMatchCandidates.cpp
   src/feature_tracking/OverlayFeatures.cpp
   src/feature_tracking/OverlayCorrespondences.cpp
@@ -24,8 +25,9 @@ set( headers
   src/iterative_closest_point/IterativeClosestPoint.h
   src/iterative_closest_point/IterativeClosestPointOcv.h
   src/rgbd_alignment/RgbdAlignment.h
+  src/rgbd_alignment/RgbdAligner.h
   src/rgbd_alignment/SE3Alignment.h
-  src/rgbd_alignment/RgbdAlignmentOpenCv.h
+  #src/rgbd_alignment/RgbdAlignmentOpenCv.h
   src/feature_tracking/OverlayMatchCandidates.h
   src/feature_tracking/OverlayFeatures.h
   src/feature_tracking/OverlayCorrespondences.h

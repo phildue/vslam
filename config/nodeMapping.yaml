@@ -1,13 +1,16 @@
+#/NodeMapping:
+#ros__parameters:
 frame:
-      base_link_id: world
-      frame_id: odom
+  base_link_id: world
+  frame_id: odom
 odometry:
-  method: rgbd
-  methods: [rgbd, rgbd_opencv]
-  includeKeyFrame: true
+  method: rgbd2
+  methods: [rgbd, rgbd_opencv, rgbd2]
+  includeKeyFrame: false
   trackKeyFrame: false
   rgbd:
-    includePrior: true
+    includePrior: false
+    initOnPrior: true
     features:
       min_gradient: 18
     loss:
@@ -17,16 +20,26 @@ odometry:
         c: 1.43
       tdistribution:
         v: 5.0
-  pyramid:
-    levels: [1.0,0.5,0.25]
-  solver:
-    max_iterations: 20
-    min_step_size: 0.00000000001
+    pyramid:
+      levels: [1.0,0.5,0.25, 0.125]
+    solver:
+      max_iterations: 100
+      min_step_size: 0.00000000001
+      min_gradient: 0.0000000001
+      max_increase: 1000000.0
 prediction:
-  model: Kalman
+  model: NoMotion
   models: [NoMotion, ConstantMotion, Kalman]
+  kalman: 
+    process_noise: # Q matrix
+      pose:
+        translation: 0.0000000000001
+        rotation: 0.0000000000001
+      velocity:
+        translation: 0.000000000001
+        rotation: 0.0000000000001
 keyframe_selection:
-  method: custom
+  method: never
   methods: [custom, idx, never]
   idx:
     period: 5
@@ -40,6 +53,8 @@ bundle_adjustment:
   max_iterations: 0
   huber_constant: 3.0
 log:
+  config_dir: /home/ros/vslam_ros/install/vslam_ros/share/vslam_ros/config/log
+  root_dir: /home/ros/vslam_ros/log/run
   image:
     ImageWarped:
       show: false
@@ -66,10 +81,15 @@ log:
       show: false
       block: false
       save: false
-  plot:
     ErrorDistribution:
       show: false
       block: false
+      save: false
+    Kalman:
+      show: false
+      block: false
+      save: false
+      rate: 1
 qos_overrides:
   /parameter_events:
     publisher:

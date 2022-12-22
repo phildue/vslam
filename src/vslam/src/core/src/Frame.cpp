@@ -225,11 +225,10 @@ void Frame::computeDerivatives()
   for (size_t i = 0; i < nLevels(); i++) {
     cv::Mat mat;
     cv::eigen2cv(intensity(i), mat);
-    cv::Mat mati_blur;
-    cv::GaussianBlur(mat, mati_blur, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
+    //cv::GaussianBlur(mat, mat, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
     cv::Mat dIdx, dIdy;
-    cv::Sobel(mati_blur, dIdx, CV_16S, 1, 0, 3);
-    cv::Sobel(mati_blur, dIdy, CV_16S, 0, 1, 3);
+    cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
+    cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
     cv::cv2eigen(dIdx, _dIx[i]);
     cv::cv2eigen(dIdy, _dIy[i]);
   }
@@ -262,20 +261,32 @@ void Frame::computePyramid(size_t nLevels, double s)
   _cam.resize(nLevels);
 
   // TODO(unknown): replace using custom implementation
-  cv::Mat mat;
-  cv::eigen2cv(_intensity[0], mat);
-  std::vector<cv::Mat> mats;
-  cv::buildPyramid(mat, mats, nLevels - 1);
-  for (size_t i = 0; i < mats.size(); i++) {
-    cv::cv2eigen(mats[i], _intensity[i]);
-    _cam[i] = Camera::resize(_cam[0], std::pow(s, i));
+  {
+    cv::Mat mat;
+    cv::eigen2cv(_intensity[0], mat);
+    std::vector<cv::Mat> mats;
+    cv::buildPyramid(mat, mats, nLevels - 1);
+    for (size_t i = 0; i < mats.size(); i++) {
+      cv::cv2eigen(mats[i], _intensity[i]);
+      _cam[i] = Camera::resize(_cam[0], std::pow(s, i));
+    }
   }
   _depth.resize(nLevels);
-  for (size_t i = 1; i < nLevels; i++) {
-    DepthMap depthBlur =
-      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-    _depth[i] = algorithm::resize(depthBlur, s);
+  {
+    cv::Mat mat;
+    cv::eigen2cv(_depth[0], mat);
+    std::vector<cv::Mat> mats;
+    cv::buildPyramid(mat, mats, nLevels - 1);
+    for (size_t i = 0; i < mats.size(); i++) {
+      cv::cv2eigen(mats[i], _depth[i]);
+    }
   }
+  /*
+    for (size_t i = 1; i < nLevels; i++) {
+      DepthMap depthBlur =
+        algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
+      _depth[i] = algorithm::resize(depth, s);
+    }*/
 }
 
 }  // namespace pd::vslam

@@ -24,7 +24,20 @@ GaussNewton::GaussNewton(double minStepSize, size_t maxIterations)
 : _minStepSize(minStepSize),
   _minGradient(minStepSize),
   _minReduction(minStepSize),
-  _maxIterations(maxIterations)
+  _maxIterations(maxIterations),
+  _maxIncrease(minStepSize)
+{
+  Log::get("solver");
+}
+
+GaussNewton::GaussNewton(
+  double minStepSize, size_t maxIterations, double minGradient, double minReduction,
+  double maxIncrease)
+: _minStepSize(minStepSize),
+  _minGradient(minGradient),
+  _minReduction(minReduction),
+  _maxIterations(maxIterations),
+  _maxIncrease(maxIncrease)
 {
   Log::get("solver");
 }
@@ -57,7 +70,8 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     }
     if (!std::isfinite(det) || std::abs(det) < 1e-6) {
       SOLVER(WARNING) << i << " > "
-                      << "STOP. Bad Hessian. det| H | = " << det;
+                      << "STOP. Bad Hessian. det| H | = " << det << " \n"
+                      << ne->toString();
       break;
     }
 
@@ -66,9 +80,10 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     r->chi2(i) = ne->chi2();
 
     const double dChi2 = i > 0 ? r->chi2(i) - r->chi2(i - 1) : 0;
-    if (i > 0 && dChi2 > 0) {
+    if (i > 0 && dChi2 > _maxIncrease) {
       SOLVER(INFO) << i << " > "
-                   << "CONVERGED. No improvement";
+                   << "CONVERGED. No improvement"
+                   << " dChi2: " << dChi2 << "/" << _maxIncrease;
       problem->setX(r->x.row(i - 1));
       break;
     }
@@ -77,15 +92,15 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     r->x.row(i) = problem->x();
     r->stepSize(i) = dx.norm();
     r->normalEquations.push_back(ne);
-    r->iteration = i;
+    r->iteration = i + 1;
 
     SOLVER(INFO) << "Iteration: " << i << " chi2: " << r->chi2(i) << " dChi2: " << dChi2
                  << " stepSize: " << r->stepSize(i) << " Points: " << ne->nConstraints()
                  << "\nx: " << problem->x().transpose() << "\ndx: " << dx.transpose();
-    if (
-      i > 0 && (r->stepSize(i) < _minStepSize || std::abs(ne->b().maxCoeff()) < _minGradient ||
-                std::abs(dChi2) < _minReduction)) {
-      SOLVER(INFO) << i << " > " << r->stepSize(i) << "/" << _minStepSize << " CONVERGED. ";
+    if (i > 0 && (r->stepSize(i) < _minStepSize || std::abs(ne->b().maxCoeff()) < _minGradient)) {
+      SOLVER(INFO) << i << " > \n Step Size: " << r->stepSize(i) << "/" << _minStepSize
+                   << "\n MinGradient: " << std::abs(ne->b().maxCoeff()) << "/" << _minGradient
+                   << "\nCONVERGED. ";
       break;
     }
 
