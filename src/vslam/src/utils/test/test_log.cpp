@@ -28,9 +28,8 @@ using namespace pd::vslam;
 TEST(LogTest, Plot)
 {
   LOG_IMG("image");
-  LOG_PLT("plot");
+  LOG_IMG("plot");
   auto imageLoggers = Log::registeredLogsImage();
-  auto plotLoggers = Log::registeredLogsPlot();
 
   EXPECT_NE(std::find(imageLoggers.begin(), imageLoggers.end(), "image"), imageLoggers.end());
   EXPECT_EQ(std::find(imageLoggers.begin(), imageLoggers.end(), "plot"), imageLoggers.end());

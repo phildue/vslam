@@ -33,8 +33,6 @@ namespace pd::vslam
 {
 std::map<std::string, std::shared_ptr<Log>> Log::_logs = {};
 std::map<std::string, std::shared_ptr<LogImage>> Log::_logsImage = {};
-Level Log::_blockLevel = Level::Unknown;
-Level Log::_showLevel = Level::Unknown;
 std::string LogImage::_rootFolder = "/tmp/log/";
 std::shared_ptr<Log> Log::get(const std::string & name)
 {
@@ -52,14 +50,12 @@ std::shared_ptr<LogImage> Log::getImageLog(const std::string & name)
   auto it = _logsImage.find(name);
   if (it != _logsImage.end()) {
     return it->second;
+  } else if (Log::DISABLED) {
+    _logsImage[name] = std::make_shared<LogImageNull>();
   } else {
-#ifdef ELPP_DISABLE_ALL_LOGS
-    _logsImage[name] = std::make_shared<LogImageNull>(name);
-#else
     _logsImage[name] = std::make_shared<LogImage>(name);
-#endif
-    return _logsImage[name];
   }
+  return _logsImage[name];
 }
 
 Log::Log(const std::string & name) : _name(name)
@@ -134,7 +130,7 @@ void LogImage::append(vis::Drawable::ConstShPtr drawable)
 }
 
 LogImage::LogImage(const std::string & name, bool block, bool show, bool save)
-: _block(block), _show(show), _save(save), _name(name), _folder(name), _ctr(0U)
+: _block(block), _show(show), _save(save), _rate(1), _name(name), _folder(name), _ctr(0U)
 {
   if (_save) {
     createDirectories();
@@ -152,7 +148,7 @@ void LogImage::set(bool show, bool block, bool save, int rate)
   _block = block;
   _show = show;
   _save = save;
-  _rate = rate;
+  _rate = rate <= 0 ? 1 : rate;
   if (_save) {
     createDirectories();
   }

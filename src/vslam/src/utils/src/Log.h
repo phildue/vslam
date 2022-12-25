@@ -102,15 +102,17 @@ void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot);
 class Log
 {
 public:
+#ifdef ELPP_DISABLE_ALL_LOGS
+  static constexpr bool DISABLED = true;
+#else
+  static constexpr bool DISABLED = false;
+#endif
   static std::shared_ptr<Log> get(const std::string & name);
   static std::shared_ptr<LogImage> getImageLog(const std::string & name);
   static const std::map<std::string, std::shared_ptr<Log>> & loggers() { return _logs; };
   static const std::map<std::string, std::map<Level, std::shared_ptr<LogImage>>> & imageLoggers();
   static std::vector<std::string> registeredLogs();
   static std::vector<std::string> registeredLogsImage();
-
-  static Level _showLevel;
-  static Level _blockLevel;
 
   Log(const std::string & name);
   void configure(const std::string & configFilePath);
