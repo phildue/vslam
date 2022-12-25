@@ -59,7 +59,7 @@ public:
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    least_squares::Prior::ConstShPtr prior = nullptr);
+    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
 
   InverseCompositional(
     const Image & templ, const Image & image, std::shared_ptr<Warp> w0,

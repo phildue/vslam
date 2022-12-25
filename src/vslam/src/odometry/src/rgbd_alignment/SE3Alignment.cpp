@@ -159,11 +159,8 @@ SE3Alignment::SE3Alignment(
 
 PoseWithCovariance::UnPtr SE3Alignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
-  auto prior =
-    _includePrior
-      ? least_squares::Prior::ShPtr(std::make_shared<MotionPrior>(to->pose(), from->pose()))
-      : least_squares::Prior::ShPtr(std::make_shared<least_squares::NoPrior>());
-  Pose::UnPtr pose = std::make_unique<Pose>();
+  Vec6d twist = Vec6d::Zero();
+  Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
 
   for (int level = from->nLevels() - 1; level >= 0; level--) {
     TIMED_SCOPE(timerI, "align at level ( " + std::to_string(level) + " )");
@@ -174,32 +171,29 @@ PoseWithCovariance::UnPtr SE3Alignment::align(Frame::ConstShPtr from, Frame::Con
     LOG_IMG("Template") << from->intensity(level);
     LOG_IMG("Depth") << from->depth(level);
 
+    std::vector<Eigen::Vector2i> interestPoints = _interestPointSelection->select(from, to, level);
+    //auto p =
+    //  std::make_shared<LeastSquaresProblem>(SE3d::exp(twist), from, to, interestPoints, level);
+
     auto w = std::make_shared<lukas_kanade::WarpSE3>(
-      pose->SE3(), from->pcl(level, false), from->width(level), from->camera(level),
+      SE3d::exp(twist), from->pcl(level, false), from->width(level), from->camera(level),
       to->camera(level));
 
-    std::vector<Eigen::Vector2i> interestPoints = _interestPointSelection->select(from, to, level);
-
-    auto lk = std::make_shared<lukas_kanade::InverseCompositional>(
+    auto p = std::make_shared<lukas_kanade::InverseCompositional>(
       from->intensity(level), from->dIx(level), from->dIy(level), to->intensity(level), w,
-      interestPoints, _loss, prior);
-
-    auto results = _solver->solve(lk);
-    LOG_ODOM(INFO) << format(
-      "Aligned with {} iterations: {} +- {}", results->iteration, pose->twist().transpose(),
-      pose->twistCov().diagonal().transpose());
-    if (results->iteration >= 1) {
-      Vec3d t = pose->SE3().translation() + w->SE3().rotationMatrix() * w->SE3().translation();
-      Mat3d R = w->SE3().rotationMatrix() * pose->SE3().rotationMatrix();
-      pose = std::make_unique<PoseWithCovariance>(
-        SE3d(R, t), results->normalEquations[results->iteration - 1]->A().inverse());
+      interestPoints, _loss);
+    auto r = _solver->solve(p);
+    if (r->hasSolution()) {
+      twist = r->solution();
+      covariance = r->covariance();
+      //TODO threshold on maximum speed ?
     }
+    LOG_ODOM(INFO) << format(
+      "Aligned with {} iterations: {} +- {}", r->iteration, twist.transpose(),
+      covariance.diagonal().transpose());
   }
-  Vec3d t =
-    from->pose().SE3().translation() + pose->SE3().rotationMatrix() * pose->SE3().translation();
-  Mat3d R = pose->SE3().rotationMatrix() * from->pose().SE3().rotationMatrix();
-
-  return std::make_unique<PoseWithCovariance>(SE3d(R, t), pose->cov());
+  //TODO how to convert the covariance to the covariance of the absolute pose?
+  return std::make_unique<PoseWithCovariance>(SE3d::exp(twist) * from->pose().SE3(), covariance);
 }
 PoseWithCovariance::UnPtr SE3Alignment::align(
   const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const
