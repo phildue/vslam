@@ -4,7 +4,7 @@ frame:
   base_link_id: world
   frame_id: odom
 odometry:
-  method: rgbd2
+  method: rgbd
   methods: [rgbd, rgbd_opencv, rgbd2]
   includeKeyFrame: false
   trackKeyFrame: false
@@ -12,7 +12,10 @@ odometry:
     includePrior: false
     initOnPrior: true
     features:
-      min_gradient: 18
+      min_gradients: [10.0,10.0,10.0,10.0]
+      min_depth: 0.0
+      max_depth: 5.0
+      max_points_part: [1.0,1.0,1.0,1.0]
     loss:
       function: None
       functions: [None, huber, tdistribution]
@@ -24,7 +27,7 @@ odometry:
       levels: [1.0,0.5,0.25, 0.125]
     solver:
       max_iterations: 100
-      min_step_size: 0.00000000001
+      min_step_size: 0.000001
       min_gradient: 0.0000000001
       max_increase: 1000000.0
 prediction:

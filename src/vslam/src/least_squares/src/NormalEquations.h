@@ -21,6 +21,11 @@
 
 #include "core/core.h"
 
+/*TODO:
+- remove all constructors expect A / b one
+- remove nContraints?
+- remove addConstraint?
+*/
 namespace pd::vslam::least_squares
 {
 class NormalEquations
@@ -35,6 +40,8 @@ public:
   NormalEquations(const std::vector<NormalEquations> & normalEquations);
   NormalEquations(const std::vector<NormalEquations::ConstShPtr> & normalEquations);
   NormalEquations(const Eigen::MatrixXd & J, const Eigen::VectorXd & r, const Eigen::VectorXd & w);
+  NormalEquations(
+    const Eigen::MatrixXd & A, const Eigen::VectorXd & b, double chi2, size_t nConstraints);
 
   void addConstraint(const Eigen::VectorXd & J, double r, double w);
   void combine(const NormalEquations & that);

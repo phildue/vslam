@@ -5,10 +5,10 @@ set( sources
   src/motion_model/MotionModel.cpp
   src/motion_model/EKFConstantVelocitySE3.cpp
   src/motion_model/PlotKalman.cpp
-  src/iterative_closest_point/IterativeClosestPoint.cpp
-  src/iterative_closest_point/IterativeClosestPointOcv.cpp
-  src/rgbd_alignment/SE3Alignment.cpp
-  src/rgbd_alignment/RgbdAligner.cpp
+  #src/iterative_closest_point/IterativeClosestPoint.cpp
+  #src/iterative_closest_point/IterativeClosestPointOcv.cpp
+  src/rgbd_alignment/RgbdAlignment.cpp
+  #src/rgbd_alignment/RgbdAligner.cpp
   #src/rgbd_alignment/RgbdAlignmentOpenCv.cpp
   src/feature_tracking/OverlayMatchCandidates.cpp
   src/feature_tracking/OverlayFeatures.cpp
@@ -22,11 +22,11 @@ set( headers
   src/motion_model/KalmanFilter.h
   src/motion_model/EKFConstantVelocitySE3.h
   src/motion_model/PlotKalman.h
-  src/iterative_closest_point/IterativeClosestPoint.h
-  src/iterative_closest_point/IterativeClosestPointOcv.h
+  #src/iterative_closest_point/IterativeClosestPoint.h
+  #src/iterative_closest_point/IterativeClosestPointOcv.h
   src/rgbd_alignment/RgbdAlignment.h
-  src/rgbd_alignment/RgbdAligner.h
-  src/rgbd_alignment/SE3Alignment.h
+  #src/rgbd_alignment/RgbdAligner.h
+  #src/rgbd_alignment/SE3Alignment.h
   #src/rgbd_alignment/RgbdAlignmentOpenCv.h
   src/feature_tracking/OverlayMatchCandidates.h
   src/feature_tracking/OverlayFeatures.h

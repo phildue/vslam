@@ -58,10 +58,13 @@ using Matf = Eigen::Matrix<double, nRows, nCols>;
 
 typedef Eigen::VectorXd VecXd;
 typedef Eigen::Vector2d Vec2d;
+typedef Eigen::Vector2i Vec2i;
 typedef Eigen::Vector3d Vec3d;
-typedef Eigen::Vector3d Vec4d;
+typedef Eigen::Vector4d Vec4d;
 typedef Eigen::Vector6d Vec6d;
+typedef Eigen::Matrix<double, 6, 6> Mat6d;
 typedef Eigen::Matrix<double, 12, 1> Vec12d;
+typedef Eigen::Matrix<double, 12, 12> Mat12d;
 
 typedef std::uint64_t Timestamp;
 

@@ -72,7 +72,12 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("odometry.includeKeyFrame", false);
   declare_parameter("odometry.rgbd.includePrior", false);
   declare_parameter("odometry.rgbd.initOnPrior", false);
-  declare_parameter("odometry.rgbd.features.min_gradient", 1);
+  declare_parameter(
+    "odometry.rgbd.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
+  declare_parameter("odometry.rgbd.features.min_depth", 0.0);
+  declare_parameter("odometry.rgbd.features.max_depth", 4.0);
+  declare_parameter(
+    "odometry.rgbd.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
   declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
   declare_parameter("odometry.rgbd.solver.max_iterations", 100);
   declare_parameter("odometry.rgbd.solver.min_step_size", 1e-7);
@@ -102,9 +107,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   if (_trackKeyFrame && _includeKeyFrame) {
     throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
   }
-  if (
-    get_parameter("odometry.method").as_string() == "rgbd" ||
-    get_parameter("odometry.method").as_string() == "rgbd2") {
+  if (get_parameter("odometry.method").as_string() == "rgbd") {
     least_squares::Loss::ShPtr loss = nullptr;
     least_squares::Scaler::ShPtr scaler;
     auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
@@ -125,28 +128,24 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
         std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
       RCLCPP_WARN(get_logger(), "Unknown loss selected. Assuming None");
     }
-
     auto solver = std::make_shared<least_squares::GaussNewton>(
       get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
       get_parameter("odometry.rgbd.solver.max_iterations").as_int(),
       get_parameter("odometry.rgbd.solver.min_gradient").as_double(),
       get_parameter("odometry.rgbd.solver.min_reduction").as_double(),
       get_parameter("odometry.rgbd.solver.max_increase").as_double());
-    if (get_parameter("odometry.method").as_string() == "rgbd2") {
-      _rgbdAlignment = std::make_shared<RGBDAligner>(
-        get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss);
-    } else {
-      _rgbdAlignment = std::make_shared<SE3Alignment>(
-        get_parameter("odometry.rgbd.features.min_gradient").as_int(), solver, loss,
-        get_parameter("odometry.rgbd.includePrior").as_bool(),
-        get_parameter("odometry.rgbd.initOnPrior").as_bool());
-    }
 
-  } else if (get_parameter("odometry.method").as_string() == "rgbd_opencv") {
-    //_rgbdAlignment = std::make_shared<RgbdAlignmentOpenCv>();
+    _rgbdAlignment = std::make_shared<RgbdAlignment>(
+      solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
+      get_parameter("odometry.rgbd.initOnPrior").as_bool(),
+      get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
+      get_parameter("odometry.rgbd.features.min_depth").as_double(),
+      get_parameter("odometry.rgbd.features.max_depth").as_double(),
+      get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
+
   } else {
     RCLCPP_ERROR(
-      get_logger(), "Unknown odometry method [%s] available are: [rgbd, rgbd_opencv, rgbd2]",
+      get_logger(), "Unknown odometry method [%s] available are: [rgbd]",
       get_parameter("odometry.method").as_string().c_str());
   }
 

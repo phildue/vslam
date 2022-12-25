@@ -225,7 +225,7 @@ void Frame::computeDerivatives()
   for (size_t i = 0; i < nLevels(); i++) {
     cv::Mat mat;
     cv::eigen2cv(intensity(i), mat);
-    //cv::GaussianBlur(mat, mat, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
+    cv::GaussianBlur(mat, mat, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
     cv::Mat dIdx, dIdy;
     cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
     cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
@@ -272,21 +272,12 @@ void Frame::computePyramid(size_t nLevels, double s)
     }
   }
   _depth.resize(nLevels);
-  {
-    cv::Mat mat;
-    cv::eigen2cv(_depth[0], mat);
-    std::vector<cv::Mat> mats;
-    cv::buildPyramid(mat, mats, nLevels - 1);
-    for (size_t i = 0; i < mats.size(); i++) {
-      cv::cv2eigen(mats[i], _depth[i]);
-    }
+
+  for (size_t i = 1; i < nLevels; i++) {
+    DepthMap depthBlur =
+      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
+    _depth[i] = algorithm::resize(depthBlur, s);
   }
-  /*
-    for (size_t i = 1; i < nLevels; i++) {
-      DepthMap depthBlur =
-        algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-      _depth[i] = algorithm::resize(depth, s);
-    }*/
 }
 
 }  // namespace pd::vslam

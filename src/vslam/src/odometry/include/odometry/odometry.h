@@ -22,13 +22,8 @@
 #include "feature_tracking/OverlayCorrespondences.h"
 #include "feature_tracking/OverlayFeatures.h"
 #include "feature_tracking/OverlayMatchCandidates.h"
-#include "iterative_closest_point/IterativeClosestPoint.h"
-#include "iterative_closest_point/IterativeClosestPointOcv.h"
 #include "motion_model/EKFConstantVelocitySE3.h"
 #include "motion_model/KalmanFilter.h"
 #include "motion_model/MotionModel.h"
-#include "rgbd_alignment/RgbdAligner.h"
 #include "rgbd_alignment/RgbdAlignment.h"
-#include "rgbd_alignment/RgbdAlignmentOpenCv.h"
-#include "rgbd_alignment/SE3Alignment.h"
 #endif

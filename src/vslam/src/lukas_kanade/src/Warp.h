@@ -24,6 +24,11 @@ namespace pd::vslam::lukas_kanade
 class Warp
 {
 public:
+  typedef std::shared_ptr<Warp> ShPtr;
+  typedef std::unique_ptr<Warp> UnPtr;
+  typedef std::shared_ptr<const Warp> ConstShPtr;
+  typedef std::unique_ptr<const Warp> ConstUnPtr;
+
   virtual size_t nParameters() { return _nParameters; }
   Warp(size_t nParameters) : _nParameters(nParameters), _x(Eigen::VectorXd::Zero(nParameters)) {}
   Warp(size_t nParameters, const Eigen::VectorXd & x) : _nParameters(nParameters), _x(x) {}
@@ -79,6 +84,11 @@ uv_1 = p( T * p^-1( uv_0, Z(uv_0) ) )
 class WarpSE3 : public Warp
 {
 public:
+  typedef std::shared_ptr<WarpSE3> ShPtr;
+  typedef std::unique_ptr<WarpSE3> UnPtr;
+  typedef std::shared_ptr<const WarpSE3> ConstShPtr;
+  typedef std::unique_ptr<const WarpSE3> ConstUnPtr;
+
   WarpSE3(
     const SE3d & poseCur, const Eigen::MatrixXd & depth, Camera::ConstShPtr camRef,
     Camera::ConstShPtr camCur, const SE3d & poseRef = {});

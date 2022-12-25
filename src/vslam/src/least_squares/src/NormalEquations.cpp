@@ -23,6 +23,14 @@ NormalEquations::NormalEquations(size_t nParameters)
   _nConstraints(0)
 {
 }
+NormalEquations::NormalEquations(const Eigen::MatrixXd & A, const Eigen::VectorXd & b, double chi2, size_t nConstraints)
+:_A(A),
+_b(b),
+_chi2(chi2),
+_nConstraints(nConstraints)
+{
+}
+
 NormalEquations::NormalEquations(const std::vector<NormalEquations> & normalEquations)
 {
   _A = normalEquations[0].A();

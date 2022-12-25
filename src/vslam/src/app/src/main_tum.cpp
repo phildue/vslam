@@ -21,7 +21,7 @@ public:
     auto loss =
       std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
     _map = std::make_shared<Map>(5, 3);
-    _rgbdAlignment = std::make_shared<SE3Alignment>(18, solver, loss, false, true);
+    _rgbdAlignment = std::make_shared<RgbdAlignment>(solver, loss);
     Matd<12, 12> covProcess = Matd<12, 12>::Identity();
     for (int i = 0; i < 6; i++) {
       covProcess(i, i) = 1e-9;
@@ -129,7 +129,6 @@ public:
       utils::writeTrajectory(
         *traj, format("{}/algorithm_results/{}", _dl->datasetPath(), "trajectory.txt"));
     }
-    LOG_IMG("Kalman") << PlotKalman::get();
   }
 
 protected:

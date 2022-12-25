@@ -57,10 +57,14 @@ set_property(TARGET vslam_ros_nodes PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 rclcpp_components_register_nodes(
     vslam_ros_nodes
-    "vslam_ros::NodeMapping"
     "vslam_ros::NodeResultWriter"
     "vslam_ros::NodeReplayer"
     "vslam_ros::NodeGtLoader"
+)
+rclcpp_components_register_node(
+    vslam_ros_nodes
+    PLUGIN "vslam_ros::NodeMapping"
+    EXECUTABLE nodeMapping
 )
 ament_target_dependencies(${PROJECT_NAME}
   OpenCV
