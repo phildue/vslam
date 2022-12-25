@@ -23,9 +23,10 @@ from launch.actions import DeclareLaunchArgument
 from launch.actions import OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 
+
 def create_algo_node(use_sim_time, experiment_folder):
-   params_algo = os.path.join(get_package_share_directory('vslam_ros'), 'config', 'NodeMapping.yaml')
-   node = ComposableNode(
+    params_algo = os.path.join(get_package_share_directory('vslam_ros'), 'config', 'nodeMapping.yaml')
+    node = ComposableNode(
         package='vslam_ros',
         plugin='vslam_ros::NodeMapping',
         name='mapping',
@@ -36,13 +37,15 @@ def create_algo_node(use_sim_time, experiment_folder):
                     {"log.root_dir": os.path.join(experiment_folder, 'log')},
                     ],
         extra_arguments=[{'use_intra_process_comms': True}])
-   return node, params_algo
+    return node, params_algo
+
 
 def ld_opaque(context):
     use_sim_time = True
     sequence_root = LaunchConfiguration('sequence_root').perform(context)
     sequence_id = LaunchConfiguration('sequence_id').perform(context)
     experiment_name = LaunchConfiguration('experiment_name').perform(context)
+    launch_without_algo = LaunchConfiguration('launch_without_algo').perform(context) == 'True'
 
     sequence_folder = os.path.join(sequence_root, sequence_id)
     experiment_folder = os.path.join(sequence_folder, 'algorithm_results', experiment_name)
@@ -51,42 +54,46 @@ def ld_opaque(context):
     gt_traj_file = os.path.join(sequence_folder, sequence_id + "-groundtruth.txt")
     algo_traj_file = os.path.join(experiment_folder, sequence_id + "-algo.txt")
     bag_file = os.path.join(sequence_folder, sequence_id + ".db3")
+    composable_nodes = [
+        ComposableNode(
+            package='vslam_ros',
+            plugin='vslam_ros::NodeGtLoader',
+            name='gtLoader',
+            remappings=[('/path', '/path/gt')],
+            parameters=[{'gtTrajectoryFile': gt_traj_file},
+                        {"use_sim_time": use_sim_time}],
+            extra_arguments=[{'use_intra_process_comms': False}]),
+        ComposableNode(
+            package='vslam_ros',
+            plugin='vslam_ros::NodeResultWriter',
+            name='resultWriter',
+            # remappings=[('/image', '/burgerimage')],
+            parameters=[{'algoOutputFile': algo_traj_file},
+                        {"use_sim_time": use_sim_time}],
+            extra_arguments=[{'use_intra_process_comms': False}]),
+        ComposableNode(
+            package='vslam_ros',
+            plugin='vslam_ros::NodeReplayer',
+            name='replayer',
+            # remappings=[('/image', '/burgerimage')],
+            parameters=[{'bag_file': bag_file},
+                        {"use_sim_time": use_sim_time},
+                        {'timeout': 60}
+                        ],
+            extra_arguments=[{'use_intra_process_comms': False}])
+    ]
     algo_node, params_algo = create_algo_node(use_sim_time, experiment_folder)
+
+    if not launch_without_algo:
+        composable_nodes.append(algo_node)
     shutil.copy(params_algo, os.path.join(experiment_folder, 'params_algo.yaml'))
+
     container = ComposableNodeContainer(
         name='vslam_container',
         namespace='',
         package='rclcpp_components',
         executable='component_container_mt',
-        composable_node_descriptions=[
-            algo_node,
-            ComposableNode(
-                package='vslam_ros',
-                plugin='vslam_ros::NodeGtLoader',
-                name='gtLoader',
-                remappings=[('/path', '/path/gt')],
-                parameters=[{'gtTrajectoryFile': gt_traj_file},
-                            {"use_sim_time": use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': False}]),
-            ComposableNode(
-                package='vslam_ros',
-                plugin='vslam_ros::NodeResultWriter',
-                name='resultWriter',
-                # remappings=[('/image', '/burgerimage')],
-                parameters=[{'algoOutputFile': algo_traj_file},
-                            {"use_sim_time": use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': False}]),
-            ComposableNode(
-                package='vslam_ros',
-                plugin='vslam_ros::NodeReplayer',
-                name='replayer',
-                # remappings=[('/image', '/burgerimage')],
-                parameters=[{'bag_file': bag_file},
-                            {"use_sim_time": use_sim_time},
-                            {'timeout': 30}
-                            ],
-                extra_arguments=[{'use_intra_process_comms': False}]),
-        ],
+        composable_node_descriptions=composable_nodes,
         output='both',
     )
 
@@ -109,5 +116,9 @@ def generate_launch_description():
             'sequence_id',
             default_value="rgbd_dataset_freiburg2_desk",
             description='id of the sequence'),
+        DeclareLaunchArgument(
+            'launch_without_algo',
+            default_value="False",
+            description='start pipeline without algorithm node'),
         OpaqueFunction(function=ld_opaque)
     ])

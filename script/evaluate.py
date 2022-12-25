@@ -19,6 +19,8 @@ parser.add_argument('--sequence_root',
 parser.add_argument('--out_root',
                     help='Root folder for generating output, defaults to <sequence_root>',
                     default='')
+parser.add_argument('--launch_without_algo', help='Start everything without algo for debugging',
+                    default='False')
 parser.add_argument('--run_algo', help='Set to create algorithm results', action="store_true")
 parser.add_argument('--commit_hash',
                     help='Id to identify algorithm version',
@@ -56,7 +58,7 @@ if args.run_algo:
                 ], f)
     os.system(f"ros2 launch vslam_ros evaluation.launch.py \
         sequence_root:={args.sequence_root} sequence_id:={args.sequence_id} \
-        experiment_name:={args.experiment_name}")
+        experiment_name:={args.experiment_name} launch_without_algo:={args.launch_without_algo}")
 # TODO plot, fix paths
 print("---------Creating Plots-----------------")
 os.system(f"python3 {script_dir}/vslam_evaluation/plot/plot_traj.py \
