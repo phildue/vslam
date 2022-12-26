@@ -114,9 +114,9 @@ least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEq
     const bool visible = 1 < uvI.x() && uvI.x() < _I.cols() - 1 && 1 < uvI.y() &&
                          uvI.y() < _I.rows() - 1 && std::isfinite(uvI.x());
     if (visible) {
-      //IWxp(kp.pos.y(),kp.pos.x()) = algorithm::bilinearInterpolation(_I,uvI.x(),uvI.y());
-      IWxp(kp.pos.y(), kp.pos.x()) =
-        _I(static_cast<int>(std::round(uvI.y())), static_cast<int>(std::round(uvI.x())));
+      IWxp(kp.pos.y(), kp.pos.x()) = algorithm::bilinearInterpolation(_I, uvI.x(), uvI.y());
+      //IWxp(kp.pos.y(), kp.pos.x()) =
+      //  _I(static_cast<int>(std::round(uvI.y())), static_cast<int>(std::round(uvI.x())));
       R(kp.pos.y(), kp.pos.x()) =
         (double)IWxp(kp.pos.y(), kp.pos.x()) - (double)_T(kp.pos.y(), kp.pos.x());
       W(kp.pos.y(), kp.pos.x()) = 1.0;
