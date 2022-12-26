@@ -5,12 +5,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "(gdb) ROS2 Launch",
-      "type": "ros",
-      "request": "launch",
-      "target": "${workspaceFolder}/install/share/vslam_ros_evaluation/launch/evaluation.launch.py",
-      "additionalSOLibSearchPath": "${workspaceFolder/install/lib",
-    },
+        "name": "(gdb) Launch",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/install/vslam_ros/lib/${input:package}/${input:program}",
+        "args": ["--ros-args","--params-file","${workspaceFolder}/config/nodeMapping.yaml"],
+        //"preLaunchTask": "build",
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ],
+        "additionalSOLibSearchPath": "${workspaceFolder/install/vslam_ros/lib"
+      },
     {
       "name": "(gdb) Test",
       "type": "cppdbg",
@@ -155,13 +168,13 @@
       "id": "package",
       "type": "promptString",
       "description": "Package name",
-      "default": "examples_rclcpp_minimal_publisher"
+      "default": "vslam_ros"
     },
     {
       "id": "program",
       "type": "promptString",
       "description": "Program name",
-      "default": "publisher_member_function"
+      "default": "nodeMapping"
     },    
     {
         "id": "target",
@@ -189,6 +202,9 @@
         "type": "pickString",
         "description": "vslam unit test",
         "options":[
+            "frame2Test",
+            "rgbd_alignmentTest",
+            "rpeTest",
             "motion_modelTest",
             "ekf_se3Test",
             "trackingTest",
