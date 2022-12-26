@@ -189,7 +189,9 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (
       p >= _minGradient2[level] && _minDepth < frame->depth(level)(v, u) &&
-      frame->depth(level)(v, u) < _maxDepth) {
+      frame->depth(level)(v, u) < _maxDepth && frame->depth(level)(v - 1, u) > _minDepth &&
+      frame->depth(level)(v - 1, u - 1) > _minDepth && frame->depth(level)(v + 1, u) > _minDepth &&
+      frame->depth(level)(v + 1, u + 1) > _minDepth && frame->depth(level)(v, u + 1) > _minDepth) {
       interestPoints.emplace_back(u, v);
     }
   });

@@ -35,6 +35,10 @@ if(VSLAM_BUILD_TESTS)
   else()
       set(TEST_VISUALIZE false)
   endif()
+
+  pd_add_test(frame2 ${PROJECT_NAME} 
+  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  TEST_VISUALIZE=${TEST_VISUALIZE})
   pd_add_test(lukas_kanade_flow ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
   TEST_VISUALIZE=${TEST_VISUALIZE})
@@ -52,14 +56,6 @@ if(VSLAM_BUILD_TESTS)
     TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
     TEST_VISUALIZE=${TEST_VISUALIZE})
   
-
-  pd_add_test(odometry_icp ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-
-  pd_add_test(odometry_rgbd_cv ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
 
   pd_add_test(trajectory ${PROJECT_NAME} 
   TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
