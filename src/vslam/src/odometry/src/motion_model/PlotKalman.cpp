@@ -14,21 +14,27 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <fmt/chrono.h>
 #include <fmt/core.h>
-
-#include "PlotKalman.h"
 using fmt::format;
+#include "PlotKalman.h"
+#include "utils/utils.h"
 
 namespace pd::vslam
 {
-PlotKalman::ShPtr PlotKalman::_instance = nullptr;
-
 void PlotKalman::append(const Entry & e)
+{
+  _plot->append(e);
+  if (_plot->timestamps().size() > 10) {
+    LOG_IMG("Kalman") << _plot;
+  }
+}
+
+void PlotKalman::Plot::append(const Entry & e)
 {
   //TODO avoid memory leak;
   _entries.push_back(e);
   _timestamps.push_back(e.t);
 }
-void PlotKalman::plot() const
+void PlotKalman::Plot::plot() const
 {
   if (_timestamps.empty()) {
     vis::plt::figure();
@@ -110,7 +116,7 @@ void PlotKalman::plot() const
     plotKalmanGain(t, k[n], n);
   }
 }
-void PlotKalman::createExpMeasPlot(
+void PlotKalman::Plot::createExpMeasPlot(
   const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
   const std::string & name) const
 {
@@ -122,7 +128,7 @@ void PlotKalman::createExpMeasPlot(
   vis::plt::legend();
   vis::plt::grid(true);
 }
-void PlotKalman::createVelocityPlot(
+void PlotKalman::Plot::createVelocityPlot(
   const std::vector<double> & t, const std::vector<double> & x, const std::string & name) const
 {
   vis::plt::title("State");
@@ -132,7 +138,7 @@ void PlotKalman::createVelocityPlot(
   vis::plt::legend();
   vis::plt::grid(true);
 }
-void PlotKalman::createCorrectionPlot(
+void PlotKalman::Plot::createCorrectionPlot(
   const std::vector<double> & t, const std::vector<double> & c, const std::string & name) const
 {
   vis::plt::title("Innovation");
@@ -141,7 +147,7 @@ void PlotKalman::createCorrectionPlot(
   vis::plt::grid(true);
   vis::plt::plot(t, c);
 }
-void PlotKalman::createUpdatePlot(
+void PlotKalman::Plot::createUpdatePlot(
   const std::vector<double> & t, const std::vector<double> & u, const std::string & name) const
 {
   vis::plt::title("Update");
@@ -151,7 +157,7 @@ void PlotKalman::createUpdatePlot(
   vis::plt::plot(t, u);
 }
 
-void PlotKalman::plotStateCov(
+void PlotKalman::Plot::plotStateCov(
   const std::vector<double> & t, const std::vector<double> & cx, const std::string & name) const
 {
   vis::plt::ylabel(format("$| \\Sigma_x |$ {}", name));
@@ -159,7 +165,7 @@ void PlotKalman::plotStateCov(
   vis::plt::grid(true);
   vis::plt::plot(t, cx);
 }
-void PlotKalman::plotExpectationCov(
+void PlotKalman::Plot::plotExpectationCov(
   const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const
 {
   vis::plt::ylabel(format("$| \\Sigma_e |$ {}", name));
@@ -167,7 +173,7 @@ void PlotKalman::plotExpectationCov(
   vis::plt::grid(true);
   vis::plt::plot(t, ce);
 }
-void PlotKalman::plotMeasurementCov(
+void PlotKalman::Plot::plotMeasurementCov(
   const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const
 {
   vis::plt::ylabel(format("$| \\Sigma_m |$ {}", name));
@@ -175,7 +181,7 @@ void PlotKalman::plotMeasurementCov(
   vis::plt::grid(true);
   vis::plt::plot(t, ce);
 }
-void PlotKalman::plotKalmanGain(
+void PlotKalman::Plot::plotKalmanGain(
   const std::vector<double> & t, const std::vector<double> & k, const std::string & name) const
 {
   vis::plt::ylabel(format("$| K |$ {}", name));
@@ -187,18 +193,11 @@ void operator<<(PlotKalman::ShPtr log, const PlotKalman::Entry & e) { log->appen
 
 PlotKalman::ShPtr PlotKalman::make()
 {
-  if (_instance) {
-    return _instance;
+  if (Log::DISABLED) {
+    return std::make_shared<PlotKalmanNull>();
+  } else {
+    return std::make_shared<PlotKalman>();
   }
-  _instance = LOG_IMG("Kalman")->show() || LOG_IMG("Kalman")->save()
-                ? std::make_shared<PlotKalman>()
-                : std::make_shared<PlotKalmanNull>();
-  return _instance;
 }
-PlotKalman::ShPtr PlotKalman::get()
-{
-  //TODO this is weird design
-  make();
-  return _instance;
-}
+
 }  // namespace pd::vslam

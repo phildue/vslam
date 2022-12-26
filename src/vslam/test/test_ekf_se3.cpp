@@ -54,7 +54,7 @@ class TestKalmanSE3 : public Test
 public:
   TestKalmanSE3()
   {
-    LOG_PLT("Kalman")->set(TEST_VISUALIZE);
+    LOG_IMG("Kalman")->set(TEST_VISUALIZE);
 
     _kalman = std::make_shared<EKFConstantVelocitySE3>(Matd<12, 12>::Identity(), 0);
 
@@ -67,7 +67,7 @@ public:
       defaultConf.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
       el::Loggers::reconfigureLogger(name, defaultConf);
     }
-    LOG_PLT("Test")->set(TEST_VISUALIZE, false);
+    LOG_IMG("Test")->set(TEST_VISUALIZE, false);
   }
 
 protected:
@@ -143,10 +143,9 @@ TEST_F(TestKalmanSE3, DISABLED_RunWithGt)
   print("LastMotion\n: {}\n", rpeLastMotion->toString());
   print("Kalman:\n{}\n", rpe->toString());
 
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotRPE>(rpes);
-  LOG_PLT("Test") << _kalman->plot();
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotRPE>(rpes);
   vis::plt::figure();
   vis::plt::title("dts");
 
@@ -227,11 +226,10 @@ TEST_F(TestKalmanSE3, RunWithAlgo)
     print("{}\n{}\n", n_t.first, _rpes[n_t.first]->toString());
   }
 
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(_trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(_trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryMotion>(_trajectories);
-  LOG_PLT("Test") << std::make_shared<evaluation::PlotRPE>(_rpes);
-  LOG_PLT("Test") << _kalman->plot();
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectory>(_trajectories);
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(_trajectories);
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectoryMotion>(_trajectories);
+  LOG_IMG("Test") << std::make_shared<evaluation::PlotRPE>(_rpes);
   vis::plt::figure();
   vis::plt::title("dts");
 
@@ -301,10 +299,9 @@ TEST_F(TestKalmanSE3, DISABLED_SyntheticData)
     << "After 200 iterations filter should converge to the true velocity.";
 
   if (TEST_VISUALIZE) {
-    LOG_PLT("Test")->set(TEST_VISUALIZE, false);
-    LOG_PLT("Test") << _kalman->plot();
-    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(_trajectories);
-    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(_trajectories);
+    LOG_IMG("Test")->set(TEST_VISUALIZE, false);
+    LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectory>(_trajectories);
+    LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(_trajectories);
     vis::plt::show();
   }
 }
@@ -356,8 +353,8 @@ TEST(EKFSE3, DISABLED_PoC)
   Matd<6, 12> J_h_x;
   J_h_x << MatXd::Zero(6, 6), MatXd::Identity(6, 6);
 
-  LOG_PLT("Kalman")->set(TEST_VISUALIZE);
-  auto plot = PlotKalman::get();
+  LOG_IMG("Kalman")->set(TEST_VISUALIZE);
+  auto plot = PlotKalman::make();
   std::map<std::string, Trajectory::ShPtr> trajectories;
   trajectories["Unfiltered"] = std::make_shared<Trajectory>();
   trajectories["Kalman"] = std::make_shared<Trajectory>();
@@ -411,7 +408,7 @@ TEST(EKFSE3, DISABLED_PoC)
     P = P - K * Z * K.transpose();
     Vec12d state;
     state << Xp.log().coeffs(), Xv.log().coeffs();
-    plot->append(t, {state, e, velocity_noisy, z, dx, P, E, R, K});
+    //plot->append(t, {state, e, velocity_noisy, z, dx, P, E, R, K});
     trajectories["Kalman"]->append(t, Pose(Xp.log().coeffs(), P.block(0, 0, 6, 6)));
   }
 
@@ -419,10 +416,10 @@ TEST(EKFSE3, DISABLED_PoC)
     << "After 200 iterations filter should converge to the true velocity.";
 
   if (TEST_VISUALIZE) {
-    LOG_PLT("Test")->set(TEST_VISUALIZE, false);
-    LOG_PLT("Test") << plot;
-    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
-    LOG_PLT("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
+    LOG_IMG("Test")->set(TEST_VISUALIZE, false);
+    //LOG_IMG("Test") << plot;
+    LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectory>(trajectories);
+    LOG_IMG("Test") << std::make_shared<evaluation::PlotTrajectoryCovariance>(trajectories);
     vis::plt::show();
   }
 }

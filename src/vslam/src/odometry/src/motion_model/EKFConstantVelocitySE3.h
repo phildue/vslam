@@ -97,12 +97,13 @@ private:
   Matd<12, 12> _covProcess;
   Matd<12, 6> _K;
 
-  PlotKalman::ShPtr _plot;
   double _q;
   size_t _windowSize;
   std::vector<Matd<12, 12>> _stateTransitionMats;
   std::vector<Matd<6, 6>> _innovMats;
   size_t _nSamples;
+
+  PlotKalman::ShPtr _log;
 };
 }  // namespace pd::vslam
 #endif  //VSLAM_KALMAN_H__

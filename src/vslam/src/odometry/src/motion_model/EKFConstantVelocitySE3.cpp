@@ -20,7 +20,6 @@
 #include "EKFConstantVelocitySE3.h"
 #include "utils/utils.h"
 #define LOG_ODOM(level) CLOG(level, "odometry")
-#define LOG_PLOT PlotKalman::get()
 
 namespace pd::vslam
 {
@@ -34,7 +33,8 @@ EKFConstantVelocitySE3::EKFConstantVelocitySE3(
   _windowSize(100),
   _stateTransitionMats(_windowSize, Matd<12, 12>::Identity()),
   _innovMats(_windowSize, Matd<6, 6>::Identity()),
-  _nSamples(0U)
+  _nSamples(0U),
+  _log(PlotKalman::make())
 {
   Log::get("odometry");
 }
@@ -113,7 +113,7 @@ void EKFConstantVelocitySE3::update(
                   << " |XX|: " << _state->covariance().determinant();
 
   //TODO avoid singleton? nicer api?
-  LOG_PLOT << PlotKalman::Entry(
+  _log << PlotKalman::Entry(
     {t, _state->x(), e, measurement, y, dx, _state->covariance(), E, covMeasurement, _K});
 }
 

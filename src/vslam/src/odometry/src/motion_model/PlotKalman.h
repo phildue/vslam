@@ -16,7 +16,7 @@
 #include "utils/utils.h"
 namespace pd::vslam
 {
-class PlotKalman : public vis::Plot
+class PlotKalman
 {
 public:
   typedef std::shared_ptr<PlotKalman> ShPtr;
@@ -30,43 +30,54 @@ public:
     MatXd covState, covExpectation, covMeasurement, kalmanGain;
   };
 
+  class Plot : public vis::Plot
+  {
+  public:
+    void plot() const override;
+    std::string csv() const override { return ""; }
+    void append(const Entry & e);
+    const std::vector<Timestamp> & timestamps() { return _timestamps; }
+
+  private:
+    std::vector<Entry> _entries;
+    std::vector<Timestamp> _timestamps;
+    void createExpMeasPlot(
+      const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
+      const std::string & name) const;
+    void createCorrectionPlot(
+      const std::vector<double> & t, const std::vector<double> & c, const std::string & name) const;
+    void createVelocityPlot(
+      const std::vector<double> & t, const std::vector<double> & x, const std::string & name) const;
+    void createUpdatePlot(
+      const std::vector<double> & t, const std::vector<double> & u, const std::string & name) const;
+    void plotStateCov(
+      const std::vector<double> & t, const std::vector<double> & cx,
+      const std::string & name) const;
+    void plotExpectationCov(
+      const std::vector<double> & t, const std::vector<double> & ce,
+      const std::string & name) const;
+    void plotKalmanGain(
+      const std::vector<double> & t, const std::vector<double> & k, const std::string & name) const;
+    void plotMeasurementCov(
+      const std::vector<double> & t, const std::vector<double> & ce,
+      const std::string & name) const;
+  };
+  PlotKalman() : _plot(std::make_shared<PlotKalman::Plot>()) {}
   virtual void append(const Entry & e);
-  void plot() const override;
-  std::string csv() const override { return ""; }
   static ShPtr make();
-  static ShPtr get();
   Trajectory::ConstShPtr & trajectoryGt() { return _trajGt; }
   const Trajectory::ConstShPtr & trajectoryGt() const { return _trajGt; }
 
 private:
-  std::vector<Entry> _entries;
-  std::vector<Timestamp> _timestamps;
   Trajectory::ConstShPtr _trajGt;
-  void createExpMeasPlot(
-    const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
-    const std::string & name) const;
-  void createCorrectionPlot(
-    const std::vector<double> & t, const std::vector<double> & c, const std::string & name) const;
-  void createVelocityPlot(
-    const std::vector<double> & t, const std::vector<double> & x, const std::string & name) const;
-  void createUpdatePlot(
-    const std::vector<double> & t, const std::vector<double> & u, const std::string & name) const;
-  void plotStateCov(
-    const std::vector<double> & t, const std::vector<double> & cx, const std::string & name) const;
-  void plotExpectationCov(
-    const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const;
-  void plotKalmanGain(
-    const std::vector<double> & t, const std::vector<double> & k, const std::string & name) const;
-  void plotMeasurementCov(
-    const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const;
   //TODO remove singleton and provide instances via Log:: interface
   static ShPtr _instance;
+  std::shared_ptr<PlotKalman::Plot> _plot;
 };
 void operator<<(PlotKalman::ShPtr log, const PlotKalman::Entry & e);
 
 class PlotKalmanNull : public PlotKalman
 {
-  void append(const Entry & UNUSED(e)) {}
-  void plot() const override {}
+  void append(const Entry & UNUSED(e)) override {}
 };
 }  // namespace pd::vslam

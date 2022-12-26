@@ -207,9 +207,9 @@ TEST(MotionModel, Compare)
   trajsPlot["GroundTruth"] = trajectoryGt;
   trajsPlot["Kalman"] = trajectories["Kalman"];
   trajsPlot["ConstantSpeed"] = trajectories["ConstantSpeed"];
-  LOG_PLT("TEST")->set(TEST_VISUALIZE, TEST_VISUALIZE);
-  LOG_PLT("TEST") << std::make_shared<evaluation::PlotTrajectory>(trajsPlot);
-  LOG_PLT("TEST") << std::make_shared<evaluation::PlotRPE>(rpes);
+  LOG_IMG("TEST")->set(TEST_VISUALIZE, TEST_VISUALIZE);
+  LOG_IMG("TEST") << std::make_shared<evaluation::PlotTrajectory>(trajsPlot);
+  LOG_IMG("TEST") << std::make_shared<evaluation::PlotRPE>(rpes);
   //auto plot = std::make_shared<PlotEgomotion>(egomotions, timestamps, names2);
   // plot->plot();
   //auto plotTranslation = std::make_shared<PlotEgomotionTranslation>(egomotions, timestamps, names2);
