@@ -36,9 +36,9 @@ public:
 
   void publish(rosbag2_storage::SerializedBagMessageSharedPtr msg);
   void publishNext();
-  void play();
+  void play(rcl_time_point_value_t tStart, rcl_time_point_value_t tEnd);
   bool hasNext() { return _reader->has_next(); }
-  bool seek(rcl_time_point_value_t t);
+  rcl_time_point_value_t seek(rcl_time_point_value_t t);
 
 private:
   std::unique_ptr<rosbag2_cpp::readers::SequentialReader> open(const std::string & bagName) const;
@@ -48,7 +48,6 @@ private:
   std::unique_ptr<rosbag2_cpp::readers::SequentialReader> _reader;
   bool _visualize = true;
   int _idx = 0;
-  double _period = 0.05;
   int _fNoOut = 0;
   std::atomic<bool> _running;
   std::thread _thread;
@@ -66,5 +65,8 @@ private:
   double _duration;
   std::map<std::string, unsigned long int> _msgCtr;
   std::map<std::string, unsigned long int> _nMessages;
+  rcl_time_point_value_t getStartingTime(const rosbag2_storage::BagMetadata & meta) const;
+  rcl_time_point_value_t getEndTime(
+    rcl_time_point_value_t tStart, const rosbag2_storage::BagMetadata & meta) const;
 };
 }  // namespace vslam_ros

@@ -4,7 +4,7 @@ import sys
 import argparse
 import git
 import yaml
-
+import shutil
 script_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(script_dir)
 parser = argparse.ArgumentParser(description='''
@@ -56,6 +56,8 @@ if args.run_algo:
                 {'name': args.experiment_name},
                 {'code_sha': sha}
                 ], f)
+    shutil.copy(os.path.join(args.workspace_dir, 'launch', 'evaluation.launch.py'), os.path.join(output_dir, 'evaluation.launch.py'))
+    
     os.system(f"ros2 launch vslam_ros evaluation.launch.py \
         sequence_root:={args.sequence_root} sequence_id:={args.sequence_id} \
         experiment_name:={args.experiment_name} launch_without_algo:={args.launch_without_algo}")
