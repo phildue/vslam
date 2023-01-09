@@ -29,61 +29,40 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 namespace pd::vslam
 {
 MotionModelNoMotion::MotionModelNoMotion()
-: MotionModel(),
-  _speed(Vec6d::Zero()),
-  _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
-  _lastT(0U)
+: MotionModel(), _speed(Vec6d::Zero()), _lastPose(SE3d(), MatXd::Identity(6, 6)), _lastT(0U)
 {
 }
-void MotionModelNoMotion::update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
+void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
   }
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   if (dT > 0) {
-    _speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+    _speed = relativePose.twist() / dT;
   }
-  _lastPose = pose;
+  _lastPose = relativePose.SE3() * _lastPose;
   _lastT = timestamp;
 }
-void MotionModelNoMotion::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur)
-{
-  if (frameCur->t() < frameRef->t()) {
-    throw pd::Exception("New timestamp is older than last one!");
-  }
-  const double dT = (static_cast<double>(frameCur->t()) - static_cast<double>(frameRef->t())) / 1e9;
-  if (dT > 0) {
-    _speed =
-      algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log() /
-      dT;
-  }
 
-  _lastPose = std::make_shared<PoseWithCovariance>(frameCur->pose());
-  _lastT = frameCur->t();
+Pose MotionModelNoMotion::predictPose(Timestamp UNUSED(timestamp)) const { return pose(); }
+Pose MotionModelNoMotion::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
+Pose MotionModelNoMotion::speed() const
+{
+  //TODO uncertainty ?
+  return Pose(SE3d::exp(_speed), _lastPose.cov());
 }
 
-PoseWithCovariance::UnPtr MotionModelNoMotion::predictPose(Timestamp UNUSED(timestamp)) const
+MotionModelConstantSpeed::MotionModelConstantSpeed(const Mat6d & covariance)
+: MotionModelNoMotion(), _covariance(covariance)
 {
-  return pose();
-}
-PoseWithCovariance::UnPtr MotionModelNoMotion::pose() const
-{
-  return std::make_unique<PoseWithCovariance>(_lastPose->pose(), _lastPose->cov());
-}
-PoseWithCovariance::UnPtr MotionModelNoMotion::speed() const
-{
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(_speed), _lastPose->cov());
 }
 
-MotionModelConstantSpeed::MotionModelConstantSpeed() : MotionModelNoMotion() {}
-
-PoseWithCovariance::UnPtr MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
+Pose MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   const SE3d predictedRelativePose = SE3d::exp(_speed * dT);
-  return std::make_unique<PoseWithCovariance>(
-    predictedRelativePose * _lastPose->pose(), MatXd::Identity(6, 6));
+  return Pose(predictedRelativePose * _lastPose);
 }
 
 MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)
@@ -91,19 +70,20 @@ MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)
   _timeFrame(timeFrame),
   _traj(std::make_unique<Trajectory>()),
   _speed(Vec6d::Zero()),
-  _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
+  _lastPose(SE3d(), MatXd::Identity(6, 6)),
   _lastT(0U)
 {
 }
-void MotionModelMovingAverage::update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
+void MotionModelMovingAverage::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
   }
+  auto pose = relativePose.SE3() * _lastPose;
   _traj->append(timestamp, pose);
   if (_traj->tEnd() - _traj->tStart() <= _timeFrame) {
     const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
-    _speed = algorithm::computeRelativeTransform(_lastPose->pose(), pose->pose()).log() / dT;
+    _speed = relativePose.twist() / dT;
 
   } else {
     _speed =
@@ -112,82 +92,58 @@ void MotionModelMovingAverage::update(PoseWithCovariance::ConstShPtr pose, Times
   _lastPose = pose;
   _lastT = timestamp;
 }
-void MotionModelMovingAverage::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) {}
 
-PoseWithCovariance::UnPtr MotionModelMovingAverage::predictPose(Timestamp timestamp) const
+Pose MotionModelMovingAverage::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   const SE3d predictedRelativePose = SE3d::exp(_speed * dT);
-  return std::make_unique<PoseWithCovariance>(
-    predictedRelativePose * _lastPose->pose(), MatXd::Identity(6, 6));
+  return Pose(predictedRelativePose * _lastPose);
 }
-PoseWithCovariance::UnPtr MotionModelMovingAverage::pose() const
-{
-  return std::make_unique<PoseWithCovariance>(_lastPose->pose(), _lastPose->cov());
-}
-PoseWithCovariance::UnPtr MotionModelMovingAverage::speed() const
-{
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(_speed), _lastPose->cov());
-}
+Pose MotionModelMovingAverage::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
+Pose MotionModelMovingAverage::speed() const { return Pose(SE3d::exp(_speed), _lastPose.cov()); }
 
 MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(
   const Matd<12, 12> & covProcess, const Matd<12, 12> & covState)
 : MotionModel(),
   _kalman(std::make_unique<EKFConstantVelocitySE3>(
     covProcess, std::numeric_limits<Timestamp>::max(), covState)),
-  _lastPose(std::make_shared<PoseWithCovariance>(SE3d(), MatXd::Identity(6, 6))),
+  _lastPose(SE3d(), MatXd::Identity(6, 6)),
   _lastT(0U)
 {
 }
-PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
+Pose MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
-  Pose::UnPtr pose;
+  Pose pose = _lastPose;
   if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
-    pose = std::make_unique<PoseWithCovariance>(*_lastPose);
   } else {
     auto state = _kalman->predict(timestamp);
-    pose = std::make_unique<PoseWithCovariance>(state->pose(), state->covPose());
+    pose = Pose(state->pose(), state->covPose());
   }
   LOG_ODOM(DEBUG) << format(
-    "Prediction: {} +- {}", pose->mean().transpose(), pose->twistCov().diagonal().transpose());
+    "Prediction: {} +- {}", pose.mean().transpose(), pose.twistCov().diagonal().transpose());
   return pose;
 }
-void MotionModelConstantSpeedKalman::update(
-  PoseWithCovariance::ConstShPtr pose, Timestamp timestamp)
+void MotionModelConstantSpeedKalman::update(const Pose & relativePose, Timestamp timestamp)
 {
-  //Since the system model of kalman is x' = x * exp(v * dt) we have to compute v*dT = log(x.inv() * x')
-  auto motion = (_lastPose->pose().inverse() * pose->pose()).log();
-  _lastPose = pose;
-  _lastT = timestamp;
   if (_kalman->t() == std::numeric_limits<Timestamp>::max()) {
-    _kalman->reset(timestamp, {pose->twist(), Vec6d::Zero(), _kalman->state()->covariance()});
+    _kalman->reset(timestamp, {Vec6d::Zero(), Vec6d::Zero(), _kalman->state()->covariance()});
   } else {
-    _kalman->update(motion, Matd<6, 6>::Identity(), timestamp);
+    _kalman->update(relativePose.twist(), relativePose.twistCov(), timestamp);
   }
+  _lastPose = pose();
+  _lastT = timestamp;
 }
 
-void MotionModelConstantSpeedKalman::update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur)
-{
-  if (frameCur->t() < frameRef->t()) {
-    throw pd::Exception("New timestamp is older than last one!");
-  }
-  auto speed =
-    algorithm::computeRelativeTransform(frameRef->pose().pose(), frameCur->pose().pose()).log();
-  _lastPose = std::make_shared<PoseWithCovariance>(frameCur->pose());
-  _lastT = frameCur->t();
-  _kalman->update(speed, Matd<6, 6>::Identity(), frameCur->t());
-}
-
-PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::speed() const
+Pose MotionModelConstantSpeedKalman::speed() const
 {
   auto state = _kalman->state();
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->velocity()), state->covVelocity());
+  return Pose(SE3d::exp(state->velocity()), state->covVelocity());
 }
 
-PoseWithCovariance::UnPtr MotionModelConstantSpeedKalman::pose() const
+Pose MotionModelConstantSpeedKalman::pose() const
 {
   auto state = _kalman->state();
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(state->pose()), state->covPose());
+  return Pose(SE3d::exp(state->pose()), state->covPose());
 }
 
 }  // namespace pd::vslam

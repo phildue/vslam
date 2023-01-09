@@ -66,6 +66,8 @@ public:
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
     double minGradient = 0,
     least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
+
+  virtual ~InverseCompositional() = default;
   std::shared_ptr<const Warp> warp() { return _w; }
 
   void updateX(const Eigen::VectorXd & dx) override;

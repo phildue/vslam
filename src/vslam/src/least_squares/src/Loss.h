@@ -34,6 +34,7 @@ public:
   typedef std::shared_ptr<const Loss> ConstShPtr;
   typedef std::unique_ptr<const Loss> ConstUnPtr;
 
+  virtual ~Loss() = default;
   Loss(Scaler::ShPtr scaler = std::make_shared<Scaler>()) : _scaler(scaler) {}
   //l(r)
   virtual double compute(double r) const = 0;

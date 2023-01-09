@@ -28,12 +28,12 @@ public:
   typedef std::shared_ptr<const MotionModel> ConstShPtr;
   typedef std::unique_ptr<const MotionModel> ConstUnPtr;
 
-  virtual void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) = 0;
-  virtual void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) = 0;
+  virtual ~MotionModel() = default;
+  virtual void update(const Pose & relativePose, Timestamp timestamp) = 0;
 
-  virtual PoseWithCovariance::UnPtr predictPose(uint64_t timestamp) const = 0;
-  virtual PoseWithCovariance::UnPtr pose() const = 0;
-  virtual PoseWithCovariance::UnPtr speed() const = 0;
+  virtual Pose predictPose(uint64_t timestamp) const = 0;
+  virtual Pose pose() const = 0;
+  virtual Pose speed() const = 0;
 };
 class MotionModelNoMotion : public MotionModel
 {
@@ -43,15 +43,14 @@ public:
   typedef std::shared_ptr<const MotionModelNoMotion> ConstShPtr;
   typedef std::unique_ptr<const MotionModelNoMotion> ConstUnPtr;
   MotionModelNoMotion();
-  void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) override;
-  void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) override;
-  PoseWithCovariance::UnPtr predictPose(Timestamp UNUSED(timestamp)) const override;
-  PoseWithCovariance::UnPtr pose() const override;
-  PoseWithCovariance::UnPtr speed() const override;
+  void update(const Pose & relativePose, Timestamp timestamp) override;
+  Pose predictPose(Timestamp UNUSED(timestamp)) const override;
+  Pose pose() const override;
+  Pose speed() const override;
 
 protected:
   Vec6d _speed = Vec6d::Zero();
-  PoseWithCovariance::ConstShPtr _lastPose;
+  Pose _lastPose;
   Timestamp _lastT;
 };
 class MotionModelConstantSpeed : public MotionModelNoMotion
@@ -61,8 +60,11 @@ public:
   typedef std::unique_ptr<MotionModelConstantSpeed> UnPtr;
   typedef std::shared_ptr<const MotionModelConstantSpeed> ConstShPtr;
   typedef std::unique_ptr<const MotionModelConstantSpeed> ConstUnPtr;
-  MotionModelConstantSpeed();
-  PoseWithCovariance::UnPtr predictPose(Timestamp timestamp) const override;
+  MotionModelConstantSpeed(const Mat6d & covariance = Mat6d::Identity());
+  Pose predictPose(Timestamp timestamp) const override;
+
+private:
+  Mat6d _covariance;
 };
 
 class MotionModelMovingAverage : public MotionModel
@@ -73,17 +75,16 @@ public:
   typedef std::shared_ptr<const MotionModelMovingAverage> ConstShPtr;
   typedef std::unique_ptr<const MotionModelMovingAverage> ConstUnPtr;
   MotionModelMovingAverage(Timestamp timeFrame);
-  void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) override;
-  void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) override;
-  PoseWithCovariance::UnPtr predictPose(Timestamp timestamp) const override;
-  PoseWithCovariance::UnPtr pose() const override;
-  PoseWithCovariance::UnPtr speed() const override;
+  void update(const Pose & relativePose, Timestamp timestamp) override;
+  Pose predictPose(Timestamp timestamp) const override;
+  Pose pose() const override;
+  Pose speed() const override;
 
 protected:
   const Timestamp _timeFrame;
   Trajectory::UnPtr _traj;
   Vec6d _speed = Vec6d::Zero();
-  PoseWithCovariance::ConstShPtr _lastPose;
+  Pose _lastPose;
   Timestamp _lastT;
 };
 class MotionModelConstantSpeedKalman : public MotionModel
@@ -94,16 +95,15 @@ public:
   typedef std::shared_ptr<const MotionModelConstantSpeedKalman> ConstShPtr;
   typedef std::unique_ptr<const MotionModelConstantSpeedKalman> ConstUnPtr;
   MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess, const Matd<12, 12> & covState);
-  void update(PoseWithCovariance::ConstShPtr pose, Timestamp timestamp) override;
-  void update(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur) override;
+  void update(const Pose & pose, Timestamp timestamp) override;
 
-  PoseWithCovariance::UnPtr predictPose(Timestamp timestamp) const override;
-  PoseWithCovariance::UnPtr pose() const override;
-  PoseWithCovariance::UnPtr speed() const override;
+  Pose predictPose(Timestamp timestamp) const override;
+  Pose pose() const override;
+  Pose speed() const override;
 
 private:
   const EKFConstantVelocitySE3::UnPtr _kalman;
-  PoseWithCovariance::ConstShPtr _lastPose;
+  Pose _lastPose;
   Timestamp _lastT;
 };
 }  // namespace pd::vslam

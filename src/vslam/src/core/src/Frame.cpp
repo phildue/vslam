@@ -274,9 +274,9 @@ void Frame::computePyramid(size_t nLevels, double s)
   _depth.resize(nLevels);
 
   for (size_t i = 1; i < nLevels; i++) {
-    DepthMap depthBlur =
-      algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-    _depth[i] = algorithm::resize(depthBlur, s);
+    //DepthMap depthBlur =
+    //  algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
+    _depth[i] = algorithm::resize(_depth[i - 1], s);
   }
 }
 

@@ -20,6 +20,7 @@
 #ifndef VSLAM_VISUALS_H
 #define VSLAM_VISUALS_H
 
+#define WITHOUT_NUMPY
 #include <matplotlibcpp.h>
 
 #include <memory>
@@ -42,6 +43,7 @@ public:
   typedef std::unique_ptr<const Drawable> ConstPtr;
   typedef std::shared_ptr<Drawable> ShPtr;
   typedef std::shared_ptr<const Drawable> ConstShPtr;
+  virtual ~Drawable() = default;
 
   virtual cv::Mat draw() const = 0;
 };
@@ -64,11 +66,23 @@ public:
   typedef std::unique_ptr<const Plot> ConstPtr;
   typedef std::shared_ptr<Plot> ShPtr;
   typedef std::shared_ptr<const Plot> ConstShPtr;
-
+  virtual ~Plot() = default;
   virtual void plot() const = 0;
   virtual std::string csv() const = 0;
+  virtual std::string id() const { return ""; }
 };
+class Csv
+{
+public:
+  typedef std::unique_ptr<Csv> Ptr;
+  typedef std::unique_ptr<const Csv> ConstPtr;
+  typedef std::shared_ptr<Csv> ShPtr;
+  typedef std::shared_ptr<const Csv> ConstShPtr;
+  virtual ~Csv() = default;
 
+  virtual std::string csv() const = 0;
+  virtual std::string id() const = 0;
+};
 class Histogram : public Plot
 {
 public:
@@ -81,52 +95,6 @@ public:
   std::string csv() const override { return ""; }
 };
 
-class PlotLevenbergMarquardt : public Plot
-{
-public:
-  PlotLevenbergMarquardt(
-    int nIterations, const Eigen::VectorXd & chi2, const Eigen::VectorXd & dChi2,
-    const Eigen::VectorXd & chi2pred, const Eigen::VectorXd & lambda,
-    const Eigen::VectorXd & stepSize, const Eigen::VectorXd & rho)
-  : _chi2(chi2),
-    _chi2pred(chi2pred),
-    _lambda(lambda),
-    _stepSize(stepSize),
-    _nIterations(nIterations),
-    _dChi2(dChi2),
-    _rho(rho)
-  {
-  }
-
-  void plot() const override;
-  std::string csv() const override;
-
-private:
-  const Eigen::VectorXd _chi2;
-  const Eigen::VectorXd _chi2pred;
-  const Eigen::VectorXd _lambda;
-  const Eigen::VectorXd _stepSize;
-  const int _nIterations;
-  const Eigen::VectorXd _dChi2;
-  const Eigen::VectorXd _rho;
-};
-
-class PlotGaussNewton : public Plot
-{
-public:
-  PlotGaussNewton(int nIterations, const Eigen::VectorXd & chi2, const Eigen::VectorXd & stepSize)
-  : _chi2(chi2), _stepSize(stepSize), _nIterations(nIterations)
-  {
-  }
-
-  void plot() const override;
-  std::string csv() const override;
-
-private:
-  const Eigen::VectorXd _chi2;
-  const Eigen::VectorXd _stepSize;
-  const int _nIterations;
-};
 }  // namespace pd::vslam::vis
 
 #endif  // VSLAM_LOG_H

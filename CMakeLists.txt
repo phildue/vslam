@@ -59,13 +59,21 @@ rclcpp_components_register_nodes(
     vslam_ros_nodes
     "vslam_ros::NodeResultWriter"
     "vslam_ros::NodeReplayer"
-    "vslam_ros::NodeGtLoader"
 )
 rclcpp_components_register_node(
     vslam_ros_nodes
     PLUGIN "vslam_ros::NodeMapping"
     EXECUTABLE nodeMapping
 )
+rclcpp_components_register_node(
+    vslam_ros_nodes
+    PLUGIN "vslam_ros::NodeGtLoader"
+    EXECUTABLE nodeEvaluation
+)
+
+add_executable(composition_evaluation src/ros/compositions/evaluation.cpp)
+target_link_libraries(composition_evaluation vslam_ros_nodes)
+
 ament_target_dependencies(${PROJECT_NAME}
   OpenCV
   Eigen3
@@ -111,10 +119,10 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/)
 
 install(
-  TARGETS ${PROJECT_NAME} vslam_ros_nodes
+  TARGETS ${PROJECT_NAME} vslam_ros_nodes nodeMapping nodeEvaluation composition_evaluation
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION lib
   INCLUDES DESTINATION include)
 
 

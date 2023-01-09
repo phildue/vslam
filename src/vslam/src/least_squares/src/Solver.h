@@ -29,6 +29,7 @@ public:
 
   size_t nParameters() const { return _nParameters; }
   Problem(size_t nParameters) : _nParameters(nParameters) {}
+  virtual ~Problem() = default;
 
   virtual void updateX(const Eigen::VectorXd & dx) = 0;
   virtual void setX(const Eigen::VectorXd & x) = 0;
@@ -62,7 +63,8 @@ public:
     MatXd covariance() const;
   };
 
-  virtual Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) = 0;
+  virtual ~Solver() = default;
+  virtual Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) const = 0;
 };
 }  // namespace pd::vslam::least_squares
 #endif

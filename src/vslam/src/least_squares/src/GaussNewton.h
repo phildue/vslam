@@ -37,7 +37,7 @@ public:
     double minStepSize, size_t maxIterations, double minGradient, double minReduction,
     double maxIncrease);
 
-  typename Solver::Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) override;
+  typename Solver::Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) const override;
 
 private:
   const double _minStepSize;

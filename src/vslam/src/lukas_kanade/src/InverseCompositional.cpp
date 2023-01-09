@@ -14,7 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
-#include <execution>
 
 #include "InverseCompositional.h"
 #include "core/core.h"
@@ -69,11 +68,11 @@ InverseCompositional::InverseCompositional(
   _w(w0),
   _loss(l),
   _prior(prior),
-  _J(Eigen::MatrixXd::Zero(_T.rows() * _T.cols(), w0->nParameters())),
+  _J(Eigen::MatrixXd::Zero(interestPoints.size(), w0->nParameters())),
   _interestPoints(interestPoints.size())
 {
   Eigen::MatrixXd steepestDescent = Eigen::MatrixXd::Zero(_T.rows(), _T.cols());
-  std::atomic<size_t> idx = 0U;
+  size_t idx = 0U;
   std::for_each(interestPoints.begin(), interestPoints.end(), [&](auto kp) {
     const auto Jw = _w->J(kp.x(), kp.y());
     const auto Jwi = Jw.row(0) * dTx(kp.y(), kp.x()) + Jw.row(1) * dTy(kp.y(), kp.x());
@@ -135,13 +134,6 @@ least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEq
     });
   }
   auto ne = std::make_shared<least_squares::NormalEquations>(_J, r, w);
-  if (ne->nConstraints() > 1) {
-    ne->A().noalias() = ne->A() / static_cast<double>(ne->nConstraints());
-    ne->b().noalias() = ne->b() / static_cast<double>(ne->nConstraints());
-    ne->chi2() = ne->chi2() / static_cast<double>(ne->nConstraints());
-  }
-
-  _prior->apply(ne, _w->x());
 
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;

@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "GaussNewton.h"
+#include "PlotSolver.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam::least_squares
@@ -28,6 +29,7 @@ GaussNewton::GaussNewton(double minStepSize, size_t maxIterations)
   _maxIncrease(minStepSize)
 {
   Log::get("solver");
+  LOG_IMG("Solver");
 }
 
 GaussNewton::GaussNewton(
@@ -40,9 +42,10 @@ GaussNewton::GaussNewton(
   _maxIncrease(maxIncrease)
 {
   Log::get("solver");
+  LOG_IMG("Solver");
 }
 
-Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
+Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem) const
 {
   SOLVER(INFO) << "Solving Problem for " << problem->nParameters() << " parameters.";
   TIMED_FUNC(timerF);
@@ -111,7 +114,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
       break;
     }
   }
-  LOG_IMG("SolverGN") << std::make_shared<vis::PlotGaussNewton>(r->iteration, r->chi2, r->stepSize);
+  LOG_IMG("Solver") << std::make_shared<PlotGaussNewton>(r->iteration - 1, r->chi2, r->stepSize);
   return r;
 }
 

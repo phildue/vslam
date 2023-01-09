@@ -41,7 +41,7 @@ public:
   Frame(
     const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t = 0U,
     const PoseWithCovariance & pose = {});
-
+  virtual ~Frame() = default;
   std::uint64_t id() const { return _id; }
 
   const Image & intensity(size_t level = 0) const { return _intensity.at(level); }

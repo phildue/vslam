@@ -28,6 +28,7 @@ namespace pd::vslam::lukas_kanade
 class InverseCompositionalStacked : public least_squares::Problem
 {
 public:
+  virtual ~InverseCompositionalStacked() = default;
   InverseCompositionalStacked(const std::vector<std::shared_ptr<InverseCompositional>> & frames);
   std::shared_ptr<const Warp> warp() { return _frames[0]->warp(); }
 

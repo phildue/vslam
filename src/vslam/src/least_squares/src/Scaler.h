@@ -32,7 +32,7 @@ public:
     double offset;
     double scale;
   };
-
+  virtual ~Scaler() = default;
   virtual Scale compute(const VecXd & UNUSED(r)) const { return {0.0, 1.0}; }
 };
 

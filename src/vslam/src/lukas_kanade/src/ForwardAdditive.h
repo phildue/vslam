@@ -25,6 +25,7 @@ namespace pd::vslam::lukas_kanade
 class ForwardAdditive : public least_squares::Problem
 {
 public:
+  virtual ~ForwardAdditive() = default;
   ForwardAdditive(
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0,

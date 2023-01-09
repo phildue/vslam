@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "Warp.h"
-
+#include <iostream>
 #include <memory>
 
+#include "Warp.h"
 #include "core/core.h"
 namespace pd::vslam::lukas_kanade
 {
@@ -145,6 +145,7 @@ WarpSE3::WarpSE3(
 {
   _x = _se3.log();
 }
+
 void WarpSE3::updateAdditive(const Eigen::VectorXd & dx)
 {
   _se3 = _se3 * Sophus::SE3d::exp(dx);

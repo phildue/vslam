@@ -32,6 +32,7 @@ public:
   virtual size_t nParameters() { return _nParameters; }
   Warp(size_t nParameters) : _nParameters(nParameters), _x(Eigen::VectorXd::Zero(nParameters)) {}
   Warp(size_t nParameters, const Eigen::VectorXd & x) : _nParameters(nParameters), _x(x) {}
+  virtual ~Warp() = default;
   virtual void updateAdditive(const Eigen::VectorXd & dx) = 0;
   virtual void updateCompositional(const Eigen::VectorXd & dx) = 0;
   virtual Eigen::Vector2d apply(int u, int v) const = 0;
@@ -95,6 +96,7 @@ public:
   WarpSE3(
     const SE3d & poseCur, const std::vector<Vec3d> & pcl, size_t width, Camera::ConstShPtr camRef,
     Camera::ConstShPtr camCur, const SE3d & poseRef = {});
+  virtual ~WarpSE3() = default;
   void updateAdditive(const Eigen::VectorXd & dx);
   void updateCompositional(const Eigen::VectorXd & dx);
 

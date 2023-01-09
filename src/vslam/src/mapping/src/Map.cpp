@@ -30,7 +30,7 @@ void Map::insert(Frame::ShPtr frame, bool isKeyFrame)
 {
   LOG_MAPPING(DEBUG) << "Inserting new frame [" << frame->id() << "]";
   if (isKeyFrame) {
-    LOG_MAPPING(DEBUG) << "Is keyframe [" << frame->id() << "]";
+    LOG_MAPPING(INFO) << "Is keyframe [" << frame->id() << "]";
     if (_keyFrames.size() >= _maxKeyFrames) {
       removeLastKeyFrame();
     }
@@ -46,6 +46,9 @@ void Map::insert(Frame::ShPtr frame, bool isKeyFrame)
   }
 
   removeUnobservedPoints();
+  LOG_MAPPING(INFO) << "#Frames [" << _frames.size() << "]"
+                    << " #Keyframes: [" << _keyFrames.size() << "]"
+                    << " #Points: [" << _points.size() << "]";
 }
 std::vector<Point3D::ShPtr> Map::points()
 {
@@ -229,7 +232,7 @@ void Map::removeLastFrame()
 void Map::removeLastKeyFrame()
 {
   auto oldKf = _keyFrames.back();
-  LOG_MAPPING(DEBUG) << "Deleting oldest frame: [" << oldKf->id() << "].";
+  LOG_MAPPING(DEBUG) << "Deleting oldest key frame: [" << oldKf->id() << "].";
 
   _keyFrames.pop_back();
   oldKf->removeFeatures();
