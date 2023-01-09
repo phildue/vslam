@@ -65,8 +65,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
     create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive));*/
   _cliReplayer = create_client<std_srvs::srv::SetBool>("set_ready");
 
-  declare_parameter("frame.base_link_id", _fixedFrameId);
-  declare_parameter("frame.frame_id", _frameId);
+  declare_parameter("replayMode", true);
+  declare_parameter("tf.base_link_id", _fixedFrameId);
+  declare_parameter("tf.frame_id", _frameId);
+  _fixedFrameId = get_parameter("tf.base_link_id").as_string();
+  _frameId = get_parameter("tf.frame_id").as_string();
   declare_parameter("odometry.method", "rgbd");
   declare_parameter("odometry.trackKeyFrame", false);
   declare_parameter("odometry.includeKeyFrame", false);
@@ -152,7 +155,9 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   if (get_parameter("prediction.model").as_string() == "NoMotion") {
     _motionModel = std::make_shared<MotionModelNoMotion>();
   } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
-    _motionModel = std::make_shared<MotionModelConstantSpeed>();
+    auto covarianceVector = get_parameter("prediction.constant_speed.covariance").as_double_array();
+    Eigen::Map<Vec6d> covDiag(covarianceVector.data());
+    _motionModel = std::make_shared<MotionModelConstantSpeed>(covDiag.asDiagonal());
   } else if (get_parameter("prediction.model").as_string() == "Kalman") {
     Matd<12, 12> covProcess = Matd<12, 12>::Identity();
     for (int i = 0; i < 6; i++) {
@@ -237,20 +242,21 @@ void NodeMapping::processFrame(
   TIMED_FUNC(timerF);
 
   try {
-    auto frame = createFrame(msgImg, msgDepth);
+    Frame::ShPtr frame = createFrame(msgImg, msgDepth);
 
-    auto frameRef = _map->lastFrame();
+    frame->set(_motionModel->predictPose(frame->t()));
 
-    if (frameRef) {
-      frame->set(frameRef->pose());
-      Pose::ConstShPtr pose = _rgbdAlignment->align(frameRef, frame);
-      frame->set(*pose);
-      //frame->set(*_motionModel->pose());
-    }
+    Frame::ConstShPtr frameRef = _trackKeyFrame ? _map->lastKf() : _map->lastFrame();
+
+    Pose relativePose = frameRef ? _rgbdAlignment->align(frameRef, frame) : Pose();
+
+    _motionModel->update(relativePose, frame->t());
+
+    frame->set(_motionModel->pose());
 
     _keyFrameSelection->update(frame);
 
-    _map->insert(frame, _keyFrameSelection->isKeyFrame());
+    _map->insert(frame, _keyFrameSelection->isKeyFrame() || _map->keyFrames().empty());
 
     publish(msgImg, frame);
 
@@ -258,7 +264,7 @@ void NodeMapping::processFrame(
   } catch (const std::runtime_error & e) {
     RCLCPP_WARN(this->get_logger(), "%s", e.what());
   }
-}  // namespace vslam_ros
+}
 
 void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
@@ -273,26 +279,27 @@ void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 }
 void NodeMapping::signalReplayer()
 {
-  if (get_parameter("use_sim_time").as_bool()) {
-    while (!_cliReplayer->wait_for_service(1s)) {
-      if (!rclcpp::ok()) {
-        throw std::runtime_error("Interrupted while waiting for the service. Exiting.");
-      }
-      RCLCPP_INFO(get_logger(), "Replayer Service not available, waiting again...");
-    }
-    auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
-    request->data = true;
-    using ServiceResponseFuture = rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture;
-    auto response_received_callback = [this](ServiceResponseFuture future) {
-      if (!future.get()->success) {
-        RCLCPP_WARN(get_logger(), "Last replayer signal result was not valid.");
-      }
-    };
-    _cliReplayer->async_send_request(request, response_received_callback);
+  if (!get_parameter("replayMode").as_bool()) {
+    return;
   }
-}  // namespace vslam_ros
+  while (!_cliReplayer->wait_for_service(1s)) {
+    if (!rclcpp::ok()) {
+      throw std::runtime_error("Interrupted while waiting for the service. Exiting.");
+    }
+    RCLCPP_INFO(get_logger(), "Replayer Service not available, waiting again...");
+  }
+  auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+  request->data = true;
+  using ServiceResponseFuture = rclcpp::Client<std_srvs::srv::SetBool>::SharedFuture;
+  auto response_received_callback = [this](ServiceResponseFuture future) {
+    if (!future.get()->success) {
+      RCLCPP_WARN(get_logger(), "Last replayer signal result was not valid.");
+    }
+  };
+  _cliReplayer->async_send_request(request, response_received_callback);
+}
 
-Frame::ShPtr NodeMapping::createFrame(
+Frame::UnPtr NodeMapping::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
@@ -309,7 +316,7 @@ Frame::ShPtr NodeMapping::createFrame(
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
-  auto f = std::make_shared<Frame>(img, depth, _camera, t);
+  auto f = std::make_unique<Frame>(img, depth, _camera, t);
   f->computePyramid(get_parameter("odometry.rgbd.pyramid.levels").as_double_array().size());
   f->computeDerivatives();
   f->computePcl();
@@ -330,12 +337,11 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
     x(4), x(5), cx.norm());
 
   RCLCPP_INFO(
-    get_logger(),
-    format(
-      "Translational Speed: {} [m/s] | Cov | {}",
-      _motionModel->speed()->SE3().translation().transpose() * 1e9,
-      _motionModel->speed()->twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
-      .c_str());
+    get_logger(), format(
+                    "Translational Speed: {} [m/s] | Cov | {}",
+                    _motionModel->speed().SE3().translation().transpose() * 1e9,
+                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
+                    .c_str());
 
   // Send the transformation from fixed frame to origin of optical frame
   // TODO(unknown): possibly only needs to be sent once
@@ -358,7 +364,7 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
   odom.header = msgImg->header;
   odom.header.frame_id = _frameId;
   vslam_ros::convert(frame->pose().inverse(), odom.pose);
-  vslam_ros::convert(_motionModel->speed()->inverse(), odom.twist);
+  vslam_ros::convert(_motionModel->speed().inverse(), odom.twist);
   _pubOdom->publish(odom);
 
   geometry_msgs::msg::PoseStamped poseStamped;
@@ -434,6 +440,7 @@ void NodeMapping::cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr ms
   _camInfoReceived = true;
 
   RCLCPP_INFO(get_logger(), "Camera calibration received. Node ready.");
+  signalReplayer();
 }
 
 }  // namespace vslam_ros

@@ -65,7 +65,7 @@ public:
     sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
 
   void cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg);
-  pd::vslam::Frame::ShPtr createFrame(
+  pd::vslam::Frame::UnPtr createFrame(
     sensor_msgs::msg::Image::ConstSharedPtr msgImg,
     sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const;
 
