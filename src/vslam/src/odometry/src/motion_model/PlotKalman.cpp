@@ -20,6 +20,7 @@ using fmt::format;
 
 namespace pd::vslam
 {
+PlotKalman::PlotKalman() : _plot(std::make_shared<PlotKalman::Plot>()) { LOG_IMG("Kalman"); }
 void PlotKalman::append(const Entry & e)
 {
   _plot->append(e);
@@ -33,6 +34,7 @@ void PlotKalman::Plot::append(const Entry & e)
   //TODO avoid memory leak;
   _entries.push_back(e);
   _timestamps.push_back(e.t);
+  _t = e.t;
 }
 void PlotKalman::Plot::plot() const
 {
@@ -193,11 +195,33 @@ void operator<<(PlotKalman::ShPtr log, const PlotKalman::Entry & e) { log->appen
 
 PlotKalman::ShPtr PlotKalman::make()
 {
-  if (Log::DISABLED) {
-    return std::make_shared<PlotKalmanNull>();
-  } else {
-    return std::make_shared<PlotKalman>();
-  }
+  return Log::DISABLED ? std::make_shared<PlotKalmanNull>() : std::make_shared<PlotKalman>();
 }
+
+std::string PlotKalman::Plot::csv() const
+{
+  std::stringstream ss;
+  ss << "Timestamp,px,py,pz,rx,ry,rz,vtx,vty,vtz,vrx,vry,vrz";
+  for (int i = 0; i < 12; i++) {
+    for (int j = 0; j < 12; j++) {
+      ss << ",cov" << i << j;
+    }
+  }
+  ss << ",";
+  ss << "evtx,evty,evtz,evrx,evry,evrz,";
+  ss << "mvtx,mvty,mvtz,mvrx,mvry,mvrz";
+  ss << "\r\n";
+  for (const auto & e : _entries) {
+    ss << e.t << ",";
+    ss << utils::toCsv(e.state, ",") << ",";
+    ss << utils::toCsv(e.covState, ",") << ",";
+    ss << utils::toCsv(e.expectation, ",") << ",";
+    ss << utils::toCsv(e.measurement, ",");
+
+    ss << "\r\n";
+  }
+  return ss.str();
+}
+std::string PlotKalman::Plot::id() const { return format("{}", _t); }
 
 }  // namespace pd::vslam

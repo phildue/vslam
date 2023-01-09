@@ -16,10 +16,10 @@
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
+#include "PlotAlignment.h"
 #include "RgbdAlignment.h"
 #include "lukas_kanade/lukas_kanade.h"
 #include "utils/utils.h"
-
 using fmt::format;
 using fmt::print;
 template <typename T>
@@ -76,6 +76,7 @@ public:
   typedef std::shared_ptr<const LukasKanadeWithGaussianPrior> ConstShPtr;
   typedef std::unique_ptr<const LukasKanadeWithGaussianPrior> ConstUnPtr;
 
+  virtual ~LukasKanadeWithGaussianPrior() = default;
   LukasKanadeWithGaussianPrior(
     const SE3d & se3Init, const Pose & prior, Frame::ConstShPtr f0, Frame::ConstShPtr f1, int level,
     const std::vector<Eigen::Vector2i> & keyPoints, least_squares::Loss::ShPtr loss)
@@ -132,7 +133,8 @@ RgbdAlignment::RgbdAlignment(
   _initializeOnPrediction(initializeOnPrediction),
   _minDepth(minDepth),
   _maxDepth(maxDepth),
-  _maxPointsPart(maxPointsPart)
+  _maxPointsPart(maxPointsPart),
+  _distanceToBorder(5)
 {
   std::transform(
     minGradient.begin(), minGradient.end(), std::back_inserter(_minGradient2),
@@ -144,16 +146,17 @@ RgbdAlignment::RgbdAlignment(
   LOG_IMG("Image");
   LOG_IMG("Template");
   LOG_IMG("Depth");
+  LOG_IMG("Alignment");
 }
 
-PoseWithCovariance::UnPtr RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
+Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   Vec6d twist = _initializeOnPrediction
                   ? algorithm::computeRelativeTransform(from->pose().SE3(), to->pose().SE3()).log()
                   : Vec6d::Zero();
 
   Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
-
+  PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
   for (int level = from->nLevels() - 1; level >= 0; level--) {
     TIMED_SCOPE(timerI, "align at level ( " + std::to_string(level) + " )");
     LOG_ODOM(INFO) << "Aligning at level: [" << level << "] image size: [" << from->width(level)
@@ -164,20 +167,22 @@ PoseWithCovariance::UnPtr RgbdAlignment::align(Frame::ConstShPtr from, Frame::Co
     LOG_IMG("Depth") << from->depth(level);
 
     least_squares::Problem::ShPtr p = setupProblem(twist, from, to, level);
-
-    least_squares::Solver::Results::ConstUnPtr r = _solver->solve(p);
+    least_squares::Solver::Results::ConstShPtr r = _solver->solve(p);
 
     if (r->hasSolution()) {
       twist = r->solution();
       covariance = r->covariance();
-      //TODO threshold on maximum speed ?
     }
+
     LOG_ODOM(INFO) << format(
       "Aligned with {} iterations: {} +- {}", r->iteration, twist.transpose(),
       covariance.diagonal().transpose());
+
+    plot << PlotAlignment::Entry({level, r});
   }
-  //TODO how to convert the covariance to the covariance of the absolute pose?
-  return std::make_unique<PoseWithCovariance>(SE3d::exp(twist) * from->pose().SE3(), covariance);
+  LOG_IMG("Alignment") << plot;
+
+  return Pose(twist, covariance);
 }
 
 std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, int level) const
@@ -186,12 +191,13 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
     frame->dIx(level).array().pow(2) + frame->dIy(level).array().pow(2);
+  const auto & depth = frame->depth(level);
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (
-      p >= _minGradient2[level] && _minDepth < frame->depth(level)(v, u) &&
-      frame->depth(level)(v, u) < _maxDepth && frame->depth(level)(v - 1, u) > _minDepth &&
-      frame->depth(level)(v - 1, u - 1) > _minDepth && frame->depth(level)(v + 1, u) > _minDepth &&
-      frame->depth(level)(v + 1, u + 1) > _minDepth && frame->depth(level)(v, u + 1) > _minDepth) {
+      frame->withinImage({u, v}, _distanceToBorder, level) && p >= _minGradient2[level] &&
+      _minDepth < depth(v, u) && depth(v, u) < _maxDepth && depth(v - 1, u) > _minDepth &&
+      depth(v - 1, u - 1) > _minDepth && depth(v + 1, u) > _minDepth &&
+      depth(v + 1, u + 1) > _minDepth && depth(v, u + 1) > _minDepth) {
       interestPoints.emplace_back(u, v);
     }
   });
@@ -230,11 +236,12 @@ least_squares::Problem::UnPtr RgbdAlignment::setupProblem(
       SE3d::exp(twistInit), to->pose(), from, to, level, interestPoints, _loss);
 
   } else {
+    //auto warp = std::make_shared<WarpSE3>(SE3d::exp(twistInit), from, to, level);
+    auto warp = std::make_shared<lukas_kanade::WarpSE3>(
+      SE3d::exp(twistInit), from->pcl(level, false), from->width(level), from->camera(level),
+      to->camera(level));
     return std::make_unique<lukas_kanade::InverseCompositional>(
-      from->intensity(level), from->dIx(level), from->dIy(level), to->intensity(level),
-      std::make_shared<lukas_kanade::WarpSE3>(
-        SE3d::exp(twistInit), from->pcl(level, false), from->width(level), from->camera(level),
-        to->camera(level)),
+      from->intensity(level), from->dIx(level), from->dIy(level), to->intensity(level), warp,
       interestPoints, _loss);
   }
 }

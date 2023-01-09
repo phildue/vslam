@@ -34,9 +34,8 @@ public:
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
-  virtual PoseWithCovariance::UnPtr align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
-  virtual PoseWithCovariance::UnPtr align(
-    const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const
+  virtual Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
+  virtual Pose align(const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const
   {
     throw pd::Exception("Method not implemented.");
   }
@@ -49,7 +48,7 @@ protected:
   const double _minDepth;
   const double _maxDepth;
   const std::vector<double> _maxPointsPart;
-
+  const int _distanceToBorder;
   std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;
   least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;

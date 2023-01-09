@@ -30,17 +30,21 @@ public:
     MatXd covState, covExpectation, covMeasurement, kalmanGain;
   };
 
+  PlotKalman();
+
   class Plot : public vis::Plot
   {
   public:
     void plot() const override;
-    std::string csv() const override { return ""; }
+    std::string csv() const override;
     void append(const Entry & e);
     const std::vector<Timestamp> & timestamps() { return _timestamps; }
+    std::string id() const override;
 
   private:
     std::vector<Entry> _entries;
     std::vector<Timestamp> _timestamps;
+    Timestamp _t;
     void createExpMeasPlot(
       const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
       const std::string & name) const;
@@ -62,7 +66,7 @@ public:
       const std::vector<double> & t, const std::vector<double> & ce,
       const std::string & name) const;
   };
-  PlotKalman() : _plot(std::make_shared<PlotKalman::Plot>()) {}
+
   virtual void append(const Entry & e);
   static ShPtr make();
   Trajectory::ConstShPtr & trajectoryGt() { return _trajGt; }

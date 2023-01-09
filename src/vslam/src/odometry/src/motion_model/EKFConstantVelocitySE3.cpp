@@ -48,7 +48,7 @@ EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(
 
   Vec6d motion = _state->velocity() * dt;
   manif::SE3d::Jacobian J_xp, J_xv;
-  Xp = Xp.plus(manif::SE3Tangentd(motion), J_xp, J_xv);  // X * exp(u), with Jacobians
+  Xp = Xp.lplus(manif::SE3Tangentd(motion), J_xp, J_xv);  // exp(u) * X with Jacobians
   Xv = Xv;
   J_f_x = Matd<12, 12>::Zero();
   J_f_x.block(0, 0, 6, 6) = J_xp;
@@ -156,7 +156,7 @@ Matd<12, 12> EKFConstantVelocitySE3::computeJ_f_x(const SE3d & pose, const SE3d 
   manif::SE3d pose_(pose.translation(), manif::SO3d(pose.unit_quaternion()));
   manif::SE3Tangentd twist_(vdt.log());
   manif::SE3d::Jacobian J_f1_pose, J_f1_twist;
-  pose_.plus(twist_, J_f1_pose, J_f1_twist);
+  pose_.lplus(twist_, J_f1_pose, J_f1_twist);
   J_f_x.block(0, 0, 6, 6) = J_f1_pose;
   J_f_x.block(6, 0, 6, 6) = J_f1_twist;
 
