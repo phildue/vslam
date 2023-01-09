@@ -83,6 +83,7 @@ Sophus::SE3d computeRelativeTransform(const Sophus::SE3d & t0, const Sophus::SE3
 {
   return t1 * t0.inverse();
 }
+Pose computeRelativeTransform(const Pose & t0, const Pose & t1) { return t1 * t0.inverse(); }
 Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat)
 {
   return normalize(mat, mat.minCoeff(), mat.maxCoeff());

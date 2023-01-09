@@ -26,6 +26,10 @@ PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0)
 
   return PoseWithCovariance(p1 * p0.pose(), R * C * R.transpose());
 }
+PoseWithCovariance operator*(const Pose & p1, const PoseWithCovariance & p0)
+{
+  return p1.SE3() * p0;  //TODO take into account covariance of p1 ?
+}
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstUnPtr & p0)
 {
   return p1 * (*p0);

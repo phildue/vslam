@@ -48,7 +48,7 @@ public:
   const MatXd & dIx(size_t level = 0) const;
   const MatXd & dIy(size_t level = 0) const;
 
-  const PoseWithCovariance & pose() const { return _pose; }
+  const Pose & pose() const { return _pose; }
 
   const Timestamp & t() const { return _t; }
   Camera::ConstShPtr camera(size_t level = 0) const { return _cam.at(level); }
@@ -91,7 +91,7 @@ private:
   MatXdVec _dIx, _dIy;
   Camera::ConstShPtrVec _cam;
   Timestamp _t;
-  PoseWithCovariance _pose;  //<< Pf = pose * Pw
+  Pose _pose;  //<< Pf = pose * Pw
   std::vector<Feature2D::ShPtr> _features;
   DepthMapVec _depth;
   std::vector<std::vector<Vec3d>> _pcl;

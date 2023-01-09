@@ -200,6 +200,7 @@ Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat, double min, double max);
 
 /// Computes T01 from T0 and T1
 Sophus::SE3d computeRelativeTransform(const Sophus::SE3d & t0, const Sophus::SE3d & t1);
+Pose computeRelativeTransform(const Pose & t0, const Pose & t1);
 
 MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rtref2cur, const Mat3d & Kcur);
 MatXd computeF(Frame::ConstShPtr frameRef, Frame::ConstShPtr frameCur);
