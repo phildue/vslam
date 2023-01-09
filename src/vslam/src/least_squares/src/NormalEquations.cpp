@@ -17,17 +17,16 @@
 namespace pd::vslam::least_squares
 {
 NormalEquations::NormalEquations(size_t nParameters)
-: _A(Eigen::MatrixXd::Zero(nParameters, nParameters)),
+: _nParameters(nParameters),
+  _A(Eigen::MatrixXd::Zero(nParameters, nParameters)),
   _b(Eigen::VectorXd::Zero(nParameters)),
   _chi2(0),
   _nConstraints(0)
 {
 }
-NormalEquations::NormalEquations(const Eigen::MatrixXd & A, const Eigen::VectorXd & b, double chi2, size_t nConstraints)
-:_A(A),
-_b(b),
-_chi2(chi2),
-_nConstraints(nConstraints)
+NormalEquations::NormalEquations(
+  const Eigen::MatrixXd & A, const Eigen::VectorXd & b, double chi2, size_t nConstraints)
+: _nParameters(A.cols()), _A(A), _b(b), _chi2(chi2), _nConstraints(nConstraints)
 {
 }
 
@@ -35,6 +34,7 @@ NormalEquations::NormalEquations(const std::vector<NormalEquations> & normalEqua
 {
   _A = normalEquations[0].A();
   _b = normalEquations[0].b();
+  _nParameters = _A.cols();
   _nConstraints = normalEquations[0].nConstraints();
   _chi2 = normalEquations[0].chi2();
   for (size_t i = 1; i < normalEquations.size(); i++) {
@@ -48,6 +48,7 @@ NormalEquations::NormalEquations(const std::vector<NormalEquations::ConstShPtr> 
 {
   _A = normalEquations[0]->A();
   _b = normalEquations[0]->b();
+  _nParameters = _A.cols();
   _nConstraints = normalEquations[0]->nConstraints();
   _chi2 = normalEquations[0]->chi2();
   for (size_t i = 1; i < normalEquations.size(); i++) {
@@ -64,7 +65,8 @@ NormalEquations::NormalEquations(
   auto Jtw = J.transpose() * w.asDiagonal();
   _A = Jtw * J;
   _b = Jtw * r;
-  _chi2 = (w.asDiagonal() * r).transpose() * r;
+  _nParameters = _A.cols();
+     _chi2 = (w.asDiagonal() * r).transpose() * r;
   _nConstraints = r.rows();
 }
 

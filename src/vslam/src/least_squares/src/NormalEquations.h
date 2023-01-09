@@ -57,8 +57,10 @@ public:
   const Eigen::VectorXd & b() const { return _b; }
   const double & chi2() const { return _chi2; }
   const size_t & nConstraints() const { return _nConstraints; }
+  const size_t & nParameters() const { return _nParameters; }
 
 private:
+  size_t _nParameters;
   Eigen::MatrixXd _A;
   Eigen::VectorXd _b;
   double _chi2;

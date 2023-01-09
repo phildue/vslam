@@ -28,7 +28,9 @@ VecXd Solver::Results::solution() const
 MatXd Solver::Results::covariance() const
 {
   if (hasSolution()) {
-    return normalEquations[iteration - 1]->A().inverse();
+    //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
+    auto ne = normalEquations[iteration - 1];
+    return (ne->chi2()) / (ne->nConstraints() - ne->nParameters()) * ne->A().inverse();
   } else {
     return MatXd::Zero(1, 1);
   }
