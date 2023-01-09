@@ -27,7 +27,7 @@ find_package(Sophus REQUIRED)
 target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
 find_package(TBB REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} TBB::tbb)
+#target_link_libraries(${PROJECT_NAME} TBB::tbb)
 
 # Add tests
 option(VSLAM_BUILD_TESTS "Enable to build tests" ON)
