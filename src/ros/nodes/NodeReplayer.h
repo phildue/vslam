@@ -32,30 +32,25 @@ public:
   COMPOSITION_PUBLIC
 
   NodeReplayer(const rclcpp::NodeOptions & options);
-  virtual ~NodeReplayer();
 
-  void publish(rosbag2_storage::SerializedBagMessageSharedPtr msg);
-  void publishNext();
-  void play(rcl_time_point_value_t tStart, rcl_time_point_value_t tEnd);
-  bool hasNext() { return _reader->has_next(); }
-  rcl_time_point_value_t seek(rcl_time_point_value_t t);
-
-private:
-  std::unique_ptr<rosbag2_cpp::readers::SequentialReader> open(const std::string & bagName) const;
-  void srvSetReady(
+  void replayNext();
+  void serviceReadyCb(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+
+private:
+  rcl_time_point_value_t seek(rcl_time_point_value_t t);
+  void publish(rosbag2_storage::SerializedBagMessageSharedPtr msg);
+
+  std::unique_ptr<rosbag2_cpp::readers::SequentialReader> open(const std::string & bagName) const;
   std::unique_ptr<rosbag2_cpp::readers::SequentialReader> _reader;
   bool _visualize = true;
   int _idx = 0;
   int _fNoOut = 0;
-  std::atomic<bool> _running;
-  std::thread _thread;
   rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr _pubTf;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pubImg;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pubDepth;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr _pubCamInfo;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _subOdom;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr _srvReady;
   std::condition_variable _cond;
   std::mutex _mutex;
@@ -63,10 +58,14 @@ private:
   std::string _bagName;
   std::string _syncTopic;
   double _duration;
+  rosbag2_storage::BagMetadata _meta;
   std::map<std::string, unsigned long int> _msgCtr;
   std::map<std::string, unsigned long int> _nMessages;
   rcl_time_point_value_t getStartingTime(const rosbag2_storage::BagMetadata & meta) const;
   rcl_time_point_value_t getEndTime(
     rcl_time_point_value_t tStart, const rosbag2_storage::BagMetadata & meta) const;
+  rcl_time_point_value_t _tStart, _tEnd, _tLast;
+  rclcpp::TimerBase::SharedPtr _periodicTimer;
+  rcl_time_point_value_t _tWaitingForNode, _period;
 };
 }  // namespace vslam_ros
