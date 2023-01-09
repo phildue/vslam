@@ -144,16 +144,17 @@
       },
     // Example gdb launch of a ros executable
     {
-      "name": "(gdb) Launch",
+      "name": "(gdb) Launch ROS node",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/install/lib/${input:package}/${input:program}",
-      "args": [],
+      "program": "${workspaceFolder}/install/${input:package}/lib/${input:package}/${input:program}",
+      "args": ["--ros-args","--params-file","${workspaceFolder}/config/nodeMapping.yaml"],
       "preLaunchTask": "build",
-      "stopAtEntry": true,
+      "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "externalConsole": false,
       "MIMode": "gdb",
+      "additionalSOLibSearchPath": "${workspaceFolder/install/vslam_ros/lib",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",
@@ -161,7 +162,31 @@
           "ignoreFailures": true
         }
       ]
-    }
+    },
+    {
+        "name": "(gdb) Launch Composition",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/install/vslam_ros/bin/compositionEvaluation",
+        "args": ["--ros-args","--params-file","${workspaceFolder}/config/nodeMapping.yaml",
+        "-p","bag_file:=/mnt/dataset/tum_rgbd/${input:sequence_id}",
+        "-p","gtTrajectoryFile:=/mnt/dataset/tum_rgbd/${input:sequence_id}/${input:sequence_id}-groundtruth.txt",
+        "-p","algoOutputFile:=/mnt/dataset/tum_rgbd/${input:sequence_id}/algorithm_results/${input:experiment_name}/${input:sequence_id}-algo.txt",
+        "-p","replayMode:=True"],
+        "preLaunchTask": "build",
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "additionalSOLibSearchPath": "${workspaceFolder/install/vslam_ros/lib",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
   ],
   "inputs": [
     {
