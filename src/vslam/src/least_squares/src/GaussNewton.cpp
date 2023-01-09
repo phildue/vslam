@@ -82,8 +82,8 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
 
     r->chi2(i) = ne->chi2();
 
-    const double dChi2 = i > 0 ? r->chi2(i) - r->chi2(i - 1) : 0;
-    if (i > 0 && dChi2 > _maxIncrease) {
+    const double dChi2 = i > 1 ? r->chi2(i) / r->chi2(i - 1) : 0;
+    if (i > 1 && dChi2 > _maxIncrease) {
       SOLVER(INFO) << i << " > "
                    << "CONVERGED. No improvement"
                    << " dChi2: " << dChi2 << "/" << _maxIncrease;
@@ -100,7 +100,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     SOLVER(INFO) << "Iteration: " << i << " chi2: " << r->chi2(i) << " dChi2: " << dChi2
                  << " stepSize: " << r->stepSize(i) << " Points: " << ne->nConstraints()
                  << "\nx: " << problem->x().transpose() << "\ndx: " << dx.transpose();
-    if (i > 0 && (r->stepSize(i) < _minStepSize || std::abs(ne->b().maxCoeff()) < _minGradient)) {
+    if (i > 1 && (r->stepSize(i) < _minStepSize || std::abs(ne->b().maxCoeff()) < _minGradient)) {
       SOLVER(INFO) << i << " > \n Step Size: " << r->stepSize(i) << "/" << _minStepSize
                    << "\n MinGradient: " << std::abs(ne->b().maxCoeff()) << "/" << _minGradient
                    << "\nCONVERGED. ";
