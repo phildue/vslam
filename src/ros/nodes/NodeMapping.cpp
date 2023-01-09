@@ -94,6 +94,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("keyframe_selection.idx.period", 5);
   declare_parameter("keyframe_selection.custom.min_visible_points", 50);
   declare_parameter("keyframe_selection.custom.max_translation", 0.2);
+  declare_parameter("keyframe_selection.custom.max_rotation", 1.0);
   declare_parameter("prediction.model", "NoMotion");
   declare_parameter("prediction.kalman.process_noise.pose", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.translation", 1e-15);
@@ -105,7 +106,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(get_logger(), "Setting up..");
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-  _trackKeyFrame = get_parameter("odometry.trackKeyFrame").as_bool();
+
   _includeKeyFrame = get_parameter("odometry.includeKeyFrame").as_bool();
   if (_trackKeyFrame && _includeKeyFrame) {
     throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
@@ -190,7 +191,8 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   } else if (get_parameter("keyframe_selection.method").as_string() == "custom") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
       _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int(),
-      get_parameter("keyframe_selection.custom.max_translation").as_double());
+      get_parameter("keyframe_selection.custom.max_translation").as_double(),
+      get_parameter("keyframe_selection.custom.max_rotation").as_double() / 180.0 * M_PI);
   } else if (get_parameter("keyframe_selection.method").as_string() == "never") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionNever>();
   } else {
@@ -205,6 +207,7 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
 
   _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
+  _trackKeyFrame = get_parameter("odometry.trackKeyFrame").as_bool();
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
@@ -246,11 +249,20 @@ void NodeMapping::processFrame(
 
     frame->set(_motionModel->predictPose(frame->t()));
 
-    Frame::ConstShPtr frameRef = _trackKeyFrame ? _map->lastKf() : _map->lastFrame();
+    Pose egomotion;
+    if (_trackKeyFrame) {
+      Frame::ConstShPtr frameRef = _map->lastKf();
+      if (frameRef) {
+        Pose kf2cur = _rgbdAlignment->align(frameRef, frame);
 
-    Pose relativePose = frameRef ? _rgbdAlignment->align(frameRef, frame) : Pose();
+        egomotion = (kf2cur * frameRef->pose()) * _map->lastFrame()->pose().inverse();
+      }
+    } else {
+      Frame::ConstShPtr frameRef = _map->lastFrame();
+      egomotion = frameRef ? _rgbdAlignment->align(frameRef, frame) : Pose();
+    }
 
-    _motionModel->update(relativePose, frame->t());
+    _motionModel->update(egomotion, frame->t());
 
     frame->set(_motionModel->pose());
 

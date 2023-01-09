@@ -18,10 +18,11 @@
 namespace pd::vslam
 {
 KeyFrameSelectionCustom::KeyFrameSelectionCustom(
-  Map::ConstShPtr map, std::uint64_t minVisiblePoints, double maxTranslation)
+  Map::ConstShPtr map, std::uint64_t minVisiblePoints, double maxTranslation, double maxRotation)
 : KeyFrameSelection(),
   _minVisiblePoints(minVisiblePoints),
   _maxTranslation(maxTranslation),
+  _maxRotation(maxRotation),
   _map(map),
   _visiblePoints(0)
 {
@@ -46,6 +47,10 @@ void KeyFrameSelectionCustom::update(Frame::ConstShPtr frame)
 
 bool KeyFrameSelectionCustom::isKeyFrame() const
 {
-  return _relativePose.translation().norm() > _maxTranslation || _visiblePoints < _minVisiblePoints;
+  const double rotation = std::sqrt(
+    std::pow(_relativePose.angleX(), 2) + std::pow(_relativePose.angleY(), 2) +
+    std::pow(_relativePose.angleZ(), 2));
+  return _relativePose.translation().norm() > _maxTranslation ||
+         _visiblePoints < _minVisiblePoints || rotation > _maxRotation;
 }
 }  // namespace pd::vslam

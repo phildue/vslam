@@ -133,7 +133,7 @@ Frame::ConstShPtr Map::frame(size_t idx) const
 }
 
 Frame::ConstShPtr Map::lastKf() const { return keyFrame(0); }
-Frame::ConstShPtr Map::lastFrame() const { return frame(0); }
+Frame::ConstShPtr Map::lastFrame() const { return !_frames.empty() ? frame(0) : lastKf(); }
 
 Frame::ConstShPtr Map::oldestKf() const { return keyFrame(nKeyFrames() - 1); }
 

@@ -59,13 +59,15 @@ public:
   typedef std::unique_ptr<const KeyFrameSelectionIdx> ConstUnPtr;
 
   KeyFrameSelectionCustom(
-    Map::ConstShPtr map, std::uint64_t minVisiblePoints = 80, double maxTranslation = 0.2);
+    Map::ConstShPtr map, std::uint64_t minVisiblePoints = 80, double maxTranslation = 0.2,
+    double maxRotation = 1 / 180.0 * M_PI);
   void update(Frame::ConstShPtr frame) override;
   bool isKeyFrame() const override;
 
 private:
   const uint64_t _minVisiblePoints;
   const double _maxTranslation;
+  const double _maxRotation;
   const Map::ConstShPtr _map;
   uint64_t _visiblePoints;
   SE3d _relativePose;
