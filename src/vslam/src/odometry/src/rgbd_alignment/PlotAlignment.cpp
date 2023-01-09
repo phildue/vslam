@@ -15,9 +15,13 @@ std::string PlotAlignment::csv() const
         "Size,nConstraints,H11,H12,H13,H14,H15,H16,H21,H22,H23,H24,H25,H26,H31,H32,H33,H34,H35,H36,"
         "H41,H42,H43,"
         "H44,H45,H46,H51,H52,H53,H54,H55,H56,H61,H62,H63,H64,H65,H66\r\n";
-  for (const auto level_r : _results) {
-    int _level = level_r.first;
-    auto _r = level_r.second;
+
+  for (auto level_r = _results.rbegin(); level_r != _results.rend(); ++level_r) {
+    int _level = level_r->first;
+    auto _r = level_r->second;
+
+    if (_r->iteration <= 1) continue;
+
     std::vector<double> dChi2(_r->iteration - 1);
     dChi2[0] = 0;
     for (size_t i = 1; i < _r->iteration - 1; i++) {
