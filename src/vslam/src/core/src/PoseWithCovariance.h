@@ -54,6 +54,8 @@ private:
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0);
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstUnPtr & p0);
 PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstShPtr & p0);
+PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::UnPtr & p0);
+PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ShPtr & p0);
 
 typedef PoseWithCovariance Pose;
 }  // namespace pd::vslam

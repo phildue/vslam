@@ -34,4 +34,12 @@ PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstShP
 {
   return p1 * (*p0);
 }
+PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ShPtr & p0)
+{
+  return p1 * (*p0);
+}
+PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::UnPtr & p0)
+{
+  return p1 * (*p0);
+}
 }  // namespace pd::vslam
