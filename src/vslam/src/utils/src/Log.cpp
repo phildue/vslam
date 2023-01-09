@@ -104,15 +104,45 @@ void LogImage::append(vis::Plot::ConstShPtr plot)
   if (_ctr++ % _rate != 0) {
     return;
   }
-  if (_show || _save) {
+  if (_show) {
     plot->plot();
+    vis::plt::show(_block);
+  }
+  if (_save) {
+    std::stringstream ss;
+    //ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
+    //vis::plt::save(ss.str());
+    std::string filename = format("{}/{}/{}_{}.csv", rootFolder(), _folder, _name, plot->id());
+    std::fstream fout;
+    fout.open(filename, std::ios_base::out);
+
+    if (!fout.is_open()) {
+      throw std::runtime_error("Could not open file at: " + filename);
+    }
+    fout << plot->csv();
+    fout.close();
+  }
+}
+void LogImage::append(vis::Csv::ConstShPtr csv)
+{
+  if (_ctr++ % _rate != 0) {
+    return;
+  }
+  if (_show || _save) {
     if (_show) {
-      vis::plt::show(_block);
+      std::cout << csv->csv() << std::endl;
     }
     if (_save) {
       std::stringstream ss;
-      ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
-      vis::plt::save(ss.str());
+      std::string filename = format("{}/{}/{}_{}.csv", rootFolder(), _folder, _name, csv->id());
+      std::fstream fout;
+      fout.open(filename, std::ios_base::out);
+
+      if (!fout.is_open()) {
+        throw std::runtime_error("Could not open file at: " + filename);
+      }
+      fout << csv->csv();
+      fout.close();
     }
   }
 }
@@ -177,5 +207,6 @@ void LogImage::logMat(const cv::Mat & mat)
 
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable) { log->append(drawable); }
 void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
+void operator<<(LogImage::ShPtr log, vis::Csv::ConstShPtr plot) { log->append(plot); }
 
 }  // namespace pd::vslam

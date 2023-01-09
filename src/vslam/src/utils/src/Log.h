@@ -51,6 +51,7 @@ public:
   void append(const cv::Mat & mat);
   void append(vis::Drawable::ConstShPtr drawable);
   void append(vis::Plot::ConstShPtr drawable);
+  void append(vis::Csv::ConstShPtr csv);
 
   template <typename T>
   void append(const Eigen::Matrix<T, -1, -1> & mat)
@@ -98,6 +99,7 @@ void operator<<(LogImage::ShPtr log, const Eigen::Matrix<T, -1, -1> & mat)
 }
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable);
 void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot);
+void operator<<(LogImage::ShPtr log, vis::Csv::ConstShPtr plot);
 
 class Log
 {
@@ -107,6 +109,7 @@ public:
 #else
   static constexpr bool DISABLED = false;
 #endif
+
   static std::shared_ptr<Log> get(const std::string & name);
   static std::shared_ptr<LogImage> getImageLog(const std::string & name);
   static const std::map<std::string, std::shared_ptr<Log>> & loggers() { return _logs; };

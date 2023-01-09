@@ -86,5 +86,19 @@ M loadMatCsv(const std::filesystem::path & path, char delim = ',')
     typename M::Scalar, M::RowsAtCompileTime, M::ColsAtCompileTime, Eigen::RowMajor>>(
     values.data(), rows, values.size() / rows);
 }
+template <typename Derived>
+std::string toCsv(const Eigen::DenseBase<Derived> & mat, const std::string & delim = ",")
+{
+  std::stringstream ss;
+  for (int i = 0; i < mat.rows(); i++) {
+    for (int j = 0; j < mat.cols(); j++) {
+      if (i > 0 || j > 0) {
+        ss << delim;
+      }
+      ss << mat(i, j);
+    }
+  }
+  return ss.str();
+}
 }  // namespace pd::vslam::utils
 #endif

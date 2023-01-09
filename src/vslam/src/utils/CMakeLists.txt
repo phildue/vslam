@@ -39,10 +39,14 @@ find_package(Sophus REQUIRED)
 
 target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
 
-find_package(matplotlib_cpp)
-target_link_libraries(${PROJECT_NAME} matplotlib_cpp::matplotlib_cpp)
+#find_package(matplotlib_cpp)
+#target_link_libraries(${PROJECT_NAME} matplotlib_cpp::matplotlib_cpp)
 # Avoid crash with multiple headers see https://github.com/lava/matplotlib-cpp/issues/178
-target_compile_definitions(${PROJECT_NAME} PUBLIC WITHOUT_NUMPY)
+#target_compile_definitions(${PROJECT_NAME} PUBLIC WITHOUT_NUMPY)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+find_package(PythonLibs 3.0 REQUIRED)
+target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON3_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES} ${PYTHON3_LIBRARIES})
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_FEATURE_PERFORMANCE_TRACKING)
 option(VSLAM_LOG_PERFORMANCE_TRACKING ON)
