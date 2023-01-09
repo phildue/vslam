@@ -29,6 +29,8 @@
 namespace vslam_ros
 {
 void convert(pd::vslam::Timestamp t, builtin_interfaces::msg::Time & tRos);
+void convert(const builtin_interfaces::msg::Time & tRos, pd::vslam::Timestamp & t);
+
 pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg);
 geometry_msgs::msg::Pose convert(const Sophus::SE3d & se3);
 void convert(const Sophus::SE3d & se3, geometry_msgs::msg::Twist & twist);
@@ -40,6 +42,10 @@ void convert(
   const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::PoseWithCovariance & pRos);
 void convert(
   const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::TwistWithCovariance & pRos);
+void convert(
+  const geometry_msgs::msg::PoseWithCovariance & pRos, pd::vslam::PoseWithCovariance & p);
+void convert(
+  const geometry_msgs::msg::TwistWithCovariance & pRos, pd::vslam::PoseWithCovariance & p);
 
 void convert(
   const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos);
