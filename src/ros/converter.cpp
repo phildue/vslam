@@ -24,6 +24,10 @@ void convert(pd::vslam::Timestamp t, builtin_interfaces::msg::Time & tRos)
   tRos.sec = static_cast<int32_t>(t / 1e9);
   tRos.nanosec = t - tRos.sec * 1e9;
 }
+void convert(const builtin_interfaces::msg::Time & tRos, pd::vslam::Timestamp & t)
+{
+  t = tRos.sec * 1e9 + tRos.nanosec;
+}
 pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
 {
   const double fx = msg.k[0 * 3 + 0];
@@ -125,4 +129,12 @@ void convert(
   }
   pcl::toROSMsg(pclPcl, pclRos);
 }
+void convert(const geometry_msgs::msg::PoseWithCovariance & pRos, pd::vslam::PoseWithCovariance & p)
+{
+}
+void convert(
+  const geometry_msgs::msg::TwistWithCovariance & pRos, pd::vslam::PoseWithCovariance & p)
+{
+}
+
 }  // namespace vslam_ros

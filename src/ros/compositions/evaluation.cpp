@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
+#include <functional>
 #include <memory>
+#include <string>
 
-#include "nodes/RgbdAlignmentNode.h"
+#include "nodes/NodeGtLoader.h"
+#include "nodes/NodeMapping.h"
+#include "nodes/NodeReplayer.h"
+#include "nodes/NodeResultWriter.h"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+
+using namespace std::chrono_literals;
 
 int main(int argc, char * argv[])
 {
@@ -35,7 +44,14 @@ int main(int argc, char * argv[])
 
   // Add some nodes to the executor which provide work for the executor during its "spin" function.
   // An example of available work is executing a subscription callback, or a timer callback.
-  exec.add_node(std::make_shared<vslam_ros::RgbdAlignmentNode>(options));
+  auto nodeAlgo = std::make_shared<vslam_ros::NodeMapping>(options);
+  exec.add_node(nodeAlgo);
+  auto gtLoader = std::make_shared<vslam_ros::NodeGtLoader>(options);
+  exec.add_node(gtLoader);
+  auto resultWriter = std::make_shared<vslam_ros::NodeResultWriter>(options);
+  exec.add_node(resultWriter);
+  auto replayer = std::make_shared<vslam_ros::NodeReplayer>(options);
+  exec.add_node(replayer);
 
   // spin will block until work comes in, execute work as it becomes available, and keep blocking.
   // It will only be interrupted by Ctrl-C.
