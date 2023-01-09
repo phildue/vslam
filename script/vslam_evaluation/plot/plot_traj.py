@@ -1,43 +1,81 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
-from tum.dataset_analysis import read_trajectory
+from tum.dataset_analysis import read_trajectory, ominus
 
+def compute_relative_poses(traj):
+    t = list(traj.keys())
+    relative_poses = {t[0]: np.identity(4)}
+    
+    for i in range(1, len(t)):
+        relative_poses[t[i]] = ominus(traj[t[i-1]],traj[t[i]])
+    
+    return relative_poses
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                     description='''Plot two trajectories for comparison ( xy, z )''')
-    parser.add_argument('first_file', help='first text file (format: timestamp data)')
-    parser.add_argument('second_file', help='second text file (format: timestamp data)')
+    parser.add_argument('algo_file', help='algo text file (format: timestamp data)', default='/mnt/dataset/tum_rgbd/freiburg1_floor/')
+    parser.add_argument('--gt_file', help='gt text file (format: timestamp data)')
     parser.add_argument('--show', help='if true show live', action='store_true')
-    parser.add_argument('--xy_out', help='where to save plot png xy', default="")
-    parser.add_argument('--z_out', help='where to save plot png z', default="")
+    parser.add_argument('--out', help='where to save plot png', default="")
 
     args = parser.parse_args()
 
-    files = [args.first_file, args.second_file]
-    trajs = [read_trajectory(f) for f in files]
+    files = [args.algo_file]
+    if args.gt_file:
+        files.append(args.gt_file)
+    trajs = [read_trajectory(f, matrix=True) for f in files]
+    motions = [compute_relative_poses(t) for t in trajs]
+    plt.figure(figsize=(20, 10))
 
-    # TODO alignment
+    plt.subplot(2, 2, 1)
+    plt.ylabel("$t_y   [m]$")
+    plt.xlabel("$t_x   [m]$")
+    plt.grid('both')
+    t0 = list(trajs[0].keys())[0]
+    t_to_s = 1
 
-    transs = []
     for traj in trajs:
-        transs.append(np.array([pose[:3, 3] for pose in traj.values()]))
-    plt.figure()
-    for trans in transs:
-        plt.scatter(trans[:, 0], trans[:, 1], marker=".")
-    plt.xlabel("tx")
-    plt.xlabel("ty")
-    plt.legend(files)
-    if args.xy_out:
-        plt.savefig(args.xy_out)
-    plt.figure()
-    for trans in transs:
-        plt.scatter(np.arange(trans.shape[0]), trans[:, 2], marker=".")
-    plt.xlabel("t")
-    plt.ylabel("tz")
-    plt.legend(files)
-    if args.z_out:
-        plt.savefig(args.z_out)
+        x = np.array([pose[0, 3] for _,pose in traj.items()])
+        y = np.array([pose[1, 3] for _,pose in traj.items()])
+        plt.plot(x, y, '.--')
+        plt.axis("equal")
+    plt.legend([f for f in files])
+
+    plt.subplot(2, 2, 2)
+    plt.ylabel("$t_z   [m]$")
+    plt.xlabel("$t-t_0 [s]$")
+    plt.grid('both')
+    
+    for traj in trajs:
+        z = [pose[2, 3] for _, pose in traj.items()]
+        t = [(t - t0)*t_to_s for t, _ in traj.items()]
+        plt.plot(t, z, '.--')
+    plt.legend([f for f in files])
+    plt.subplot(2, 2, 3)
+    
+    plt.ylabel("$v [m/s]$")
+    plt.xlabel("$t-t_0 [s]$")
+    plt.grid('both')
+    for motion in motions:
+        t = [(t - t0)*t_to_s for t, _ in motion.items()]
+        v = [np.linalg.norm(dpose[:3, 3]) for _,dpose in motion.items()]
+        plt.plot(t, v, '.--')
+
+    try:
+        cov = read_trajectory(args.algo_file, covariance=True)[1]
+        
+        plt.subplot(2, 2, 4)
+        plt.ylabel("$|\Sigma| $")
+        plt.xlabel("$t-t_0 [s]$")
+        plt.grid('both')
+        t = [(t - t0)*t_to_s for t, _ in cov.items()]
+        y = [np.linalg.norm(np.diag(c)) for _, c in cov.items()]
+        plt.plot(t, y, '.--')
+    except Exception as e:
+        print(e)
+    if args.out:
+        plt.savefig(args.out)
     if args.show:
         plt.show()
