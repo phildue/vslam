@@ -10,8 +10,8 @@
 #include <stereo_msgs/msg/disparity_image.hpp>
 #include <string>
 
+#include "vslam/vslam.h"
 #include "vslam_ros/visibility_control.h"
-
 namespace vslam_ros
 {
 class NodeGtLoader : public rclcpp::Node
@@ -22,10 +22,13 @@ public:
 
 private:
   void callback(const nav_msgs::msg::Odometry::ConstSharedPtr msg);
+
   const rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub;
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _pub;
   std::string _gtFileName;
-  nav_msgs::msg::Path _pathImu;
+  nav_msgs::msg::Path _pathGt;
+  pd::vslam::Trajectory::ShPtr _trajAlgo;
+  pd::vslam::Trajectory::ConstShPtr _trajGt;
 };
 }  // namespace vslam_ros
 #endif
