@@ -16,34 +16,25 @@
 #include "PoseWithCovariance.h"
 namespace pd::vslam
 {
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0)
+PoseWithCovariance PoseWithCovariance::inverse() const
 {
-  //https://robotics.stackexchange.com/questions/2556/how-to-rotate-covariance
-  const auto C = p0.cov();
-  Matd<6, 6> R = Matd<6, 6>::Zero();
-  R.block(0, 0, 3, 3) = p1.rotationMatrix();
-  R.block(3, 3, 3, 3) = p1.rotationMatrix();
-
-  return PoseWithCovariance(p1 * p0.pose(), R * C * R.transpose());
+  //See: Characterizing the Uncertainty of Jointly Distributed Poses in the Lie Algebra
+  auto T_inv = _pose.inverse();
+  auto sigma_inv = T_inv.Adj() * twistCov() * T_inv.Adj().transpose();
+  return Pose(T_inv, sigma_inv);
 }
+
 PoseWithCovariance operator*(const Pose & p1, const PoseWithCovariance & p0)
 {
-  return p1.SE3() * p0;  //TODO take into account covariance of p1 ?
-}
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstUnPtr & p0)
-{
-  return p1 * (*p0);
-}
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstShPtr & p0)
-{
-  return p1 * (*p0);
-}
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ShPtr & p0)
-{
-  return p1 * (*p0);
-}
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::UnPtr & p0)
-{
-  return p1 * (*p0);
+  auto T_01 = p1.SE3() * p0.SE3();
+  auto sigma_ij = p0.twistCov();
+  auto adj_ij = p0.SE3().Adj();
+  auto sigma_jk = p1.twistCov();
+  /*
+  Assuming the poses are independent
+  See: Characterizing the Uncertainty of Jointly Distributed Poses in the Lie Algebra
+  */
+  auto sigma_01 = sigma_ij + adj_ij * sigma_jk * adj_ij;
+  return Pose(T_01, sigma_01);
 }
 }  // namespace pd::vslam

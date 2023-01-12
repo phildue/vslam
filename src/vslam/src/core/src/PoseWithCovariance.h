@@ -45,18 +45,13 @@ public:
   Matd<6, 6> cov() const { return _cov; }
   Matd<6, 6> twistCov() const { return _cov; }
   Vec6d mean() const { return _pose.log(); }
-  PoseWithCovariance inverse() const { return PoseWithCovariance(_pose.inverse().log(), _cov); }
+  PoseWithCovariance inverse() const;
 
 private:
   SE3d _pose;
   Matd<6, 6> _cov;
 };
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance & p0);
 PoseWithCovariance operator*(const PoseWithCovariance & p1, const PoseWithCovariance & p0);
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstUnPtr & p0);
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ConstShPtr & p0);
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::UnPtr & p0);
-PoseWithCovariance operator*(const SE3d & p1, const PoseWithCovariance::ShPtr & p0);
 
 using Pose = PoseWithCovariance;
 }  // namespace pd::vslam
