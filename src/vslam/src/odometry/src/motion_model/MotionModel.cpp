@@ -40,18 +40,15 @@ void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   if (dT > 0) {
     _speed = relativePose.twist() / dT;
+    _speedCov = relativePose.twistCov() / dT;
   }
-  _lastPose = relativePose.SE3() * _lastPose;
+  _lastPose = relativePose * _lastPose;
   _lastT = timestamp;
 }
 
 Pose MotionModelNoMotion::predictPose(Timestamp UNUSED(timestamp)) const { return pose(); }
 Pose MotionModelNoMotion::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
-Pose MotionModelNoMotion::speed() const
-{
-  //TODO uncertainty ?
-  return Pose(SE3d::exp(_speed), _lastPose.cov());
-}
+Pose MotionModelNoMotion::speed() const { return Pose(SE3d::exp(_speed), _speedCov); }
 
 MotionModelConstantSpeed::MotionModelConstantSpeed(const Mat6d & covariance)
 : MotionModelNoMotion(), _covariance(covariance)
@@ -61,7 +58,7 @@ MotionModelConstantSpeed::MotionModelConstantSpeed(const Mat6d & covariance)
 Pose MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
-  const SE3d predictedRelativePose = SE3d::exp(_speed * dT);
+  const Pose predictedRelativePose(SE3d::exp(_speed * dT), dT * _speedCov);
   return Pose(predictedRelativePose * _lastPose);
 }
 
@@ -79,11 +76,12 @@ void MotionModelMovingAverage::update(const Pose & relativePose, Timestamp times
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
   }
-  auto pose = relativePose.SE3() * _lastPose;
+  auto pose = relativePose * _lastPose;
   _traj->append(timestamp, pose);
   if (_traj->tEnd() - _traj->tStart() <= _timeFrame) {
     const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
     _speed = relativePose.twist() / dT;
+    _speedCov = relativePose.twistCov() / dT;
 
   } else {
     _speed =
@@ -96,7 +94,7 @@ void MotionModelMovingAverage::update(const Pose & relativePose, Timestamp times
 Pose MotionModelMovingAverage::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
-  const SE3d predictedRelativePose = SE3d::exp(_speed * dT);
+  const Pose predictedRelativePose(SE3d::exp(_speed * dT), dT * _speedCov);
   return Pose(predictedRelativePose * _lastPose);
 }
 Pose MotionModelMovingAverage::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }

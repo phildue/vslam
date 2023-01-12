@@ -50,6 +50,7 @@ public:
 
 protected:
   Vec6d _speed = Vec6d::Zero();
+  Mat6d _speedCov = Mat6d::Identity();
   Pose _lastPose;
   Timestamp _lastT;
 };
@@ -84,6 +85,7 @@ protected:
   const Timestamp _timeFrame;
   Trajectory::UnPtr _traj;
   Vec6d _speed = Vec6d::Zero();
+  Mat6d _speedCov = Mat6d::Identity();
   Pose _lastPose;
   Timestamp _lastT;
 };
