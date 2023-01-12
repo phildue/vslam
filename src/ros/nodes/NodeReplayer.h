@@ -15,15 +15,14 @@
 #include <tf2_msgs/msg/tf_message.hpp>
 #include <thread>
 
-#include "NodeGtLoader.h"
-#include "NodeResultWriter.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/serialization.hpp"
 #include "rosbag2_cpp/reader.hpp"
 #include "rosbag2_cpp/readers/sequential_reader.hpp"
 #include "vslam_ros/visibility_control.h"
 #include "vslam_ros/vslam_ros.h"
-
+#ifndef VSLAM_ROS2_NODE_REPLAYER_H__
+#define VSLAM_ROS2_NODE_REPLAYER_H__
 namespace vslam_ros
 {
 class NodeReplayer : public rclcpp::Node
@@ -69,3 +68,4 @@ private:
   rcl_time_point_value_t _tWaitingForNode, _period;
 };
 }  // namespace vslam_ros
+#endif

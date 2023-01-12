@@ -99,6 +99,7 @@ void convert(const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::PoseWi
       pRos.covariance[i * 6 + j] = p.cov()(i, j);
     }
   }
+  //TODO check ros2 conventions for covariance ordering
 }
 void convert(
   const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::TwistWithCovariance & pRos)
@@ -109,6 +110,7 @@ void convert(
       pRos.covariance[i * 6 + j] = p.cov()(i, j);
     }
   }
+  //TODO check ros2 conventions for covariance ordering
 }
 void convert(
   const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos)
@@ -131,10 +133,46 @@ void convert(
 }
 void convert(const geometry_msgs::msg::PoseWithCovariance & pRos, pd::vslam::PoseWithCovariance & p)
 {
+  p.pose() = convert(pRos.pose);
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 6; j++) {
+      p.cov()(i, j) = pRos.covariance[i * 6 + j];
+    }
+  }
+  //TODO check ros2 conventions for covariance ordering
 }
 void convert(
-  const geometry_msgs::msg::TwistWithCovariance & pRos, pd::vslam::PoseWithCovariance & p)
+  const geometry_msgs::msg::TwistWithCovariance & twistRos, pd::vslam::PoseWithCovariance & p)
 {
+  pd::vslam::Vec6d twist;
+  twist(0) = twistRos.twist.linear.x;
+  twist(1) = twistRos.twist.linear.y;
+  twist(2) = twistRos.twist.linear.z;
+  twist(3) = twistRos.twist.angular.x;
+  twist(4) = twistRos.twist.angular.y;
+  twist(5) = twistRos.twist.angular.z;
+  p.pose() = pd::vslam::SE3d::exp(twist);
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 6; j++) {
+      p.cov()(i, j) = twistRos.covariance[i * 6 + j];
+    }
+  }
+  //TODO check ros2 conventions for covariance ordering
+}
+void convert(const pd::vslam::Trajectory & traj, nav_msgs::msg::Path & trajRos)
+{
+  trajRos.poses.reserve(traj.poses().size());
+  for (const auto t_p : traj.poses()) {
+    auto pose = t_p.second->SE3();
+    auto t = t_p.first;
+
+    geometry_msgs::msg::PoseStamped poseRos;
+    convert(t, poseRos.header.stamp);
+    poseRos.pose = vslam_ros::convert(pose);
+    poseRos.header.frame_id =
+      "world";  //TODO introduces coordinate frames t trajectory and pose class
+    trajRos.poses.push_back(poseRos);
+  }
 }
 
 }  // namespace vslam_ros

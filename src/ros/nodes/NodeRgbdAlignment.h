@@ -46,23 +46,15 @@
 
 namespace vslam_ros
 {
-class NodeMapping : public rclcpp::Node
+class NodeRgbdAlignment : public rclcpp::Node
 {
 public:
   COMPOSITION_PUBLIC
-  NodeMapping(const rclcpp::NodeOptions & options);
-
-  bool ready();
-  void processFrame(
-    sensor_msgs::msg::Image::ConstSharedPtr msgImg,
-    sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
+  NodeRgbdAlignment(const rclcpp::NodeOptions & options);
 
   void depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
 
   void imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
-  void dropCallback(
-    sensor_msgs::msg::Image::ConstSharedPtr msgImg,
-    sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
 
   void cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg);
   pd::vslam::Frame::UnPtr createFrame(
@@ -108,7 +100,11 @@ private:
 
   void publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, pd::vslam::Frame::ConstShPtr frame);
   void lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
-  void signalReplayer();
+  void triggerReplayer();
+  bool ready();
+  void processFrame(
+    sensor_msgs::msg::Image::ConstSharedPtr msgImg,
+    sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
 };
 }  // namespace vslam_ros
 

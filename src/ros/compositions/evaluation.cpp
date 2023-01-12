@@ -17,12 +17,9 @@
 #include <memory>
 #include <string>
 
-#include "nodes/NodeGtLoader.h"
-#include "nodes/NodeMapping.h"
-#include "nodes/NodeReplayer.h"
-#include "nodes/NodeResultWriter.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "vslam_ros/vslam_ros.h"
 
 using namespace std::chrono_literals;
 
@@ -44,12 +41,11 @@ int main(int argc, char * argv[])
 
   // Add some nodes to the executor which provide work for the executor during its "spin" function.
   // An example of available work is executing a subscription callback, or a timer callback.
-  auto nodeAlgo = std::make_shared<vslam_ros::NodeMapping>(options);
+  auto nodeAlgo = std::make_shared<vslam_ros::NodeRgbdAlignment>(options);
   exec.add_node(nodeAlgo);
-  auto gtLoader = std::make_shared<vslam_ros::NodeGtLoader>(options);
-  exec.add_node(gtLoader);
-  auto resultWriter = std::make_shared<vslam_ros::NodeResultWriter>(options);
-  exec.add_node(resultWriter);
+
+  auto evaluator = std::make_shared<vslam_ros::NodeEvaluation>(options);
+  exec.add_node(evaluator);
   auto replayer = std::make_shared<vslam_ros::NodeReplayer>(options);
   exec.add_node(replayer);
 

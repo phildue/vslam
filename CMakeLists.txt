@@ -48,27 +48,26 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<INSTALL_INTERFACE:include/>)
 
 add_library(vslam_ros_nodes SHARED
-  src/ros/nodes/NodeMapping.cpp
-  src/ros/nodes/NodeGtLoader.cpp
-  src/ros/nodes/NodeResultWriter.cpp
+  src/ros/nodes/NodeRgbdAlignment.cpp
+  src/ros/nodes/NodeEvaluation.cpp
   src/ros/nodes/NodeReplayer.cpp)
 target_link_libraries(vslam_ros_nodes ${PROJECT_NAME})
 set_property(TARGET vslam_ros_nodes PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 rclcpp_components_register_nodes(
     vslam_ros_nodes
-    "vslam_ros::NodeResultWriter"
-    "vslam_ros::NodeReplayer"
+    PLUGIN "vslam_ros::NodeReplayer"
+    EXECUTABLE node_replayer
 )
 rclcpp_components_register_node(
     vslam_ros_nodes
-    PLUGIN "vslam_ros::NodeMapping"
-    EXECUTABLE nodeMapping
+    PLUGIN "vslam_ros::NodeRgbdAlignment"
+    EXECUTABLE node_mapping
 )
 rclcpp_components_register_node(
     vslam_ros_nodes
-    PLUGIN "vslam_ros::NodeGtLoader"
-    EXECUTABLE nodeEvaluation
+    PLUGIN "vslam_ros::NodeEvaluation"
+    EXECUTABLE node_evaluation
 )
 
 add_executable(composition_evaluation src/ros/compositions/evaluation.cpp)
@@ -119,7 +118,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/)
 
 install(
-  TARGETS ${PROJECT_NAME} vslam_ros_nodes nodeMapping nodeEvaluation composition_evaluation
+  TARGETS ${PROJECT_NAME} vslam_ros_nodes node_mapping node_evaluation composition_evaluation
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib

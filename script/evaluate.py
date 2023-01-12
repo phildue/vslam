@@ -63,10 +63,10 @@ if args.run_algo:
     #    sequence_root:={args.sequence_root} sequence_id:={args.sequence_id} \
     #    experiment_name:={args.experiment_name} launch_without_algo:={args.launch_without_algo}")
     
-    config_file = os.path.join(args.workspace_dir, 'config', 'nodeMapping.yaml')
-    shutil.copy(config_file, os.path.join(output_dir, 'nodeMapping.yaml'))
+    config_file = os.path.join(args.workspace_dir, 'config', 'node_config.yaml')
+    shutil.copy(config_file, os.path.join(output_dir, 'node_config.yaml'))
     
-    os.system(f"{args.workspace_dir}/install/vslam_ros/bin/composition_evaluation --ros-args --params-file {config_file} \
+    os.system(f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation --ros-args --params-file {config_file} \
         -p bag_file:=/mnt/dataset/tum_rgbd/{args.sequence_id} \
         -p gtTrajectoryFile:=/mnt/dataset/tum_rgbd/{args.sequence_id}/{args.sequence_id}-groundtruth.txt \
         -p algoOutputFile:=/mnt/dataset/tum_rgbd/{args.sequence_id}/algorithm_results/{args.experiment_name}/{args.sequence_id}-algo.txt \

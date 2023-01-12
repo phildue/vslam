@@ -17,7 +17,7 @@
 // Created by phil on 07.08.21.
 //
 
-#include "NodeMapping.h"
+#include "NodeRgbdAlignment.h"
 #include "vslam_ros/converters.h"
 using namespace pd::vslam;
 using namespace std::chrono_literals;
@@ -33,8 +33,8 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 };
 namespace vslam_ros
 {
-NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
-: rclcpp::Node("NodeMapping", options),
+NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
+: rclcpp::Node("NodeRgbdAlignment", options),
   _includeKeyFrame(false),
   _camInfoReceived(false),
   _tfAvailable(false),
@@ -49,22 +49,16 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   _tfBuffer(std::make_unique<tf2_ros::Buffer>(get_clock())),
   _subCamInfo(create_subscription<sensor_msgs::msg::CameraInfo>(
     "/camera/rgb/camera_info", 10,
-    std::bind(&NodeMapping::cameraCallback, this, std::placeholders::_1))),
+    std::bind(&NodeRgbdAlignment::cameraCallback, this, std::placeholders::_1))),
   _subImage(create_subscription<sensor_msgs::msg::Image>(
     "/camera/rgb/image_color", 10,
-    std::bind(&NodeMapping::imageCallback, this, std::placeholders::_1))),
+    std::bind(&NodeRgbdAlignment::imageCallback, this, std::placeholders::_1))),
   _subDepth(create_subscription<sensor_msgs::msg::Image>(
     "/camera/depth/image", 10,
-    std::bind(&NodeMapping::depthCallback, this, std::placeholders::_1))),
+    std::bind(&NodeRgbdAlignment::depthCallback, this, std::placeholders::_1))),
   _subTf(std::make_shared<tf2_ros::TransformListener>(*_tfBuffer)),
   _queue(std::make_shared<vslam_ros::Queue>(10, 0.20 * 1e9))
 {
-  /*
-  _cliReplayer = create_client<std_srvs::srv::SetBool>(
-    "set_ready", rmw_qos_profile_services_default,
-    create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive));*/
-  _cliReplayer = create_client<std_srvs::srv::SetBool>("set_ready");
-
   declare_parameter("replayMode", true);
   declare_parameter("tf.base_link_id", _fixedFrameId);
   declare_parameter("tf.frame_id", _frameId);
@@ -104,6 +98,11 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   declare_parameter("map.n_frames", 7);
 
   RCLCPP_INFO(get_logger(), "Setting up..");
+
+  if (get_parameter("replayMode").as_bool()) {
+    _cliReplayer = create_client<std_srvs::srv::SetBool>("set_ready");
+  }
+
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
 
@@ -237,9 +236,43 @@ NodeMapping::NodeMapping(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(get_logger(), "Ready.");
 }
 
-bool NodeMapping::ready() { return _queue->size() >= 1; }
+void NodeRgbdAlignment::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
+{
+  _queue->pushDepth(msgDepth);
 
-void NodeMapping::processFrame(
+  if (ready()) {
+    try {
+      auto img = _queue->popClosestImg();
+      processFrame(
+        img, _queue->popClosestDepth(
+               rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds()));
+    } catch (const std::runtime_error & e) {
+      RCLCPP_WARN(get_logger(), "%s", e.what());
+    }
+  }
+  triggerReplayer();
+}
+
+void NodeRgbdAlignment::imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
+{
+  _queue->pushImage(msgImg);
+}
+
+void NodeRgbdAlignment::cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg)
+{
+  if (_camInfoReceived) {
+    return;
+  }
+
+  _camera = vslam_ros::convert(*msg);
+  _camInfoReceived = true;
+
+  RCLCPP_INFO(get_logger(), "Camera calibration received. Node ready.");
+  triggerReplayer();
+  _subCamInfo.reset();
+}
+
+void NodeRgbdAlignment::processFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg, sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
 {
   TIMED_FUNC(timerF);
@@ -249,20 +282,16 @@ void NodeMapping::processFrame(
 
     frame->set(_motionModel->predictPose(frame->t()));
 
-    Pose egomotion;
-    if (_trackKeyFrame) {
-      Frame::ConstShPtr frameRef = _map->lastKf();
-      if (frameRef) {
-        Pose kf2cur = _rgbdAlignment->align(frameRef, frame);
+    Pose last2cur;
+    if (_trackKeyFrame && _map->lastKf()) {
+      Pose kf2cur = _rgbdAlignment->align(_map->lastKf(), frame);
+      last2cur = (kf2cur * _map->lastKf()->pose()) * _map->lastFrame()->pose().inverse();
 
-        egomotion = (kf2cur * frameRef->pose()) * _map->lastFrame()->pose().inverse();
-      }
-    } else {
-      Frame::ConstShPtr frameRef = _map->lastFrame();
-      egomotion = frameRef ? _rgbdAlignment->align(frameRef, frame) : Pose();
+    } else if (_map->lastFrame()) {
+      last2cur = _rgbdAlignment->align(_map->lastFrame(), frame);
     }
 
-    _motionModel->update(egomotion, frame->t());
+    _motionModel->update(last2cur, frame->t());
 
     frame->set(_motionModel->pose());
 
@@ -278,7 +307,9 @@ void NodeMapping::processFrame(
   }
 }
 
-void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
+bool NodeRgbdAlignment::ready() { return _queue->size() >= 1 && _camInfoReceived; }
+
+void NodeRgbdAlignment::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
 {
   try {
     _world2origin = _tfBuffer->lookupTransform(
@@ -286,10 +317,10 @@ void NodeMapping::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
     _tfAvailable = true;
 
   } catch (tf2::TransformException & ex) {
-    RCLCPP_INFO(get_logger(), "%s", ex.what());
+    RCLCPP_WARN(get_logger(), "%s", ex.what());
   }
 }
-void NodeMapping::signalReplayer()
+void NodeRgbdAlignment::triggerReplayer()
 {
   if (!get_parameter("replayMode").as_bool()) {
     return;
@@ -311,7 +342,7 @@ void NodeMapping::signalReplayer()
   _cliReplayer->async_send_request(request, response_received_callback);
 }
 
-Frame::UnPtr NodeMapping::createFrame(
+Frame::UnPtr NodeRgbdAlignment::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
@@ -334,11 +365,18 @@ Frame::UnPtr NodeMapping::createFrame(
   f->computePcl();
   return f;
 }
-void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame::ConstShPtr frame)
+void NodeRgbdAlignment::publish(
+  sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame::ConstShPtr frame)
 {
   if (!_tfAvailable) {
     lookupTf(msgImg);
-    return;
+  } else {
+    // Send the transformation from fixed frame to origin of optical frame
+    geometry_msgs::msg::TransformStamped tfOrigin = _world2origin;
+    tfOrigin.header.stamp = msgImg->header.stamp;
+    tfOrigin.header.frame_id = _fixedFrameId;
+    tfOrigin.child_frame_id = _frameId;
+    _pubTf->sendTransform(tfOrigin);
   }
 
   auto x = frame->pose().pose().inverse().log();
@@ -354,14 +392,6 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
                     _motionModel->speed().SE3().translation().transpose() * 1e9,
                     _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
                     .c_str());
-
-  // Send the transformation from fixed frame to origin of optical frame
-  // TODO(unknown): possibly only needs to be sent once
-  geometry_msgs::msg::TransformStamped tfOrigin = _world2origin;
-  tfOrigin.header.stamp = msgImg->header.stamp;
-  tfOrigin.header.frame_id = _fixedFrameId;
-  tfOrigin.child_frame_id = _frameId;
-  _pubTf->sendTransform(tfOrigin);
 
   // Send current camera pose as estimate for pose of optical frame
   geometry_msgs::msg::TransformStamped tf;
@@ -407,55 +437,7 @@ void NodeMapping::publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame:
   }
 }
 
-void NodeMapping::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
-{
-  _queue->pushDepth(msgDepth);
-
-  if (ready()) {
-    try {
-      auto img = _queue->popClosestImg();
-      processFrame(
-        img, _queue->popClosestDepth(
-               rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds()));
-    } catch (const std::runtime_error & e) {
-      RCLCPP_WARN(get_logger(), "%s", e.what());
-    }
-  }
-  signalReplayer();
-}
-
-void NodeMapping::imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
-{
-  _queue->pushImage(msgImg);
-}
-void NodeMapping::dropCallback(
-  sensor_msgs::msg::Image::ConstSharedPtr msgImg, sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
-{
-  RCLCPP_INFO(get_logger(), "Message dropped.");
-  if (msgImg) {
-    const auto ts = msgImg->header.stamp.nanosec;
-    RCLCPP_INFO(get_logger(), "Image: %10.0f", (double)ts);
-  }
-  if (msgDepth) {
-    const auto ts = msgDepth->header.stamp.nanosec;
-    RCLCPP_INFO(get_logger(), "Depth: %10.0f", (double)ts);
-  }
-}
-
-void NodeMapping::cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg)
-{
-  if (_camInfoReceived) {
-    return;
-  }
-
-  _camera = vslam_ros::convert(*msg);
-  _camInfoReceived = true;
-
-  RCLCPP_INFO(get_logger(), "Camera calibration received. Node ready.");
-  signalReplayer();
-}
-
 }  // namespace vslam_ros
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(vslam_ros::NodeMapping)
+RCLCPP_COMPONENTS_REGISTER_NODE(vslam_ros::NodeRgbdAlignment)

@@ -1,5 +1,5 @@
-#ifndef NODE_GT_LOADER_H__
-#define NODE_GT_LOADER_H__
+#ifndef NODE_EVALUATION_H__
+#define NODE_EVALUATION_H__
 #include <iostream>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
@@ -14,18 +14,18 @@
 #include "vslam_ros/visibility_control.h"
 namespace vslam_ros
 {
-class NodeGtLoader : public rclcpp::Node
+class NodeEvaluation : public rclcpp::Node
 {
 public:
   COMPOSITION_PUBLIC
-  NodeGtLoader(const rclcpp::NodeOptions & options);
+  NodeEvaluation(const rclcpp::NodeOptions & options);
 
 private:
   void callback(const nav_msgs::msg::Odometry::ConstSharedPtr msg);
 
   const rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub;
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _pub;
-  std::string _gtFileName;
+  std::string _algoFileName;
   nav_msgs::msg::Path _pathGt;
   pd::vslam::Trajectory::ShPtr _trajAlgo;
   pd::vslam::Trajectory::ConstShPtr _trajGt;
