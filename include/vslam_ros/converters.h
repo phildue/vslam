@@ -22,6 +22,7 @@
 #include <geometry_msgs/msg/pose_with_covariance.hpp>
 #include <geometry_msgs/msg/twist_with_covariance.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sophus/se3.hpp>
@@ -49,6 +50,8 @@ void convert(
 
 void convert(
   const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos);
+
+void convert(const pd::vslam::Trajectory & traj, nav_msgs::msg::Path & trajRos);
 
 }  // namespace vslam_ros
 #endif

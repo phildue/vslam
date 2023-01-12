@@ -1,5 +1,5 @@
 
-/NodeMapping:
+/NodeRgbdAlignment:
   ros__parameters:
     tf:
       base_link_id: world
@@ -8,7 +8,7 @@
       method: rgbd
       methods: [rgbd]
       includeKeyFrame: false
-      trackKeyFrame: true
+      trackKeyFrame: false
       rgbd:
         includePrior: false
         initOnPrior: false
@@ -33,7 +33,7 @@
           max_increase: 1.1
           
     prediction:
-      model: NoMotion
+      model: Kalman
       models: [NoMotion, ConstantMotion, Kalman]
       constant_motion:
         covariance: [0.01,0.01,0.01,0.01,0.01,0.01]
