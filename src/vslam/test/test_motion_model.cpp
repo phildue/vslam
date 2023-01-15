@@ -177,7 +177,7 @@ TEST(MotionModel, Compare)
   std::map<std::string, Trajectory::ShPtr> trajectories;
   for (const auto n_m : motionModels) {
     trajectories[n_m.first] = std::make_shared<Trajectory>();
-    n_m.second->update(trajectoryAlgo->poseAt(t0), t0);
+    n_m.second->update(*trajectoryAlgo->poseAt(t0), t0);
   }
   std::uint16_t fNo = 0;
   for (auto t_p : trajectoryAlgo->poses()) {
@@ -188,7 +188,7 @@ TEST(MotionModel, Compare)
       for (const auto & n_m : motionModels) {
         const auto model = n_m.second;
         trajectories[n_m.first]->append(t, model->predictPose(t));
-        model->update(poseAlgo, t);
+        model->update(*poseAlgo, t);
       }
       timestamps.push_back((t - t0) / 1e9);
     } catch (const pd::Exception & e) {

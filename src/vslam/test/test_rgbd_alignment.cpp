@@ -29,15 +29,38 @@
 #include <opencv4/opencv2/imgproc.hpp>
 #include <opencv4/opencv2/opencv.hpp>
 
+#include "evaluation/evaluation.h"
 #include "odometry/odometry.h"
 #include "utils/utils.h"
-
 using fmt::format;
 using fmt::print;
 
 using namespace testing;
 using namespace pd;
 using namespace pd::vslam;
+
+TEST(RgbdAlignmentUncertainty, Plot)
+{
+  using namespace pd::vslam::evaluation;
+  Trajectory::ConstShPtr trajectoryGt =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-groundtruth.txt", true);
+  Trajectory::ConstShPtr trajectoryAlgo =
+    utils::loadTrajectory(TEST_RESOURCE "/rgbd_dataset_freiburg1_floor-algo.txt", true);
+
+  RelativePoseError::ConstShPtr rpe = RelativePoseError::compute(trajectoryAlgo, trajectoryGt, 1.0);
+
+  print("{}\n", rpe->toString());
+
+  auto plot = std::make_shared<PlotRPE>(
+    std::map<std::string, RelativePoseError::ConstShPtr>({{"rgbdAlignment", rpe}}));
+  auto plotCov = std::make_shared<PlotTrajectoryCovariance>(
+    std::map<std::string, Trajectory::ConstShPtr>({{"rgbdAlignment", trajectoryAlgo}}));
+  if (TEST_VISUALIZE) {
+    plot->plot();
+    plotCov->plot();
+    vis::plt::show();
+  }
+}
 
 class TestRgbdAlignment : public Test
 {
@@ -98,188 +121,3 @@ protected:
   least_squares::Loss::ShPtr _loss;
   least_squares::GaussNewton::ShPtr _solver;
 };
-
-TEST_F(TestRgbdAlignment, DISABLED_RoughEstimateLowConfidence)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  auto T01 =
-    algorithm::computeRelativeTransform(_frames[0]->pose().SE3(), _frames[1]->pose().SE3());
-  _frames[2]->set(Pose(T01 * _frames[1]->pose().SE3(), Matd<6, 6>::Identity() * 1e3));
-  auto errInit = algorithm::computeRelativeTransform(
-    T01 * _frames[1]->pose().SE3(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  print("Err Estimate. Err_t = {}\n", errInit.translation().norm());
-
-  for (auto n_aligner : _aligners) {
-    auto pose2 = n_aligner.second->align(_frames[1], _frames[2]);
-    auto err = algorithm::computeRelativeTransform(
-      pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-
-    print("{}. Err_t = {}\n", n_aligner.first, err.translation().norm());
-  }
-}
-
-TEST_F(TestRgbdAlignment, DISABLED_RoughEstimateHighConfidence)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  auto T01 =
-    algorithm::computeRelativeTransform(_frames[0]->pose().SE3(), _frames[1]->pose().SE3());
-  _frames[2]->set(Pose(T01 * _frames[1]->pose().SE3(), Matd<6, 6>::Identity() * 1e-3));
-  auto errInit = algorithm::computeRelativeTransform(
-    T01 * _frames[1]->pose().SE3(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  print("Err Estimate. Err_t = {}\n", errInit.translation().norm());
-
-  for (auto n_aligner : _aligners) {
-    auto pose2 = n_aligner.second->align(_frames[1], _frames[2]);
-    auto err = algorithm::computeRelativeTransform(
-      pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-
-    print("{}. Err_t = {}\n", n_aligner.first, err.translation().norm());
-  }
-}
-
-TEST_F(TestRgbdAlignment, DISABLED_GtHighConfidence)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  _frames[2]->set(
-    {_dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3(), Matd<6, 6>::Identity() * 1e-3});
-
-  for (auto n_aligner : _aligners) {
-    auto pose2 = n_aligner.second->align(_frames[1], _frames[2]);
-    auto err = algorithm::computeRelativeTransform(
-      pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-
-    print("{}. Err_t = {}\n", n_aligner.first, err.translation().norm());
-  }
-}
-
-TEST_F(TestRgbdAlignment, DISABLED_GtLowConfidence)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  _frames[2]->set(
-    {_dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3(), Matd<6, 6>::Identity() * 1e3});
-
-  for (auto n_aligner : _aligners) {
-    auto pose2 = n_aligner.second->align(_frames[1], _frames[2]);
-    auto err = algorithm::computeRelativeTransform(
-      pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-
-    print("{}. Err_t = {}\n", n_aligner.first, err.translation().norm());
-  }
-}
-
-TEST_F(TestRgbdAlignment, DISABLED_RgbdAlignerOpenCv)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  auto from = _frames[1];
-  auto to = _frames[2];
-
-  cv::Mat camMat, srcImage, srcDepth, dstImage, dstDepth, guess;
-  cv::eigen2cv(from->camera()->K(), camMat);
-  auto relativePose = algorithm::computeRelativeTransform(from->pose().pose(), to->pose().pose());
-  cv::eigen2cv(relativePose.matrix(), guess);
-
-  cv::rgbd::RgbdOdometry estimator(
-    camMat, cv::rgbd::Odometry::DEFAULT_MIN_DEPTH(), cv::rgbd::Odometry::DEFAULT_MAX_DEPTH(),
-    cv::rgbd::Odometry::DEFAULT_MAX_DEPTH_DIFF(), {}, {}, 1.0);
-
-  cv::eigen2cv(from->intensity(), srcImage);
-  cv::eigen2cv(from->depth(), srcDepth);
-  cv::eigen2cv(to->intensity(), dstImage);
-  cv::eigen2cv(to->depth(), dstDepth);
-  srcImage.convertTo(srcImage, CV_8UC1);
-  srcDepth.convertTo(srcDepth, CV_32FC1);
-  dstImage.convertTo(dstImage, CV_8UC1);
-  dstDepth.convertTo(dstDepth, CV_32FC1);
-  auto odomFrameFrom = cv::rgbd::OdometryFrame::create(srcImage, srcDepth);
-  auto odomFrameTo = cv::rgbd::OdometryFrame::create(dstImage, dstDepth);
-  cv::Mat RtCv;
-  MatXd Rt;
-  estimator.compute(odomFrameFrom, odomFrameTo, RtCv);
-  cv::cv2eigen(RtCv, Rt);
-  auto err0 = algorithm::computeRelativeTransform(
-    _frames[2]->pose().SE3(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  print("{}. Before Err_t = {}\n", "rgbd aligner opencv", err0.translation().norm());
-
-  SE3d se3(Rt);
-  auto pose2 =
-    std::make_unique<PoseWithCovariance>(se3 * from->pose().pose(), MatXd::Identity(6, 6));
-  auto err = algorithm::computeRelativeTransform(
-    pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  print("{}. After Err_t = {}\n", "rgbd aligner opencv", err.translation().norm());
-}
-
-TEST_F(TestRgbdAlignment, DISABLED_RgbdAlignerInverse)
-{
-  for (auto f : {_frames[0], _frames[1]}) {
-    f->set(*_dl->trajectoryGt()->poseAt(f->t()));
-  }
-  auto aligner = std::make_shared<RgbdAlignment>(_solver, _loss, false, false);
-  LOG_IMG("Correspondences")->set(false, false);
-  auto pose2 = aligner->align(_frames[1], _frames[2]);
-  auto err = algorithm::computeRelativeTransform(
-    pose2->pose(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  auto err0 = algorithm::computeRelativeTransform(
-    _frames[2]->pose().SE3(), _dl->trajectoryGt()->poseAt(_frames[2]->t())->SE3());
-  print("{}. Before Err_t = {}\n", "rgbd aligner inverse", err0.translation().norm());
-
-  print("{}. Err_t = {}\n", "rgbd aligner inverse", err.translation().norm());
-}
-
-TEST(FrameTest, DISABLED_CompareToOpenCV)
-{
-  DepthMap depth = utils::loadDepth(TEST_RESOURCE "/depth.png") / 5000.0;
-  Image img = utils::loadImage(TEST_RESOURCE "/rgb.png");
-  int nLevels = 4;
-  auto cam = tum::Camera();
-  cv::Mat camMat;
-  cv::eigen2cv(cam->K(), camMat);
-  auto f = std::make_shared<Frame>(img, depth, cam, 0);
-  f->computePyramid(nLevels);
-  f->computeDerivatives();
-  f->computePcl();
-  cv::rgbd::RgbdOdometry estimator(
-    camMat, cv::rgbd::Odometry::DEFAULT_MIN_DEPTH(), cv::rgbd::Odometry::DEFAULT_MAX_DEPTH(),
-    cv::rgbd::Odometry::DEFAULT_MAX_DEPTH_DIFF(), {}, {}, 1.0);
-  cv::Mat img_cv, depth_cv;
-  cv::eigen2cv(img, img_cv);
-  cv::eigen2cv(depth, depth_cv);
-  img_cv.convertTo(img_cv, CV_8UC1);
-  depth_cv.convertTo(depth_cv, CV_32FC1);
-  auto f_cv = cv::rgbd::OdometryFrame::create(img_cv, depth_cv);
-  estimator.prepareFrameCache(f_cv, cv::rgbd::OdometryFrame::CACHE_SRC);
-  estimator.prepareFrameCache(f_cv, cv::rgbd::OdometryFrame::CACHE_DST);
-
-  EXPECT_EQ(f_cv->pyramidImage.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramidDepth.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramidMask.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramidCloud.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramid_dI_dx.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramid_dI_dy.size(), nLevels);
-  EXPECT_EQ(f_cv->pyramidNormals.size(), 0);
-  EXPECT_EQ(f_cv->pyramidTexturedMask.size(), nLevels);
-  EXPECT_EQ(f->nLevels(), nLevels);
-  for (int i = 0; i < nLevels; i++) {
-    MatXd _intensity, _depth, _dI_dx, _dI_dy;
-    cv::cv2eigen(f_cv->pyramidImage[i], _intensity);
-    cv::cv2eigen(f_cv->pyramidDepth[i], _depth);
-    cv::cv2eigen(f_cv->pyramid_dI_dx[i], _dI_dx);
-    cv::cv2eigen(f_cv->pyramid_dI_dy[i], _dI_dy);
-
-    LOG(INFO) << "##################Level: " << i;
-
-    EXPECT_NEAR((_intensity.cast<std::uint8_t>() - f->intensity(i)).norm(), 0.0, 1e-4);
-    EXPECT_NEAR((_depth.cast<double>() - f->depth(i)).norm(), 0.0, 1e-4);
-    EXPECT_NEAR((_dI_dx.cast<double>() - f->dIx(i)).norm(), 0.0, 1e-4);
-    EXPECT_NEAR((_dI_dy.cast<double>() - f->dIy(i)).norm(), 0.0, 1e-4);
-  }
-}
