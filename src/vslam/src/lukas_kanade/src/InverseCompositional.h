@@ -52,20 +52,17 @@ public:
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0,
-    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
+    double minGradient = 0);
 
   InverseCompositional(
     const Image & templ, const MatXd & dX, const MatXd & dY, const Image & image,
     std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
-    least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
+    least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>());
 
   InverseCompositional(
     const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0,
-    least_squares::Prior::ConstShPtr prior = std::make_shared<least_squares::NoPrior>());
+    double minGradient = 0);
 
   virtual ~InverseCompositional() = default;
   std::shared_ptr<const Warp> warp() { return _w; }
@@ -82,7 +79,6 @@ protected:
   const Image _I;
   const std::shared_ptr<Warp> _w;
   const std::shared_ptr<least_squares::Loss> _loss;
-  const std::shared_ptr<const least_squares::Prior> _prior;
   Eigen::MatrixXd _J;
   struct IndexedKeyPoint
   {

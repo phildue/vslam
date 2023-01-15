@@ -22,14 +22,12 @@ namespace pd::vslam::lukas_kanade
 {
 InverseCompositional::InverseCompositional(
   const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
-  std::shared_ptr<Warp> w0, least_squares::Loss::ShPtr l, double minGradient,
-  std::shared_ptr<const least_squares::Prior> prior)
+  std::shared_ptr<Warp> w0, least_squares::Loss::ShPtr l, double minGradient)
 : least_squares::Problem(w0->nParameters()),
   _T(templ),
   _I(image),
   _w(w0),
   _loss(l),
-  _prior(prior),
   _J(Eigen::MatrixXd::Zero(_T.rows() * _T.cols(), w0->nParameters()))
 {
   // TODO(unknown): this could come from some external feature selector
@@ -61,13 +59,12 @@ InverseCompositional::InverseCompositional(
 InverseCompositional::InverseCompositional(
   const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
   std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
-  least_squares::Loss::ShPtr l, least_squares::Prior::ConstShPtr prior)
+  least_squares::Loss::ShPtr l)
 : least_squares::Problem(w0->nParameters()),
   _T(templ),
   _I(image),
   _w(w0),
   _loss(l),
-  _prior(prior),
   _J(Eigen::MatrixXd::Zero(interestPoints.size(), w0->nParameters())),
   _interestPoints(interestPoints.size())
 {
@@ -91,11 +88,10 @@ InverseCompositional::InverseCompositional(
 }
 InverseCompositional::InverseCompositional(
   const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
-  std::shared_ptr<least_squares::Loss> l, double minGradient,
-  least_squares::Prior::ConstShPtr prior)
+  std::shared_ptr<least_squares::Loss> l, double minGradient)
 : InverseCompositional(
     templ, algorithm::gradX(templ).cast<double>(), algorithm::gradY(templ).cast<double>(), image,
-    w0, l, minGradient, prior)
+    w0, l, minGradient)
 {
 }
 
@@ -124,15 +120,13 @@ least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEq
     }
   });
 
-  if (_loss) {
-    auto s = _loss->computeScale(r);
-    std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
-      if (w(kp.idx) > 0.0) {
-        W(kp.pos.y(), kp.pos.x()) = _loss->computeWeight((r(kp.idx) - s.offset) / s.scale);
-        w(kp.idx) = W(kp.pos.y(), kp.pos.x());
-      }
-    });
-  }
+  auto s = _loss->computeScale(r);
+  std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+    if (w(kp.idx) > 0.0) {
+      W(kp.pos.y(), kp.pos.x()) = _loss->computeWeight((r(kp.idx) - s.offset) / s.scale);
+      w(kp.idx) = W(kp.pos.y(), kp.pos.x());
+    }
+  });
   auto ne = std::make_shared<least_squares::NormalEquations>(_J, r, w);
 
   LOG_IMG("ImageWarped") << IWxp;
