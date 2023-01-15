@@ -17,22 +17,16 @@
 namespace pd::vslam::least_squares
 {
 bool Solver::Results::hasSolution() const { return iteration > 0; }
-VecXd Solver::Results::solution() const
+VecXd Solver::Results::solution(int iter) const
 {
-  if (hasSolution()) {
-    return x.row(iteration - 1);
-  } else {
-    return VecXd::Zero(1);
-  }
+  return iter < 0 ? x.row(iter + iteration) : x.row(iter);
 }
-MatXd Solver::Results::covariance() const
+MatXd Solver::Results::covariance(int iter) const
 {
-  if (hasSolution()) {
-    //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
-    auto ne = normalEquations[iteration - 1];
-    return (ne->chi2()) / (ne->nConstraints() - ne->nParameters()) * ne->A().inverse();
-  } else {
-    return MatXd::Zero(1, 1);
-  }
+  auto ne = iter < 0 ? normalEquations[iter + iteration] : normalEquations[iter];
+  //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
+  auto normalizer = (ne->chi2()) / (ne->nConstraints() - ne->nParameters());
+  //auto normalizer = 1.0;
+  return normalizer * ne->A().inverse();
 }
 }  // namespace pd::vslam::least_squares

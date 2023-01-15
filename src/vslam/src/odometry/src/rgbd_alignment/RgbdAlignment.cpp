@@ -176,7 +176,7 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 
     LOG_ODOM(INFO) << format(
       "Aligned with {} iterations: {} +- {}", r->iteration, twist.transpose(),
-      covariance.diagonal().transpose());
+      covariance.diagonal().cwiseSqrt().transpose());
 
     plot << PlotAlignment::Entry({level, r});
   }

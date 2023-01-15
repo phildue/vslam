@@ -56,6 +56,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
   r->stepSize = Eigen::VectorXd::Zero(_maxIterations);
   r->x = Eigen::MatrixXd::Zero(_maxIterations, problem->nParameters());
   r->normalEquations.reserve(_maxIterations);
+  r->iteration = 0;
   for (size_t i = 0; i < _maxIterations; i++) {
     TIMED_SCOPE(timerI, "solve ( " + std::to_string(i) + " )");
 

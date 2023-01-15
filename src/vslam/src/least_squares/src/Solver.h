@@ -59,8 +59,8 @@ public:
     std::vector<NormalEquations::ConstShPtr> normalEquations;
     size_t iteration;
     bool hasSolution() const;
-    VecXd solution() const;
-    MatXd covariance() const;
+    VecXd solution(int iter = -1) const;
+    MatXd covariance(int iter = -1) const;
   };
 
   virtual ~Solver() = default;

@@ -90,10 +90,14 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("keyframe_selection.custom.max_translation", 0.2);
   declare_parameter("keyframe_selection.custom.max_rotation", 1.0);
   declare_parameter("prediction.model", "NoMotion");
-  declare_parameter("prediction.kalman.process_noise.pose", 1e-15);
+  declare_parameter("prediction.kalman.process_noise.pose.translation", 1e-15);
+  declare_parameter("prediction.kalman.process_noise.pose.rotation", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.process_noise.velocity.rotation", 1e-15);
-  declare_parameter("prediction.kalman.initial_state_uncertainty", 100.0);
+  declare_parameter("prediction.kalman.initial_uncertainty.pose.translation", 1e-15);
+  declare_parameter("prediction.kalman.initial_uncertainty.pose.rotation", 1e-15);
+  declare_parameter("prediction.kalman.initial_uncertainty.velocity.translation", 1e-15);
+  declare_parameter("prediction.kalman.initial_uncertainty.velocity.rotation", 1e-15);
   declare_parameter("map.n_keyframes", 7);
   declare_parameter("map.n_frames", 7);
 
@@ -159,25 +163,40 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     Eigen::Map<Vec6d> covDiag(covarianceVector.data());
     _motionModel = std::make_shared<MotionModelConstantSpeed>(covDiag.asDiagonal());
   } else if (get_parameter("prediction.model").as_string() == "Kalman") {
-    Matd<12, 12> covProcess = Matd<12, 12>::Identity();
-    for (int i = 0; i < 6; i++) {
-      covProcess(i, i) = get_parameter("prediction.kalman.process_noise.pose").as_double();
-    }
-    covProcess(6, 6) =
-      get_parameter("prediction.kalman.process_noise.velocity.translation").as_double();
-    covProcess(7, 7) =
-      get_parameter("prediction.kalman.process_noise.velocity.translation").as_double();
-    covProcess(8, 8) =
-      get_parameter("prediction.kalman.process_noise.velocity.translation").as_double();
-    covProcess(9, 9) =
-      get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
-    covProcess(10, 10) =
-      get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
-    covProcess(11, 11) =
-      get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double();
+    const double processVarRot = std::pow(
+      get_parameter("prediction.kalman.process_noise.pose.rotation").as_double() / 180.0 * M_PI, 2);
+    const double processVarTrans =
+      std::pow(get_parameter("prediction.kalman.process_noise.pose.translation").as_double(), 2);
+    const double processVarRotVel = std::pow(
+      (get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double() / 180.0 *
+       M_PI),
+      2);
+    const double processVarTransVel = std::pow(
+      get_parameter("prediction.kalman.process_noise.velocity.translation").as_double(), 2);
+    Vec12d processVarDiag;
+    processVarDiag << processVarTrans, processVarTrans, processVarTrans, processVarRot,
+      processVarRot, processVarRot, processVarTransVel, processVarTransVel, processVarTransVel,
+      processVarRotVel, processVarRotVel, processVarRotVel;
+
+    const double stateVarRot = std::pow(
+      get_parameter("prediction.kalman.initial_uncertainty.pose.rotation").as_double() / 180.0 *
+        M_PI,
+      2);
+    const double stateVarTrans = std::pow(
+      get_parameter("prediction.kalman.initial_uncertainty.pose.translation").as_double(), 2);
+    const double stateVarRotVel = std::pow(
+      (get_parameter("prediction.kalman.initial_uncertainty.velocity.rotation").as_double() /
+       180.0 * M_PI),
+      2);
+    const double stateVarTransVel = std::pow(
+      get_parameter("prediction.kalman.initial_uncertainty.velocity.translation").as_double(), 2);
+    Vec12d stateVarDiag;
+    stateVarDiag << stateVarTrans, stateVarTrans, stateVarTrans, stateVarRot, stateVarRot,
+      stateVarRot, stateVarTransVel, stateVarTransVel, stateVarTransVel, stateVarRotVel,
+      stateVarRotVel, stateVarRotVel;
+
     _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(
-      covProcess, Matd<12, 12>::Identity() *
-                    get_parameter("prediction.kalman.initial_state_uncertainty").as_double());
+      processVarDiag.asDiagonal(), stateVarDiag.asDiagonal());
   } else {
     RCLCPP_ERROR(
       get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",
@@ -243,9 +262,12 @@ void NodeRgbdAlignment::depthCallback(sensor_msgs::msg::Image::ConstSharedPtr ms
   if (ready()) {
     try {
       auto img = _queue->popClosestImg();
-      processFrame(
-        img, _queue->popClosestDepth(
-               rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds()));
+      auto depth = _queue->popClosestDepth(
+        rclcpp::Time(img->header.stamp.sec, img->header.stamp.nanosec).nanoseconds());
+      processFrame(img, depth);
+
+      publish(img->header.stamp);
+
     } catch (const std::runtime_error & e) {
       RCLCPP_WARN(get_logger(), "%s", e.what());
     }
@@ -263,9 +285,12 @@ void NodeRgbdAlignment::cameraCallback(sensor_msgs::msg::CameraInfo::ConstShared
   if (_camInfoReceived) {
     return;
   }
+  _periodicTimer =
+    create_wall_timer(std::chrono::seconds(1), [this, msg]() { this->periodicTask(); });
 
   _camera = vslam_ros::convert(*msg);
   _camInfoReceived = true;
+  _cameraFrameId = msg->header.frame_id;
 
   RCLCPP_INFO(get_logger(), "Camera calibration received. Node ready.");
   triggerReplayer();
@@ -276,44 +301,57 @@ void NodeRgbdAlignment::processFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg, sensor_msgs::msg::Image::ConstSharedPtr msgDepth)
 {
   TIMED_FUNC(timerF);
+  Frame::ShPtr frame = createFrame(msgImg, msgDepth);
 
-  try {
-    Frame::ShPtr frame = createFrame(msgImg, msgDepth);
+  frame->set(_motionModel->predictPose(frame->t()));
 
-    frame->set(_motionModel->predictPose(frame->t()));
+  Pose last2cur;
+  if (_trackKeyFrame && _map->lastKf()) {
+    Pose kf2cur = _rgbdAlignment->align(_map->lastKf(), frame);
+    last2cur = (kf2cur * _map->lastKf()->pose()) * _map->lastFrame()->pose().inverse();
 
-    Pose last2cur;
-    if (_trackKeyFrame && _map->lastKf()) {
-      Pose kf2cur = _rgbdAlignment->align(_map->lastKf(), frame);
-      last2cur = (kf2cur * _map->lastKf()->pose()) * _map->lastFrame()->pose().inverse();
-
-    } else if (_map->lastFrame()) {
-      last2cur = _rgbdAlignment->align(_map->lastFrame(), frame);
-    }
-
-    _motionModel->update(last2cur, frame->t());
-
-    frame->set(_motionModel->pose());
-
-    _keyFrameSelection->update(frame);
-
-    _map->insert(frame, _keyFrameSelection->isKeyFrame() || _map->keyFrames().empty());
-
-    publish(msgImg, frame);
-
-    _fNo++;
-  } catch (const std::runtime_error & e) {
-    RCLCPP_WARN(this->get_logger(), "%s", e.what());
+  } else if (_map->lastFrame()) {
+    last2cur = _rgbdAlignment->align(_map->lastFrame(), frame);
   }
+
+  _motionModel->update(last2cur, frame->t());
+
+  frame->set(_motionModel->pose());
+
+  _keyFrameSelection->update(frame);
+
+  _map->insert(frame, _keyFrameSelection->isKeyFrame() || _map->keyFrames().empty());
+
+  _fNo++;
 }
 
 bool NodeRgbdAlignment::ready() { return _queue->size() >= 1 && _camInfoReceived; }
 
-void NodeRgbdAlignment::lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg)
+void NodeRgbdAlignment::periodicTask()
+{
+  if (!_tfAvailable) {
+    lookupTf();
+  }
+  auto x = _map->lastFrame()->pose().inverse().twist();
+  auto cx = _map->lastFrame()->pose().inverse().twistCov();
+
+  RCLCPP_INFO(
+    get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", x(0), x(1), x(2), x(3),
+    x(4), x(5), cx.norm());
+
+  RCLCPP_INFO(
+    get_logger(), format(
+                    "Translational Speed: {} [m/s] | Cov | {}",
+                    _motionModel->speed().SE3().translation().transpose() * 1e9,
+                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
+                    .c_str());
+}
+
+void NodeRgbdAlignment::lookupTf()
 {
   try {
-    _world2origin = _tfBuffer->lookupTransform(
-      _fixedFrameId, msgImg->header.frame_id.substr(1), tf2::TimePointZero);
+    _world2origin =
+      _tfBuffer->lookupTransform(_fixedFrameId, _cameraFrameId.substr(1), tf2::TimePointZero);
     _tfAvailable = true;
 
   } catch (tf2::TransformException & ex) {
@@ -365,53 +403,34 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   f->computePcl();
   return f;
 }
-void NodeRgbdAlignment::publish(
-  sensor_msgs::msg::Image::ConstSharedPtr msgImg, Frame::ConstShPtr frame)
+
+void NodeRgbdAlignment::publish(const rclcpp::Time & t)
 {
-  if (!_tfAvailable) {
-    lookupTf(msgImg);
-  } else {
-    // Send the transformation from fixed frame to origin of optical frame
-    geometry_msgs::msg::TransformStamped tfOrigin = _world2origin;
-    tfOrigin.header.stamp = msgImg->header.stamp;
-    tfOrigin.header.frame_id = _fixedFrameId;
-    tfOrigin.child_frame_id = _frameId;
-    _pubTf->sendTransform(tfOrigin);
-  }
-
-  auto x = frame->pose().pose().inverse().log();
-  auto cx = frame->pose().cov();
-
-  RCLCPP_INFO(
-    get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", x(0), x(1), x(2), x(3),
-    x(4), x(5), cx.norm());
-
-  RCLCPP_INFO(
-    get_logger(), format(
-                    "Translational Speed: {} [m/s] | Cov | {}",
-                    _motionModel->speed().SE3().translation().transpose() * 1e9,
-                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
-                    .c_str());
+  // tf from origin (odom) to another fixed frame (world)
+  geometry_msgs::msg::TransformStamped tfOrigin = _world2origin;
+  tfOrigin.header.stamp = t;
+  tfOrigin.header.frame_id = _fixedFrameId;
+  tfOrigin.child_frame_id = _frameId;
 
   // Send current camera pose as estimate for pose of optical frame
   geometry_msgs::msg::TransformStamped tf;
-  tf.header.stamp = msgImg->header.stamp;
+  tf.header.stamp = t;
   tf.header.frame_id = _frameId;
   tf.child_frame_id = "camera";  //camera name?
-  vslam_ros::convert(frame->pose().pose().inverse(), tf);
-  _pubTf->sendTransform(tf);
+  vslam_ros::convert(_map->lastFrame()->pose().SE3().inverse(), tf);
+  _pubTf->sendTransform({tf, tfOrigin});
 
   // Send pose, twist and path in optical frame
   nav_msgs::msg::Odometry odom;
-  odom.header = msgImg->header;
+  odom.header.stamp = t;
   odom.header.frame_id = _frameId;
-  vslam_ros::convert(frame->pose().inverse(), odom.pose);
+  vslam_ros::convert(_map->lastFrame()->pose().inverse(), odom.pose);
   vslam_ros::convert(_motionModel->speed().inverse(), odom.twist);
   _pubOdom->publish(odom);
 
   geometry_msgs::msg::PoseStamped poseStamped;
   poseStamped.header = odom.header;
-  poseStamped.pose = vslam_ros::convert(frame->pose().pose().inverse());
+  poseStamped.pose = vslam_ros::convert(_map->lastFrame()->pose().pose().inverse());
   _path.header = odom.header;
   _path.poses.push_back(poseStamped);
   _pubPath->publish(_path);

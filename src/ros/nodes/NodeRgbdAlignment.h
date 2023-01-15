@@ -57,9 +57,11 @@ public:
   void imageCallback(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
 
   void cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg);
+
   pd::vslam::Frame::UnPtr createFrame(
     sensor_msgs::msg::Image::ConstSharedPtr msgImg,
     sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const;
+  void periodicTask();
 
 private:
   bool _includeKeyFrame;
@@ -69,6 +71,7 @@ private:
   int _fNo;
   std::string _frameId;
   std::string _fixedFrameId;
+  std::string _cameraFrameId;
 
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _pubOdom;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _pubPath;
@@ -82,6 +85,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr _subDepth;
   std::shared_ptr<tf2_ros::TransformListener> _subTf;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr _cliReplayer;
+  rclcpp::TimerBase::SharedPtr _periodicTimer;
 
   const std::shared_ptr<vslam_ros::Queue> _queue;
 
@@ -98,8 +102,8 @@ private:
     _world2origin;  //transforms from fixed frame to initial pose of optical frame
   nav_msgs::msg::Path _path;
 
-  void publish(sensor_msgs::msg::Image::ConstSharedPtr msgImg, pd::vslam::Frame::ConstShPtr frame);
-  void lookupTf(sensor_msgs::msg::Image::ConstSharedPtr msgImg);
+  void publish(const rclcpp::Time & t);
+  void lookupTf();
   void triggerReplayer();
   bool ready();
   void processFrame(

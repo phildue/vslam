@@ -41,7 +41,7 @@ EKFConstantVelocitySE3::EKFConstantVelocitySE3(
 EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(
   Timestamp t, Mat12d & J_f_x) const
 {
-  const double dt = t - _t;
+  const double dt = (t - _t) / 1e9;
   // Prediction
   manif::SE3d Xp = manif::SE3Tangentd(_state->pose()).exp();
   manif::SE3d Xv = manif::SE3Tangentd(_state->velocity()).exp();
@@ -52,8 +52,12 @@ EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(
   Xv = Xv;
   J_f_x = Matd<12, 12>::Zero();
   J_f_x.block(0, 0, 6, 6) = J_xp;
-  J_f_x.block(6, 0, 6, 6) = J_xv;
-  const Matd<12, 12> P = J_f_x * _state->covariance() * J_f_x.transpose() + _covProcess;
+  J_f_x.block(0, 6, 6, 6) = J_xv;
+  const Matd<12, 12> P = (J_f_x * _state->covariance() * J_f_x.transpose()) + _covProcess;
+  LOG_ODOM(DEBUG) << "P0: " << _state->covariance();
+  LOG_ODOM(DEBUG) << "J_f_x: " << J_f_x;
+  LOG_ODOM(DEBUG) << "P: " << P;
+  LOG_ODOM(DEBUG) << "Q: " << _covProcess;
 
   return std::make_unique<State>(Xp.log().coeffs(), Xv.log().coeffs(), P);
 }
@@ -73,11 +77,13 @@ EKFConstantVelocitySE3::State::UnPtr EKFConstantVelocitySE3::predict(Timestamp t
 void EKFConstantVelocitySE3::update(
   const Vec6d & measurement, const Matd<6, 6> & covMeasurement, Timestamp t)
 {
-  const double dt = t - _t;
-  auto statePred = predict(t);
+  const double dt = (t - _t) / 1e9;
 
+  auto statePred = predict(t);
+  LOG_ODOM(DEBUG) << "dt: " << dt;
   LOG_ODOM(DEBUG) << "Prediction. Pose: " << statePred->pose().transpose()
                   << " Velocity: " << statePred->velocity().transpose();
+  LOG_ODOM(DEBUG) << "Prediction. Uncertainty: " << statePred->covariance().diagonal().transpose();
 
   // Expectation
   Vec6d motion = statePred->velocity() * dt;
@@ -85,7 +91,9 @@ void EKFConstantVelocitySE3::update(
   Matd<6, 12> Jhx = computeJ_h_x(dt);
   Matd<6, 6> E = Jhx * statePred->covariance() * Jhx.transpose();
   LOG_ODOM(DEBUG) << "Expectation: " << e.transpose();
+  LOG_ODOM(DEBUG) << "Expectation: " << E.diagonal().transpose();
   LOG_ODOM(DEBUG) << "Measurement: " << measurement.transpose();
+  LOG_ODOM(DEBUG) << "Measurement: " << covMeasurement.diagonal().transpose();
 
   // Innovation
   Vec6d y = measurement - e;
@@ -93,10 +101,11 @@ void EKFConstantVelocitySE3::update(
   _innovMats[_nSamples++ % _windowSize] = y * y.transpose();
 
   LOG_ODOM(DEBUG) << "Innovation: " << y.transpose();
+  LOG_ODOM(DEBUG) << "Innovation: " << Z.diagonal().transpose();
 
   // State update
   _K = statePred->covariance() * Jhx.transpose() * Z.inverse();
-  LOG_ODOM(DEBUG) << "Gain. |K| = " << _K;
+  LOG_ODOM(DEBUG) << "Gain. |K| = " << _K.diagonal().transpose();
   MatXd dx = _K * y;
   LOG_ODOM(DEBUG) << "State Update. Dx: = " << dx.transpose();
 
@@ -121,6 +130,10 @@ void EKFConstantVelocitySE3::reset(Timestamp t, const EKFConstantVelocitySE3::St
 {
   _t = t;
   _state = std::make_unique<State>(state);
+  LOG_ODOM(DEBUG) << "Reset at t: " << _t;
+  LOG_ODOM(DEBUG) << "Prediction. Pose: " << _state->pose().transpose()
+                  << " Velocity: " << _state->velocity().transpose();
+  LOG_ODOM(DEBUG) << "Prediction. Uncertainty: " << _state->covariance().diagonal().transpose();
 }
 Matd<12, 12> EKFConstantVelocitySE3::computeJ_f_x(const SE3d & pose, const SE3d & vdt) const
 {
@@ -217,7 +230,7 @@ C = [1 0]
   Q = sum / _stateTransitionMats.size();
 #endif
 
-  LOG_ODOM(DEBUG) << "Process Noise. Q = \n" << Q.transpose();
+  LOG_ODOM(DEBUG) << "Process Noise. Q = \n" << Q.diagonal().transpose();
   return Q;
 }
 

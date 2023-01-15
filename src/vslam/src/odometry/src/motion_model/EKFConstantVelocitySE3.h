@@ -29,9 +29,9 @@ namespace pd::vslam
      *                                twist = twist 
      *                 J_F_x:         Ad_Exp(v*dt)^(-1)
      * 
-     * Measurement Function H(x):     pose* = pose
-     *                     J_H_x:     1    
-     *                                  1
+     * Measurement Function H(x):     motion* = vel*dt
+     *                     J_H_x:     dt    
+     *                                
      *                                    
      * 
     */

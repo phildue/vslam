@@ -112,8 +112,7 @@ MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(
 Pose MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
 {
   Pose pose = _lastPose;
-  if (_kalman->t() == std::numeric_limits<uint64_t>::max()) {
-  } else {
+  if (_kalman->t() != std::numeric_limits<uint64_t>::max()) {
     auto state = _kalman->predict(timestamp);
     pose = Pose(state->pose(), state->covPose());
   }
@@ -135,7 +134,7 @@ void MotionModelConstantSpeedKalman::update(const Pose & relativePose, Timestamp
 Pose MotionModelConstantSpeedKalman::speed() const
 {
   auto state = _kalman->state();
-  return Pose(SE3d::exp(state->velocity()), state->covVelocity());
+  return Pose(SE3d::exp(state->velocity() / 1e9), state->covVelocity() / 1e9);
 }
 
 Pose MotionModelConstantSpeedKalman::pose() const

@@ -208,15 +208,28 @@ std::string PlotKalman::Plot::csv() const
     }
   }
   ss << ",";
-  ss << "evtx,evty,evtz,evrx,evry,evrz,";
-  ss << "mvtx,mvty,mvtz,mvrx,mvry,mvrz";
+  ss << "evtx,evty,evtz,evrx,evry,evrz";
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 6; j++) {
+      ss << ",ecov" << i << j;
+    }
+  }
+  ss << ",mvtx,mvty,mvtz,mvrx,mvry,mvrz";
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 6; j++) {
+      ss << ",mcov" << i << j;
+    }
+  }
   ss << "\r\n";
+
   for (const auto & e : _entries) {
     ss << e.t << ",";
     ss << utils::toCsv(e.state, ",") << ",";
     ss << utils::toCsv(e.covState, ",") << ",";
     ss << utils::toCsv(e.expectation, ",") << ",";
-    ss << utils::toCsv(e.measurement, ",");
+    ss << utils::toCsv(e.covExpectation, ",") << ",";
+    ss << utils::toCsv(e.measurement, ",") << ",";
+    ss << utils::toCsv(e.covMeasurement, ",");
 
     ss << "\r\n";
   }
