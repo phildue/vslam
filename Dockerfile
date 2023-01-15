@@ -20,7 +20,7 @@ RUN apt update && apt install -y --no-install-recommends libgtk2.0-dev libva-dev
     ros-galactic-ament-cmake-clang-format \
     ros-galactic-ament-cmake-clang-tidy \
     libfmt-dev
-RUN pip3 install opencv-python GitPython sophuspy
+RUN pip3 install opencv-python GitPython sophuspy scipy pandas wandb
 
 # Matplotlib
 WORKDIR /opt
@@ -56,7 +56,6 @@ rm build -r
 
 # manif
 RUN git clone https://github.com/artivis/manif && cd manif && mkdir build && cd build && cmake .. && make -j2 && make install && cd .. && rm build -r
-
 # ROS Dependencies
 RUN mkdir -p ros_deps_ws/src && cd ros_deps_ws/src && \
 git clone https://github.com/ros-perception/image_pipeline.git && cd image_pipeline && git checkout 457c0c70d9 && \
@@ -64,6 +63,10 @@ git clone https://github.com/ros-perception/vision_opencv.git && cd vision_openc
 cd /opt/ros_deps_ws/ && colcon build --packages-up-to vision_opencv && echo "source /opt/ros_deps_ws/install/local_setup.bash" >> /home/ros/.bashrc
 
 USER ros
+RUN echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/ros/vslam_ros/install/vslam_ros/lib" >> ~/.bashrc
+RUN echo "PYTHON_PATH=$PYTHON_PATH:/home/ros/vslam_ros/script" >> ~/.bashrc
+RUN echo "PATH=$PATH:/home/ros/.local/bin" >> ~/.bashrc
+
 WORKDIR /home/ros/
 
 FROM developer AS builder
