@@ -25,7 +25,7 @@ NodeEvaluation::NodeEvaluation(const rclcpp::NodeOptions & options)
 
   _pathGt.header.frame_id = "world";
   try {
-    _trajGt = pd::vslam::utils::loadTrajectory(get_parameter("gtTrajectoryFile").as_string());
+    _trajGt = pd::vslam::utils::loadTrajectory(get_parameter("gtTrajectoryFile").as_string(), true);
     convert(*_trajGt, _pathGt);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(
