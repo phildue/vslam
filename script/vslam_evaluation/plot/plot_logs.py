@@ -28,6 +28,6 @@ if __name__ == "__main__":
     log_dir = os.path.join(result_dir, 'log')
     for log in os.listdir(log_dir):
         if log in plots.keys():
-            plots[log](os.path.join(log_dir, log))
+            plots[log](os.path.join(log_dir, log), result_dir)
         else:
             print(f"No Display for: {log}")

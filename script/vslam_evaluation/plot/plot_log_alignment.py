@@ -4,27 +4,35 @@ import pandas as pd
 import os
 
 
-def plot_alignment(directory, summary_only=False):
+def plot_alignment(directory, directory_out, summary_only=True):
     t = []
     err = []
     iters = []
     Hs = []
+    stdTrans = []
+    stdRot = []
     nConstraints = []
+    tv = []
+    rv = []
     files = [f for f in sorted(os.listdir(directory)) if f.endswith('.csv')]
     for f_i, f in enumerate(files):
         csv_file = os.path.join(directory, f)
         df = pd.read_csv(csv_file)
 
         H = df['H11']
-        for i in range(1, 6):
-            for j in range(1, 6):
-                H += np.square(df[f'H{i}{j}'])
+        for i in range(1, 7):
+            for j in range(1, 7):
+                H += df[f'H{i}{j}']
+        stdTrans += [np.sqrt(df['H11'].iloc[-1]) + np.sqrt(df['H22'].iloc[-1]) + np.sqrt(df['H33'].iloc[-1])]
+        stdRot += [(np.sqrt(df['H55'].iloc[-1]) + np.sqrt(df['H44'].iloc[-1]) + np.sqrt(df['H66'].iloc[-1]))/np.pi * 180.0]
+
         t += [float(f.replace('Alignment_', '').replace('.csv', ''))]
         err += [df['Squared Error'][len(df['Squared Error'])-1]]
         Hs += [H[len(H)-1]]
         iters += [df['Iteration'][len(df['Iteration'])-1]]
         nConstraints += [df['nConstraints'][len(df['nConstraints'])-1]]
-
+        tv += [np.sqrt(np.square(df['tx']) + np.square(df['ty']) + np.square(df['tz'])).iloc[-1]]
+        rv += [np.sqrt(np.square(df['rx']) + np.square(df['ry']) + np.square(df['rz'])).iloc[-1]/np.pi * 180.0]
         if summary_only:
             continue
 
@@ -56,39 +64,57 @@ def plot_alignment(directory, summary_only=False):
     t /= 1e9
     err = np.array(err)
     Hs = np.array(Hs)
+    stdTrans = np.array(stdTrans)
+    stdRot = np.array(stdRot)
+
     nConstraints = np.array(nConstraints)
     iters = np.array(iters)
     plt.figure(figsize=(20, 6))
-    plt.subplot(2, 2, 1)
+    plt.subplot(2, 3, 1)
     plt.title('Squared Error')
     plt.xlabel('$t - t_0 [s]$')
     plt.ylabel('$\\bar{Chi^2}$')
     plt.grid('both')
     plt.plot(t, err)
-  
-    plt.subplot(2, 2, 2)
-    plt.title('Hs')
-    plt.xlabel('$t - t_0 [s]$')
-    plt.ylabel('$|H|$')
-    plt.grid('both')
-    plt.plot(t, Hs)
-    #plt.ylim(0, 1e-1)
 
-    plt.subplot(2, 2, 3)
-    plt.title('nConstraints')
-    plt.grid('both')
+    plt.subplot(2, 3, 5)
+    plt.title('Uncertainty Translation')
     plt.xlabel('$t - t_0 [s]$')
-    plt.ylabel('#')
-    plt.plot(t, nConstraints)
-  
-    plt.subplot(2, 2, 4)
+    plt.ylabel('$\\sigma_t [m]$')
+    plt.grid('both')
+    plt.plot(t, stdTrans)
+    # plt.ylim(0, 1e-1)
+
+    plt.subplot(2, 3, 6)
+    plt.title('Uncertainty Rotation')
+    plt.xlabel('$t - t_0 [s]$')
+    plt.ylabel('$\\sigma_r [°]$')
+    plt.grid('both')
+    plt.plot(t, stdRot)
+    
+    plt.subplot(2, 3, 4)
     plt.title('Iterations')
     plt.grid('both')
     plt.xlabel('$t - t_0 [s]$')
     plt.ylabel('#')
     plt.plot(t, iters)
+
+    plt.subplot(2, 3, 2)
+    plt.title('Translation')
+    plt.ylabel("$\\Delta t   [m]$")
+    plt.xlabel("$t-t_0 [s]$")
+    plt.grid('both')
+    plt.plot(t, tv, '.--')
+
+    plt.subplot(2, 3, 3)
+    plt.title('Rotation')
+    plt.ylabel("$\\Delta r   [°]$")
+    plt.xlabel("$t-t_0 [s]$")
+    plt.grid('both')
+    plt.plot(t, rv, '.--')
+
     plt.tight_layout()
     # plt.show()
-    plt.savefig(directory + '/alignment.png')
+    plt.savefig(directory_out + '/alignment.png')
     plt.close('all')
       
