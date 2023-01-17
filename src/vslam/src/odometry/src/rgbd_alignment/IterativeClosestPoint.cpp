@@ -41,7 +41,7 @@ IterativeClosestPoint::IterativeClosestPoint(
   _uv0.resize(idx);
 }
 
-void IterativeClosestPoint::updateX(const Eigen::VectorXd & dx) { _se3 = SE3d::exp(dx) * _se3; }
+void IterativeClosestPoint::updateX(const Eigen::VectorXd & dx) { _se3 = _se3 * SE3d::exp(-dx); }
 least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalEquations()
 {
   MatXd R = MatXd::Zero(_f0->height(_level), _f0->width(_level));
@@ -51,20 +51,20 @@ least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalE
   VecXd w = VecXd::Zero(_uv0.size());
 
   std::for_each(_uv0.begin(), _uv0.end(), [&](auto uv0) {
-    Vec3d p0t = _se3 * _f0->p3d(uv0.pos.y(), uv0.pos.x(), _level);
-    Vec2d uv1 = _f1->camera2image(p0t, _level);
-    const Vec3d & n1 = _f1->normal(uv1.y(), uv1.x(), _level);
-    const Vec3d & p1 = _f1->p3d(uv1.y(), uv1.x(), _level);
-    const Vec3d v = p1 - p0t;
-    R(uv0.pos.y(), uv0.pos.x()) = n1[0] * v.x() + n1[1] * v.y() + n1[2] * v.z();
+    const Vec3d & p0 = _f0->p3d(uv0.pos.y(), uv0.pos.x(), _level);
+    Vec2d uv1 = _f1->camera2image(_se3 * p0, _level);
+    const Vec3d & n0 = _f0->normal(uv0.pos.y(), uv0.pos.x(), _level);
+    const Vec3d & p1t = _se3.inverse() * _f1->p3d(uv1.y(), uv1.x(), _level);
+    const Vec3d v = p0 - p1t;
+    R(uv0.pos.y(), uv0.pos.x()) = n0[0] * v.x() + n0[1] * v.y() + n0[2] * v.z();
 
     if (
-      std::isfinite(n1.x()) && std::isfinite(uv1.x()) && _f1->withinImage(uv1, 7, _level) &&
-      std::abs(p0t.z() - p1.z()) <= _maxDepthDiff) {
-      Vec3d pxn = p0t.cross(n1);
+      std::isfinite(n0.x()) && std::isfinite(uv1.x()) && _f1->withinImage(uv1, 7, _level) &&
+      std::abs(p1t.z() - p0.z()) <= _maxDepthDiff) {
+      Vec3d pxn = p1t.cross(n0);
       Vec6d Ji;
-      Ji << n1, -p0t.z() * n1[1] + p0t.y() * n1[2], p0t.z() * n1[0] - p0t.x() * n1[2],
-        -p0t.y() * n1[0] + p0t.x() * n1[1];
+      Ji << n0, -p1t.z() * n0[1] + p1t.y() * n0[2], p1t.z() * n0[0] - p1t.x() * n0[2],
+        -p1t.y() * n0[0] + p1t.x() * n0[1];
       J.row(uv0.idx) = Ji;
       W(uv0.pos.y(), uv0.pos.x()) = 1.0;
       w(uv0.idx) = W(uv0.pos.y(), uv0.pos.x());
