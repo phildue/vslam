@@ -73,6 +73,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     "odometry.rgbd.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
   declare_parameter("odometry.rgbd.features.min_depth", 0.0);
   declare_parameter("odometry.rgbd.features.max_depth", 4.0);
+  declare_parameter("odometry.rgbd.features.max_depth_diff", 0.1);
   declare_parameter(
     "odometry.rgbd.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
   declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
@@ -151,6 +152,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
         get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
         get_parameter("odometry.rgbd.features.min_depth").as_double(),
         get_parameter("odometry.rgbd.features.max_depth").as_double(),
+        get_parameter("odometry.rgbd.features.max_depth_diff").as_double(),
         get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
     } else {
       _rgbdAlignment = std::make_shared<RgbdAlignment>(

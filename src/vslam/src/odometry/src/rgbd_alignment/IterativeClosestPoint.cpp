@@ -22,9 +22,11 @@ namespace pd::vslam
 {
 IterativeClosestPoint::IterativeClosestPoint(
   const SE3d & se3, Frame::ConstShPtr fRef, Frame::ConstShPtr fTo,
-  const std::vector<Eigen::Vector2i> & interestPoints, int level, least_squares::Loss::ShPtr l)
+  const std::vector<Eigen::Vector2i> & interestPoints, int level, double maxDepthDiff,
+  least_squares::Loss::ShPtr l)
 : least_squares::Problem(6),
   _level(level),
+  _maxDepthDiff(maxDepthDiff),
   _f0(fRef),
   _f1(fTo),
   _loss(l),
@@ -58,7 +60,7 @@ least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalE
 
     if (
       std::isfinite(n1.x()) && std::isfinite(uv1.x()) && _f1->withinImage(uv1, 7, _level) &&
-      std::abs(p0t.z() - p1.z()) <= 0.09) {
+      std::abs(p0t.z() - p1.z()) <= _maxDepthDiff) {
       Vec3d pxn = p0t.cross(n1);
       Vec6d Ji;
       Ji << n1, -p0t.z() * n1[1] + p0t.y() * n1[2], p0t.z() * n1[0] - p0t.x() * n1[2],

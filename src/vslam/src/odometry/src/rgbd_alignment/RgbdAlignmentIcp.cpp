@@ -34,11 +34,12 @@ namespace pd::vslam
 {
 RgbdAlignmentIcp::RgbdAlignmentIcp(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth,
+  const std::vector<double> & minGradient, double minDepth, double maxDepth, double maxDepthDiff,
   const std::vector<double> & maxPointsPart)
 : RgbdAlignment(
     solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth,
-    maxPointsPart)
+    maxPointsPart),
+  _maxDepthDiff(maxDepthDiff)
 {
 }
 
@@ -52,7 +53,7 @@ least_squares::Problem::UnPtr RgbdAlignmentIcp::setupProblem(
 
   } else {
     return std::make_unique<IterativeClosestPoint>(
-      SE3d::exp(twistInit), from, to, interestPoints, level, _loss);
+      SE3d::exp(twistInit), from, to, interestPoints, level, _maxDepthDiff, _loss);
   }
 }
 std::vector<Vec2i> RgbdAlignmentIcp::selectInterestPoints(Frame::ConstShPtr frame, int level) const

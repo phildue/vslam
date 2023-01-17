@@ -16,6 +16,7 @@
           min_gradients: [0.0,0.0,0.0,0.0]
           min_depth: 0.5
           max_depth: 4.0
+          max_depth_diff: 0.1
           max_points_part: [1.0,1.0,1.0,1.0]
         loss:
           function: None

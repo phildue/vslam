@@ -27,7 +27,7 @@ class IterativeClosestPoint : public least_squares::Problem
 public:
   IterativeClosestPoint(
     const SE3d & se3, Frame::ConstShPtr fRef, Frame::ConstShPtr fTo,
-    const std::vector<Eigen::Vector2i> & interestPoints, int level,
+    const std::vector<Eigen::Vector2i> & interestPoints, int level, double maxDepthDiff = 0.1,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>());
 
   virtual ~IterativeClosestPoint() = default;
@@ -41,6 +41,7 @@ public:
 
 protected:
   const int _level;
+  const double _maxDepthDiff;
   const Frame::ConstShPtr _f0;
   const Frame::ConstShPtr _f1;
   const std::shared_ptr<least_squares::Loss> _loss;
