@@ -20,6 +20,7 @@
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <opencv4/opencv2/core/utility.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
+#include <opencv4/opencv2/rgbd.hpp>
 
 #include "Exceptions.h"
 #include "Frame.h"
@@ -225,7 +226,6 @@ void Frame::computeDerivatives()
   for (size_t i = 0; i < nLevels(); i++) {
     cv::Mat mat;
     cv::eigen2cv(intensity(i), mat);
-    cv::GaussianBlur(mat, mat, cv::Size(3, 3), 0, 0, cv::BORDER_DEFAULT);
     cv::Mat dIdx, dIdy;
     cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
     cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
@@ -253,6 +253,68 @@ void Frame::computePcl()
   for (size_t i = 0; i < nLevels(); i++) {
     _pcl[i] = depth2pcl(depth(i), camera(i));
   }
+}
+
+void Frame::computeNormals()
+{
+  auto depth2normal = [](const DepthMap & depth) {
+    std::vector<Vec3d> normals(depth.rows() * depth.cols());
+    // TODO(unknown): replace using custom implementation
+    cv::Mat mat;
+    cv::eigen2cv(depth, mat);
+    cv::Mat dZdxm, dZdym;
+    cv::Sobel(mat, dZdxm, CV_16S, 1, 0, 3);
+    cv::Sobel(mat, dZdym, CV_16S, 0, 1, 3);
+    MatXd dZdx, dZdy;
+    cv::cv2eigen(dZdxm, dZdx);
+    cv::cv2eigen(dZdym, dZdy);
+    for (int x = 1; x < depth.cols() - 1; ++x) {
+      for (int y = 1; y < depth.rows() - 1; ++y) {
+        Vec3d n(-dZdx(y, x), -dZdy(y, x), 1);
+        normals[y * depth.cols() + x] = n / n.norm();
+      }
+    }
+    return normals;
+  };
+  cv::Mat K;
+  cv::eigen2cv(camera(0)->K(), K);
+  cv::rgbd::RgbdNormals normalComputer(depth(0).rows(), depth(0).cols(), CV_64F, K);
+  cv::Mat normals_cv;
+  cv::Mat points(height(0), width(0), CV_64FC3);
+  for (size_t y = 0; y < height(0); ++y) {
+    for (size_t x = 0; x < width(0); ++x) {
+      cv::Point3d p;
+      const auto & pp = p3d(y, x);
+      p.x = pp.x();
+      p.y = pp.y();
+      p.z = pp.z();
+      points.at<cv::Point3d>(y, x) = p;
+    }
+  }
+  normalComputer(points, normals_cv);
+  std::vector<cv::Mat> normalsPyramid;
+  cv::buildPyramid(normals_cv, normalsPyramid, nLevels());
+  _normals.resize(nLevels());
+  for (size_t i = 0; i < nLevels(); i++) {
+    _normals[i].resize(height(i) * width(i));
+    for (size_t y = 0; y < height(i); ++y) {
+      for (size_t x = 0; x < width(i); ++x) {
+        cv::Point3d p = normalsPyramid[i].at<cv::Point3d>(y, x);
+        Vec3d n(p.x, p.y, p.z);
+        _normals[i][y * width(i) + x] = n / n.norm();
+      }
+    }
+  }
+}
+
+const Vec3d & Frame::normal(int v, int u, size_t level) const
+{
+  if (level >= _normals.size()) {
+    throw pd::Exception(
+      "No Normals available for level: " + std::to_string(level) +
+      ". Available: " + std::to_string(_pcl.size()));
+  }
+  return _normals.at(level)[v * width(level) + u];
 }
 
 void Frame::computePyramid(size_t nLevels, double s)

@@ -5,20 +5,20 @@
       base_link_id: world
       frame_id: odom
     odometry:
-      method: rgbd
-      methods: [rgbd]
+      method: icp
+      methods: [rgbd, icp]
       includeKeyFrame: false
       trackKeyFrame: false
       rgbd:
         includePrior: false
         initOnPrior: false
         features:
-          min_gradients: [1.0,1.0,1.0,1.0]
-          min_depth: 0.05
-          max_depth: 50.0
+          min_gradients: [0.0,0.0,0.0,0.0]
+          min_depth: 0.5
+          max_depth: 4.0
           max_points_part: [1.0,1.0,1.0,1.0]
         loss:
-          function: tdistribution
+          function: None
           functions: [None, Huber, tdistribution]
           huber:
             c: 1.43
@@ -33,7 +33,7 @@
           max_increase: 1.1
           
     prediction:
-      model: Kalman
+      model: NoMotion
       models: [NoMotion, ConstantMotion, Kalman]
       constant_motion:
         covariance: [0.01,0.01,0.01,0.01,0.01,0.01]

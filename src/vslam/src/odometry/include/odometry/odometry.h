@@ -26,4 +26,6 @@
 #include "motion_model/KalmanFilter.h"
 #include "motion_model/MotionModel.h"
 #include "rgbd_alignment/RgbdAlignment.h"
+#include "rgbd_alignment/RgbdAlignmentIcp.h"
+
 #endif

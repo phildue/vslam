@@ -114,7 +114,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   if (_trackKeyFrame && _includeKeyFrame) {
     throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
   }
-  if (get_parameter("odometry.method").as_string() == "rgbd") {
+  if (
+    get_parameter("odometry.method").as_string() == "rgbd" ||
+    get_parameter("odometry.method").as_string() == "icp") {
     least_squares::Loss::ShPtr loss = nullptr;
     least_squares::Scaler::ShPtr scaler;
     auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
@@ -142,17 +144,27 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("odometry.rgbd.solver.min_reduction").as_double(),
       get_parameter("odometry.rgbd.solver.max_increase").as_double());
 
-    _rgbdAlignment = std::make_shared<RgbdAlignment>(
-      solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
-      get_parameter("odometry.rgbd.initOnPrior").as_bool(),
-      get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
-      get_parameter("odometry.rgbd.features.min_depth").as_double(),
-      get_parameter("odometry.rgbd.features.max_depth").as_double(),
-      get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
+    if (get_parameter("odometry.method").as_string() == "icp") {
+      _rgbdAlignment = std::make_shared<RgbdAlignmentIcp>(
+        solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
+        get_parameter("odometry.rgbd.initOnPrior").as_bool(),
+        get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
+        get_parameter("odometry.rgbd.features.min_depth").as_double(),
+        get_parameter("odometry.rgbd.features.max_depth").as_double(),
+        get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
+    } else {
+      _rgbdAlignment = std::make_shared<RgbdAlignment>(
+        solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
+        get_parameter("odometry.rgbd.initOnPrior").as_bool(),
+        get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
+        get_parameter("odometry.rgbd.features.min_depth").as_double(),
+        get_parameter("odometry.rgbd.features.max_depth").as_double(),
+        get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
+    }
 
   } else {
     RCLCPP_ERROR(
-      get_logger(), "Unknown odometry method [%s] available are: [rgbd]",
+      get_logger(), "Unknown odometry method [%s] available are: [rgbd, icp]",
       get_parameter("odometry.method").as_string().c_str());
   }
 
@@ -401,6 +413,9 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   f->computePyramid(get_parameter("odometry.rgbd.pyramid.levels").as_double_array().size());
   f->computeDerivatives();
   f->computePcl();
+  if (get_parameter("odometry.method").as_string() == "icp") {
+    f->computeNormals();
+  }
   return f;
 }
 

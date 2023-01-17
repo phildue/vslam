@@ -78,9 +78,11 @@ public:
   void computeDerivatives();
   void computePcl();
   void computePyramid(size_t nLevels, double scale = 0.5);
+  void computeNormals();
 
   const DepthMap & depth(size_t level = 0) const { return _depth.at(level); }
   const Vec3d & p3d(int v, int u, size_t level = 0) const;
+  const Vec3d & normal(int v, int u, size_t level = 0) const;
   Vec3d p3dWorld(int v, int u, size_t level = 0) const;
   std::vector<Vec3d> pcl(size_t level = 0, bool removeInvalid = false) const;
   std::vector<Vec3d> pclWorld(size_t level = 0, bool removeInvalid = false) const;
@@ -95,6 +97,7 @@ private:
   std::vector<Feature2D::ShPtr> _features;
   DepthMapVec _depth;
   std::vector<std::vector<Vec3d>> _pcl;
+  std::vector<std::vector<Vec3d>> _normals;
   static std::uint64_t _idCtr;
 };
 
