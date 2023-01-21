@@ -23,10 +23,11 @@ VecXd Solver::Results::solution(int iter) const
 }
 MatXd Solver::Results::covariance(int iter) const
 {
-  auto ne = iter < 0 ? normalEquations[iter + iteration] : normalEquations[iter];
+  auto idx = iter < 0 ? iter + iteration : iter;
   //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
-  auto normalizer = (ne->chi2()) / (ne->nConstraints() - ne->nParameters());
+  auto normalizer = (normalEquations[idx]->chi2()) /
+                    (normalEquations[idx]->nConstraints() - normalEquations[idx]->nParameters());
   //auto normalizer = 1.0;
-  return normalizer * ne->A().inverse();
+  return normalizer * normalEquations[idx]->A().inverse();
 }
 }  // namespace pd::vslam::least_squares

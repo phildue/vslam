@@ -13,11 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "InverseCompositionalStacked.h"
-
 #include <execution>
 #include <vector>
 
+#include "InverseCompositionalStacked.h"
 #include "core/core.h"
 #include "utils/utils.h"
 namespace pd::vslam::lukas_kanade
@@ -36,13 +35,13 @@ void InverseCompositionalStacked::setX(const Eigen::VectorXd & x)
 {
   std::for_each(_frames.begin(), _frames.end(), [&x](auto f) { f->setX(x); });
 }
-least_squares::NormalEquations::ConstShPtr InverseCompositionalStacked::computeNormalEquations()
+least_squares::NormalEquations::UnPtr InverseCompositionalStacked::computeNormalEquations()
 {
   std::vector<least_squares::NormalEquations::ConstShPtr> nes(_frames.size());
   std::transform(_frames.begin(), _frames.end(), nes.begin(), [&](auto f) {
     return f->computeNormalEquations();
   });
-  auto ne = std::make_shared<least_squares::NormalEquations>(_frames[0]->nParameters());
+  auto ne = std::make_unique<least_squares::NormalEquations>(_frames[0]->nParameters());
   std::for_each(nes.begin(), nes.end(), [&](auto n) { ne->combine(*n); });
   return ne;
 }

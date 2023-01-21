@@ -38,7 +38,7 @@ public:
   void setX(const Eigen::VectorXd & x) override { _w->setX(x); }
 
   Eigen::VectorXd x() const override { return _w->x(); }
-  least_squares::NormalEquations::ConstShPtr computeNormalEquations() override;
+  least_squares::NormalEquations::UnPtr computeNormalEquations() override;
 
 protected:
   const Image _T;

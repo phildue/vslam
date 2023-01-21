@@ -48,7 +48,7 @@ ForwardAdditive::ForwardAdditive(
 
 void ForwardAdditive::updateX(const Eigen::VectorXd & dx) { _w->updateAdditive(dx); }
 
-least_squares::NormalEquations::ConstShPtr ForwardAdditive::computeNormalEquations()
+least_squares::NormalEquations::UnPtr ForwardAdditive::computeNormalEquations()
 {
   Eigen::MatrixXd steepestDescent = Eigen::MatrixXd::Zero(_T.rows(), _T.cols());
   Eigen::MatrixXd dIxWp = Eigen::MatrixXd::Zero(_Iref.rows(), _Iref.cols());
@@ -104,7 +104,7 @@ least_squares::NormalEquations::ConstShPtr ForwardAdditive::computeNormalEquatio
     _loss->computeScale(Eigen::Map<Eigen::VectorXd>(r.data(), r.size()));
   }
 
-  auto ne = std::make_shared<least_squares::NormalEquations>(_w->nParameters());
+  auto ne = std::make_unique<least_squares::NormalEquations>(_w->nParameters());
   Eigen::MatrixXd W = Eigen::MatrixXd::Zero(_T.rows(), _T.cols());
   std::for_each(
     std::execution::unseq, interestPointsVisible.begin(), interestPointsVisible.end(),
@@ -123,8 +123,6 @@ least_squares::NormalEquations::ConstShPtr ForwardAdditive::computeNormalEquatio
     });
   ne->A().noalias() = ne->A() / static_cast<double>(ne->nConstraints());
   ne->b().noalias() = ne->b() / static_cast<double>(ne->nConstraints());
-
-  _prior->apply(ne, _w->x());
 
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;

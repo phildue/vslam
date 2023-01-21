@@ -96,7 +96,7 @@ InverseCompositional::InverseCompositional(
 }
 
 void InverseCompositional::updateX(const Eigen::VectorXd & dx) { _w->updateCompositional(-dx); }
-least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEquations()
+least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquations()
 {
   Image IWxp = Image::Zero(_I.rows(), _I.cols());
   MatXd R = MatXd::Zero(_I.rows(), _I.cols());
@@ -127,7 +127,7 @@ least_squares::NormalEquations::ConstShPtr InverseCompositional::computeNormalEq
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
     }
   });
-  auto ne = std::make_shared<least_squares::NormalEquations>(_J, r, w);
+  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
 
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;

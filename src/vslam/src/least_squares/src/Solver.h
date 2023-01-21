@@ -34,7 +34,7 @@ public:
   virtual void updateX(const Eigen::VectorXd & dx) = 0;
   virtual void setX(const Eigen::VectorXd & x) = 0;
   virtual Eigen::VectorXd x() const = 0;
-  virtual NormalEquations::ConstShPtr computeNormalEquations() = 0;
+  virtual NormalEquations::UnPtr computeNormalEquations() = 0;
 
 private:
   size_t _nParameters;
@@ -56,7 +56,7 @@ public:
 
     Eigen::VectorXd chi2, stepSize;
     Eigen::MatrixXd x;
-    std::vector<NormalEquations::ConstShPtr> normalEquations;
+    std::vector<NormalEquations::UnPtr> normalEquations;
     size_t iteration;
     bool hasSolution() const;
     VecXd solution(int iter = -1) const;

@@ -37,7 +37,7 @@ public:
   Eigen::VectorXd x() const override { return _frames[0]->x(); }
   void setX(const Eigen::VectorXd & x) override;
 
-  least_squares::NormalEquations::ConstShPtr computeNormalEquations() override;
+  least_squares::NormalEquations::UnPtr computeNormalEquations() override;
 
 protected:
   std::vector<std::shared_ptr<InverseCompositional>> _frames;

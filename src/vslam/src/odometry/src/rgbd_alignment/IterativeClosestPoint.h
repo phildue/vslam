@@ -37,7 +37,7 @@ public:
 
   Eigen::VectorXd x() const override { return _se3.log(); }
 
-  least_squares::NormalEquations::ConstShPtr computeNormalEquations() override;
+  least_squares::NormalEquations::UnPtr computeNormalEquations() override;
 
 protected:
   const int _level;

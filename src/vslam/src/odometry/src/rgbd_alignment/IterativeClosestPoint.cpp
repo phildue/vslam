@@ -42,7 +42,7 @@ IterativeClosestPoint::IterativeClosestPoint(
 }
 
 void IterativeClosestPoint::updateX(const Eigen::VectorXd & dx) { _se3 = _se3 * SE3d::exp(-dx); }
-least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalEquations()
+least_squares::NormalEquations::UnPtr IterativeClosestPoint::computeNormalEquations()
 {
   MatXd R = MatXd::Zero(_f0->height(_level), _f0->width(_level));
   MatXd W = MatXd::Zero(_f0->height(_level), _f0->width(_level));
@@ -63,8 +63,9 @@ least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalE
       std::abs(p1t.z() - p0.z()) <= _maxDepthDiff) {
       Vec3d pxn = p1t.cross(n0);
       Vec6d Ji;
-      Ji << n0, -p1t.z() * n0[1] + p1t.y() * n0[2], p1t.z() * n0[0] - p1t.x() * n0[2],
-        -p1t.y() * n0[0] + p1t.x() * n0[1];
+      //Ji << n0, -p1t.z() * n0[1] + p1t.y() * n0[2], p1t.z() * n0[0] - p1t.x() * n0[2],
+      //  -p1t.y() * n0[0] + p1t.x() * n0[1];
+      Ji << n0, pxn;
       J.row(uv0.idx) = Ji;
       W(uv0.pos.y(), uv0.pos.x()) = 1.0;
       w(uv0.idx) = W(uv0.pos.y(), uv0.pos.x());
@@ -78,7 +79,7 @@ least_squares::NormalEquations::ConstShPtr IterativeClosestPoint::computeNormalE
     W(uv0.pos.y(), uv0.pos.x()) *= _loss->computeWeight((r(uv0.idx) - s.offset) / s.scale);
     w(uv0.idx) = W(uv0.pos.y(), uv0.pos.x());
   });
-  auto ne = std::make_shared<least_squares::NormalEquations>(J, r, w);
+  auto ne = std::make_unique<least_squares::NormalEquations>(J, r, w);
 
   LOG_IMG("Residual") << R;
   LOG_IMG("Weights") << W;

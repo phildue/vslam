@@ -92,19 +92,21 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
       break;
     }
     const VecXd dx = ne->A().ldlt().solve(ne->b());
+    const auto gradient = std::abs(ne->b().maxCoeff());
     problem->updateX(dx);
-    r->x.row(i) = problem->x();
-    r->stepSize(i) = dx.norm();
-    r->normalEquations.push_back(ne);
-    r->iteration = i + 1;
 
     SOLVER(INFO) << "Iteration: " << i << " chi2: " << r->chi2(i) << " dChi2: " << dChi2
                  << " stepSize: " << r->stepSize(i) << " Points: " << ne->nConstraints()
                  << "\nx: " << problem->x().transpose() << "\ndx: " << dx.transpose();
-    if (i > 1 && (r->stepSize(i) < _minStepSize || std::abs(ne->b().maxCoeff()) < _minGradient)) {
+
+    r->x.row(i) = problem->x();
+    r->stepSize(i) = dx.norm();
+    r->normalEquations.push_back(std::move(ne));
+    r->iteration = i + 1;
+
+    if (i > 1 && (r->stepSize(i) < _minStepSize || gradient < _minGradient)) {
       SOLVER(INFO) << i << " > \n Step Size: " << r->stepSize(i) << "/" << _minStepSize
-                   << "\n MinGradient: " << std::abs(ne->b().maxCoeff()) << "/" << _minGradient
-                   << "\nCONVERGED. ";
+                   << "\n MinGradient: " << gradient << "/" << _minGradient << "\nCONVERGED. ";
       break;
     }
 
