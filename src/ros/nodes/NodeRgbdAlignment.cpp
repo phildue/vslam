@@ -67,24 +67,24 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("odometry.method", "rgbd");
   declare_parameter("odometry.trackKeyFrame", false);
   declare_parameter("odometry.includeKeyFrame", false);
-  declare_parameter("odometry.rgbd.includePrior", false);
-  declare_parameter("odometry.rgbd.initOnPrior", false);
+  declare_parameter("frame_alignment.includePrior", false);
+  declare_parameter("frame_alignment.initOnPrior", false);
   declare_parameter(
-    "odometry.rgbd.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
-  declare_parameter("odometry.rgbd.features.min_depth", 0.0);
-  declare_parameter("odometry.rgbd.features.max_depth", 4.0);
-  declare_parameter("odometry.rgbd.features.max_depth_diff", 0.1);
+    "frame_alignment.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
+  declare_parameter("frame_alignment.features.min_depth", 0.0);
+  declare_parameter("frame_alignment.features.max_depth", 4.0);
+  declare_parameter("frame_alignment.features.max_depth_diff", 0.1);
   declare_parameter(
-    "odometry.rgbd.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
-  declare_parameter("odometry.rgbd.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
-  declare_parameter("odometry.rgbd.solver.max_iterations", 100);
-  declare_parameter("odometry.rgbd.solver.min_step_size", 1e-7);
-  declare_parameter("odometry.rgbd.solver.min_gradient", 1e-7);
-  declare_parameter("odometry.rgbd.solver.max_increase", 1e-7);
-  declare_parameter("odometry.rgbd.solver.min_reduction", 0.0);
-  declare_parameter("odometry.rgbd.loss.function", "None");
-  declare_parameter("odometry.rgbd.loss.huber.c", 10.0);
-  declare_parameter("odometry.rgbd.loss.tdistribution.v", 5.0);
+    "frame_alignment.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
+  declare_parameter("frame_alignment.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
+  declare_parameter("frame_alignment.solver.max_iterations", 100);
+  declare_parameter("frame_alignment.solver.min_step_size", 1e-7);
+  declare_parameter("frame_alignment.solver.min_gradient", 1e-7);
+  declare_parameter("frame_alignment.solver.max_increase", 1e-7);
+  declare_parameter("frame_alignment.solver.min_reduction", 0.0);
+  declare_parameter("frame_alignment.loss.function", "None");
+  declare_parameter("frame_alignment.loss.huber.c", 10.0);
+  declare_parameter("frame_alignment.loss.tdistribution.v", 5.0);
   declare_parameter("keyframe_selection.method", "idx");
   declare_parameter("keyframe_selection.idx.period", 5);
   declare_parameter("keyframe_selection.custom.min_visible_points", 50);
@@ -111,63 +111,68 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   _map = std::make_shared<Map>(
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
 
-  _includeKeyFrame = get_parameter("odometry.includeKeyFrame").as_bool();
+  _includeKeyFrame = get_parameter("frame_alignment.includeKeyFrame").as_bool();
   if (_trackKeyFrame && _includeKeyFrame) {
     throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
   }
-  if (
-    get_parameter("odometry.method").as_string() == "rgbd" ||
-    get_parameter("odometry.method").as_string() == "icp") {
-    least_squares::Loss::ShPtr loss = nullptr;
-    least_squares::Scaler::ShPtr scaler;
-    auto paramLoss = get_parameter("odometry.rgbd.loss.function").as_string();
-    if (paramLoss == "Tukey") {
-      loss =
-        std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
-    } else if (paramLoss == "Huber") {
-      loss = std::make_shared<least_squares::HuberLoss>(
-        std::make_shared<least_squares::MedianScaler>(),
-        get_parameter("odometry.rgbd.loss.huber.c").as_double());
-    } else if (paramLoss == "tdistribution") {
-      loss = std::make_shared<least_squares::LossTDistribution>(
-        std::make_shared<least_squares::ScalerTDistribution>(
-          get_parameter("odometry.rgbd.loss.tdistribution.v").as_double()),
-        get_parameter("odometry.rgbd.loss.tdistribution.v").as_double());
-    } else {
-      loss =
-        std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
-      RCLCPP_WARN(get_logger(), "Unknown loss selected. Assuming None");
-    }
-    auto solver = std::make_shared<least_squares::GaussNewton>(
-      get_parameter("odometry.rgbd.solver.min_step_size").as_double(),
-      get_parameter("odometry.rgbd.solver.max_iterations").as_int(),
-      get_parameter("odometry.rgbd.solver.min_gradient").as_double(),
-      get_parameter("odometry.rgbd.solver.min_reduction").as_double(),
-      get_parameter("odometry.rgbd.solver.max_increase").as_double());
 
-    if (get_parameter("odometry.method").as_string() == "icp") {
-      _rgbdAlignment = std::make_shared<RgbdAlignmentIcp>(
-        solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
-        get_parameter("odometry.rgbd.initOnPrior").as_bool(),
-        get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
-        get_parameter("odometry.rgbd.features.min_depth").as_double(),
-        get_parameter("odometry.rgbd.features.max_depth").as_double(),
-        get_parameter("odometry.rgbd.features.max_depth_diff").as_double(),
-        get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
-    } else {
-      _rgbdAlignment = std::make_shared<RgbdAlignment>(
-        solver, loss, get_parameter("odometry.rgbd.includePrior").as_bool(),
-        get_parameter("odometry.rgbd.initOnPrior").as_bool(),
-        get_parameter("odometry.rgbd.features.min_gradients").as_double_array(),
-        get_parameter("odometry.rgbd.features.min_depth").as_double(),
-        get_parameter("odometry.rgbd.features.max_depth").as_double(),
-        get_parameter("odometry.rgbd.features.max_points_part").as_double_array());
-    }
-
+  least_squares::Loss::ShPtr loss = nullptr;
+  least_squares::Scaler::ShPtr scaler;
+  auto paramLoss = get_parameter("frame_alignment.loss.function").as_string();
+  if (paramLoss == "Tukey") {
+    loss =
+      std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
+  } else if (paramLoss == "Huber") {
+    loss = std::make_shared<least_squares::HuberLoss>(
+      std::make_shared<least_squares::MedianScaler>(),
+      get_parameter("frame_alignment.loss.huber.c").as_double());
+  } else if (paramLoss == "tdistribution") {
+    loss = std::make_shared<least_squares::LossTDistribution>(
+      std::make_shared<least_squares::ScalerTDistribution>(
+        get_parameter("frame_alignment.loss.tdistribution.v").as_double()),
+      get_parameter("frame_alignment.loss.tdistribution.v").as_double());
   } else {
-    RCLCPP_ERROR(
-      get_logger(), "Unknown odometry method [%s] available are: [rgbd, icp]",
-      get_parameter("odometry.method").as_string().c_str());
+    loss =
+      std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
+    RCLCPP_WARN(get_logger(), "Unknown loss selected. Assuming None");
+  }
+  auto solver = std::make_shared<least_squares::GaussNewton>(
+    get_parameter("frame_alignment.solver.min_step_size").as_double(),
+    get_parameter("frame_alignment.solver.max_iterations").as_int(),
+    get_parameter("frame_alignment.solver.min_gradient").as_double(),
+    get_parameter("frame_alignment.solver.min_reduction").as_double(),
+    get_parameter("frame_alignment.solver.max_increase").as_double());
+
+  if (get_parameter("frame_alignment.method").as_string() == "icp") {
+    _rgbdAlignment = std::make_shared<RgbdAlignmentIcp>(
+      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
+      get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
+      get_parameter("frame_alignment.features.min_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
+      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+  } else if (get_parameter("odometry.method").as_string() == "rgbd") {
+    _rgbdAlignment = std::make_shared<RgbdAlignment>(
+      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
+      get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
+      get_parameter("frame_alignment.features.min_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
+      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+  } else if (get_parameter("odometry.method").as_string() == "rgb") {
+    _rgbdAlignment = std::make_shared<RgbdAlignmentRgb>(
+      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
+      get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
+      get_parameter("frame_alignment.features.min_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+  } else {
+    throw pd::Exception(format(
+      "Unknown odometry method {} available are: [rgbd, depth, rgb]",
+      get_parameter("prediction.model").as_string().c_str()));
   }
 
   if (get_parameter("prediction.model").as_string() == "NoMotion") {
@@ -212,9 +217,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(
       processVarDiag.asDiagonal(), stateVarDiag.asDiagonal());
   } else {
-    RCLCPP_ERROR(
-      get_logger(), "Unknown odometry method %s available are: [NoMotion, ConstantMotion, Kalman]",
-      get_parameter("prediction.model").as_string().c_str());
+    throw pd::Exception(format(
+      "Unknown prediction model {} available are: [NoMotion, ConstantMotion, Kalman]",
+      get_parameter("prediction.model").as_string().c_str()));
   }
 
   if (get_parameter("keyframe_selection.method").as_string() == "idx") {
@@ -412,12 +417,10 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
   auto f = std::make_unique<Frame>(img, depth, _camera, t);
-  f->computePyramid(get_parameter("odometry.rgbd.pyramid.levels").as_double_array().size());
+  f->computePyramid(get_parameter("frame_alignment.pyramid.levels").as_double_array().size());
   f->computeDerivatives();
   f->computePcl();
-  if (get_parameter("odometry.method").as_string() == "icp") {
-    f->computeNormals();
-  }
+  f->computeNormals();
   return f;
 }
 

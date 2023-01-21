@@ -16,6 +16,7 @@
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
+#include "LukasKanadeWithDepth.h"
 #include "PlotAlignment.h"
 #include "RgbdAlignment.h"
 #include "lukas_kanade/lukas_kanade.h"
@@ -31,101 +32,9 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 using namespace pd::vslam::least_squares;
 namespace pd::vslam
 {
-class GaussianPrior
-{
-  /*
-      We want to estimate p(€|R) * p(€) with R being the residuals and € the pose.
-      Assuming the samples are i.i.d and taking the log this becomes:
-      log p(€) + sum_N log(€|R_n)
-      The latter becomes the standard MLE and with NLS can be formulated to J^TWJ d€ + JWr(0)
-      A log gaussian prior derived with respect to x becomes:
-      S^-1(x - €_0) with S being the covariance and €_0 the mean.
-      x is simply the current € + d€ so the optimal solution becomes:
-      S^-1(€ + d€ - €_0) + J^TWJ d€ + JWr(0) = 0
-      rearranged:
-      (J^TWJ + S^-1)d€ = JWr(0) + S^-1(€ - €_0)
-      so to apply the prior we simply add S^-1 to lhs of the normal equations
-      and S^-1(€ - €_0) to rhs
-    */
-public:
-  typedef std::shared_ptr<GaussianPrior> ShPtr;
-  typedef std::unique_ptr<GaussianPrior> UnPtr;
-  typedef std::shared_ptr<const GaussianPrior> ConstShPtr;
-  typedef std::unique_ptr<const GaussianPrior> ConstUnPtr;
-
-  GaussianPrior(const SE3d & se3Init, const Pose & prior)
-  : _b(Vec6d::Zero()), _priorTwist(prior.twist()), _priorInformation(prior.twistCov().inverse())
-  {
-    setX(se3Init.log());
-  }
-  void setX(const Eigen::VectorXd & twist) { _b = _priorInformation * (_priorTwist - twist); }
-  Mat<double, 6, 6> A() { return _priorInformation; }
-  Vec6d b() { return _b; }
-
-private:
-  Vec6d _b;
-  const Vec6d _priorTwist;
-  const Mat<double, 6, 6> _priorInformation;
-};
-
-class LukasKanadeWithGaussianPrior : public least_squares::Problem
-{
-public:
-  typedef std::shared_ptr<LukasKanadeWithGaussianPrior> ShPtr;
-  typedef std::unique_ptr<LukasKanadeWithGaussianPrior> UnPtr;
-  typedef std::shared_ptr<const LukasKanadeWithGaussianPrior> ConstShPtr;
-  typedef std::unique_ptr<const LukasKanadeWithGaussianPrior> ConstUnPtr;
-
-  virtual ~LukasKanadeWithGaussianPrior() = default;
-  LukasKanadeWithGaussianPrior(
-    const SE3d & se3Init, const Pose & prior, Frame::ConstShPtr f0, Frame::ConstShPtr f1, int level,
-    const std::vector<Eigen::Vector2i> & keyPoints, least_squares::Loss::ShPtr loss)
-  : Problem(6),
-    _f0(f0),
-    _f1(f1),
-    _level(level),
-    _keyPoints(keyPoints),
-    _prior(std::make_unique<GaussianPrior>(se3Init, prior)),
-    _warp(std::make_shared<lukas_kanade::WarpSE3>(
-      se3Init, f0->pcl(level, false), f0->width(level), f0->camera(level), f1->camera(level))),
-    _lk(std::make_unique<lukas_kanade::InverseCompositional>(
-      f0->intensity(level), f0->dIx(level), f0->dIy(level), f1->intensity(level), _warp, keyPoints,
-      loss))
-  {
-  }
-  void setX(const Eigen::VectorXd & x)
-  {
-    _lk->setX(x);
-    _prior->setX(_lk->x());
-  }
-  void updateX(const Eigen::VectorXd & dx)
-  {
-    _lk->updateX(dx);
-    _prior->setX(_lk->x());
-  }
-  Eigen::VectorXd x() const { return _lk->x(); }
-  NormalEquations::ConstShPtr computeNormalEquations()
-  {
-    auto nePh = _lk->computeNormalEquations();
-    //normalize by maximal photometric error to get error in similar state space
-    constexpr double normalizer = 1.0 / (255.0 * 255.0);
-    const MatXd A = nePh->A() * normalizer + _prior->A();
-    const MatXd b = nePh->b() * normalizer + _prior->b();
-    return std::make_shared<NormalEquations>(A, b, nePh->chi2(), nePh->nConstraints());
-  }
-
-private:
-  const Frame::ConstShPtr _f0, _f1;
-  const int _level;
-  const std::vector<Eigen::Vector2i> _keyPoints;
-  const GaussianPrior::UnPtr _prior;
-  const lukas_kanade::WarpSE3::ShPtr _warp;
-  const lukas_kanade::InverseCompositional::UnPtr _lk;
-};
-
 RgbdAlignment::RgbdAlignment(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth,
+  const std::vector<double> & minGradient, double minDepth, double maxDepth, double maxDepthDiff,
   const std::vector<double> & maxPointsPart)
 : _loss(loss),
   _solver(solver),
@@ -133,6 +42,7 @@ RgbdAlignment::RgbdAlignment(
   _initializeOnPrediction(initializeOnPrediction),
   _minDepth(minDepth),
   _maxDepth(maxDepth),
+  _maxDepthDiff(maxDepthDiff),
   _maxPointsPart(maxPointsPart),
   _distanceToBorder(5)
 {
@@ -196,8 +106,9 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
     if (
       frame->withinImage({u, v}, _distanceToBorder, level) && p >= _minGradient2[level] &&
       _minDepth < depth(v, u) && depth(v, u) < _maxDepth && depth(v - 1, u) > _minDepth &&
-      depth(v - 1, u - 1) > _minDepth && depth(v + 1, u) > _minDepth &&
-      depth(v + 1, u + 1) > _minDepth && depth(v, u + 1) > _minDepth) {
+      std::isfinite(frame->normal(v, u, level).x()) && depth(v - 1, u - 1) > _minDepth &&
+      depth(v + 1, u) > _minDepth && depth(v + 1, u + 1) > _minDepth &&
+      depth(v, u + 1) > _minDepth) {
       interestPoints.emplace_back(u, v);
     }
   });
@@ -232,17 +143,11 @@ least_squares::Problem::UnPtr RgbdAlignment::setupProblem(
   auto interestPoints = selectInterestPoints(from, level);
 
   if (_includePrior) {
-    return std::make_unique<LukasKanadeWithGaussianPrior>(
-      SE3d::exp(twistInit), to->pose(), from, to, level, interestPoints, _loss);
+    throw pd::Exception("Not Implemented!");
 
   } else {
-    //auto warp = std::make_shared<WarpSE3>(SE3d::exp(twistInit), from, to, level);
-    auto warp = std::make_shared<lukas_kanade::WarpSE3>(
-      SE3d::exp(twistInit), from->pcl(level, false), from->width(level), from->camera(level),
-      to->camera(level));
-    return std::make_unique<lukas_kanade::InverseCompositional>(
-      from->intensity(level), from->dIx(level), from->dIy(level), to->intensity(level), warp,
-      interestPoints, _loss);
+    return std::make_unique<LukasKanadeWithDepth>(
+      SE3d::exp(twistInit), from, to, interestPoints, level, 0.0, _maxDepthDiff, _loss);
   }
 }
 

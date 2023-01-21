@@ -38,8 +38,7 @@ RgbdAlignmentIcp::RgbdAlignmentIcp(
   const std::vector<double> & maxPointsPart)
 : RgbdAlignment(
     solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth,
-    maxPointsPart),
-  _maxDepthDiff(maxDepthDiff)
+    maxDepthDiff, maxPointsPart)
 {
 }
 
