@@ -21,8 +21,8 @@
 #define DIRECT_IMAGE_ALIGNMENT_TYPES_H
 
 #include <Eigen/Dense>
+#include <limits>
 #include <sophus/se3.hpp>
-
 namespace Eigen
 {
 typedef Eigen::Matrix<double, 6, 1> Vector6d;

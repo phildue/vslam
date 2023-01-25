@@ -31,8 +31,7 @@ namespace pd::vslam
 std::uint64_t Frame::_idCtr = 0U;
 
 Frame::Frame(
-  const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t,
-  const PoseWithCovariance & pose)
+  const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t, const Pose & pose)
 : Frame(intensity, -1 * MatXd::Ones(intensity.rows(), intensity.cols()), cam, t, pose)
 {
 }
@@ -63,23 +62,42 @@ Feature2D::ConstShPtr Frame::observationOf(std::uint64_t pointId) const
   return nullptr;
 }
 
-const MatXd & Frame::dIx(size_t level) const
+const MatXd & Frame::dIdx(size_t level) const
 {
-  if (level >= _dIx.size()) {
+  if (level >= _dIdx.size()) {
     throw pd::Exception(
       "No dIdx available for level: " + std::to_string(level) +
-      ". Available: " + std::to_string(_dIx.size()));
+      ". Available: " + std::to_string(_dIdx.size()));
   }
-  return _dIx[level];
+  return _dIdx[level];
 }
-const MatXd & Frame::dIy(size_t level) const
+const MatXd & Frame::dIdy(size_t level) const
 {
-  if (level >= _dIy.size()) {
+  if (level >= _dIdy.size()) {
     throw pd::Exception(
       "No dIdy available for level: " + std::to_string(level) +
-      ". Available: " + std::to_string(_dIy.size()));
+      ". Available: " + std::to_string(_dIdy.size()));
   }
-  return _dIy[level];
+  return _dIdy[level];
+}
+
+const MatXd & Frame::dZdx(size_t level) const
+{
+  if (level >= _dZdx.size()) {
+    throw pd::Exception(
+      "No dIdx available for level: " + std::to_string(level) +
+      ". Available: " + std::to_string(_dZdx.size()));
+  }
+  return _dZdx[level];
+}
+const MatXd & Frame::dZdy(size_t level) const
+{
+  if (level >= _dZdy.size()) {
+    throw pd::Exception(
+      "No dIdy available for level: " + std::to_string(level) +
+      ". Available: " + std::to_string(_dZdy.size()));
+  }
+  return _dZdy[level];
 }
 
 void Frame::addFeature(Feature2D::ShPtr ft)
@@ -149,7 +167,7 @@ void Frame::removeFeature(Feature2D::ShPtr ft)
 
 Frame::Frame(
   const Image & intensity, const MatXd & depth, Camera::ConstShPtr cam, const Timestamp & t,
-  const PoseWithCovariance & pose)
+  const Pose & pose)
 : _id(_idCtr++), _intensity({intensity}), _cam({cam}), _t(t), _pose(pose), _depth({depth})
 {
   if (
@@ -217,22 +235,63 @@ bool Frame::withinImage(const Vec2d & pImage, double border, size_t level) const
          pImage.y() < height(level) - border;
 }
 
-void Frame::computeDerivatives()
+void Frame::computeIntensityDerivatives()
 {
-  _dIx.resize(nLevels());
-  _dIy.resize(nLevels());
+  _dIdx.resize(nLevels());
+  _dIdy.resize(nLevels());
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
+#if true
     cv::Mat mat;
     cv::eigen2cv(intensity(i), mat);
     cv::Mat dIdx, dIdy;
     cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
     cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
-    cv::cv2eigen(dIdx, _dIx[i]);
-    cv::cv2eigen(dIdy, _dIy[i]);
+    cv::cv2eigen(dIdx, _dIdx[i]);
+    cv::cv2eigen(dIdy, _dIdy[i]);
+#else
+    _dIdx[i].resize(intensity(i).rows(), intensity(i).cols());
+    for (int y = 0; y < intensity(i).rows(); ++y) {
+      for (int x = 0; x < intensity(i).cols(); ++x) {
+        int prev = std::max(x - 1, 0);
+        int next = std::min<int>(x + 1, intensity(i).cols() - 1);
+        _dIdx[i](y, x) = (double)(intensity(i)(y, next) - intensity(i)(y, prev)) * 0.5f;
+      }
+    }
+    _dIdy[i].resize(intensity(i).rows(), intensity(i).cols());
+    for (int y = 0; y < intensity(i).rows(); ++y) {
+      for (int x = 0; x < intensity(i).cols(); ++x) {
+        int prev = std::max(y - 1, 0);
+        int next = std::min<int>(y + 1, intensity(i).rows() - 1);
+        _dIdy[i](y, x) = (double)(intensity(i)(next, x) - intensity(i)(prev, x)) * 0.5f;
+      }
+    }
+#endif
   }
 }
+void Frame::computeDepthDerivatives()
+{
+  _dZdx.resize(nLevels());
+  _dZdy.resize(nLevels());
+
+  // TODO(unknown): replace using custom implementation
+  for (size_t i = 0; i < nLevels(); i++) {
+    cv::Mat mat;
+    cv::eigen2cv(depth(i), mat);
+    cv::Mat dIdx, dIdy;
+    cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
+    cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
+    cv::cv2eigen(dIdx, _dZdx[i]);
+    cv::cv2eigen(dIdy, _dZdy[i]);
+  }
+}
+void Frame::computeDerivatives()
+{
+  computeIntensityDerivatives();
+  computeDepthDerivatives();
+}
+
 void Frame::computePcl()
 {
   _pcl.resize(nLevels());
@@ -338,7 +397,15 @@ void Frame::computePyramid(size_t nLevels, double s)
   for (size_t i = 1; i < nLevels; i++) {
     //DepthMap depthBlur =
     //  algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-    _depth[i] = algorithm::resize(_depth[i - 1], s);
+    // TODO(unknown): replace using custom implementation
+    cv::Mat mat;
+    cv::eigen2cv(depth(i - 1), mat);
+    mat.convertTo(mat, CV_32F);
+    cv::medianBlur(mat, mat, 3);
+    MatXd depthBlur;
+    cv::cv2eigen(mat, depthBlur);
+
+    _depth[i] = algorithm::resize(depthBlur, s);
   }
 }
 

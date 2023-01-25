@@ -62,7 +62,7 @@ public:
     // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
     auto f = _dl->loadFrame(fNo);
     f->computePyramid(4);
-    f->computeDerivatives();
+    f->computeIntensityDerivatives();
     f->computePcl();
     return f;
   }

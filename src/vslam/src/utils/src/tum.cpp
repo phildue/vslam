@@ -1,8 +1,12 @@
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+
 #include <experimental/filesystem>
 #include <filesystem>
 #include <fstream>
 #include <memory>
-
+using fmt::format;
+using fmt::print;
 #include "tum.h"
 #include "utils/utils.h"
 namespace fs = std::experimental::filesystem;
@@ -43,7 +47,11 @@ void readAssocTextfile(
 
 Camera::ShPtr Camera() { return std::make_shared<pd::vslam::Camera>(525.0, 525.0, 319.5, 239.5); }
 
-DataLoader::DataLoader(const std::string & path) : _datasetPath(path), _cam(tum::Camera())
+DataLoader::DataLoader(const std::string & datasetRoot, const std::string & sequenceId)
+: _datasetRoot(datasetRoot),
+  _sequenceId(sequenceId),
+  _datasetPath(format("{}/{}/{}", datasetRoot, sequenceId, sequenceId)),
+  _cam(tum::Camera())
 {
   tum::readAssocTextfile(_datasetPath + "/assoc.txt", _imgFilenames, _depthFilenames, _timestamps);
   _trajectoryGt = utils::loadTrajectory(_datasetPath + "/groundtruth.txt", true);

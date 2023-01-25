@@ -81,6 +81,7 @@ double bilinearInterpolation(const Eigen::MatrixBase<Derived> & mat, const Eigen
 {
   return bilinearInterpolation<Derived>(mat, xy.x(), xy.y());
 }
+
 template <class T, typename Derived>
 Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> resize(
   const Eigen::MatrixBase<Derived> & mat, double scale)

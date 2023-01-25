@@ -44,7 +44,7 @@ RgbdAlignment::RgbdAlignment(
   _maxDepth(maxDepth),
   _maxDepthDiff(maxDepthDiff),
   _maxPointsPart(maxPointsPart),
-  _distanceToBorder(5)
+  _distanceToBorder(0)
 {
   std::transform(
     minGradient.begin(), minGradient.end(), std::back_inserter(_minGradient2),
@@ -100,7 +100,7 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   std::vector<Eigen::Vector2i> interestPoints;
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
-    frame->dIx(level).array().pow(2) + frame->dIy(level).array().pow(2);
+    frame->dIdx(level).array().pow(2) + frame->dIdy(level).array().pow(2);
   const auto & depth = frame->depth(level);
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (

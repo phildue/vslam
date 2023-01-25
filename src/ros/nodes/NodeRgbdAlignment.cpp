@@ -64,9 +64,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("tf.frame_id", _frameId);
   _fixedFrameId = get_parameter("tf.base_link_id").as_string();
   _frameId = get_parameter("tf.frame_id").as_string();
-  declare_parameter("odometry.method", "rgbd");
-  declare_parameter("odometry.trackKeyFrame", false);
-  declare_parameter("odometry.includeKeyFrame", false);
+  declare_parameter("frame_alignment.method", "rgbd");
+  declare_parameter("frame_alignment.trackKeyFrame", false);
+  declare_parameter("frame_alignment.includeKeyFrame", false);
   declare_parameter("frame_alignment.includePrior", false);
   declare_parameter("frame_alignment.initOnPrior", false);
   declare_parameter(
@@ -152,7 +152,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.max_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points_part").as_double_array());
-  } else if (get_parameter("odometry.method").as_string() == "rgbd") {
+  } else if (get_parameter("frame_alignment.method").as_string() == "rgbd") {
     _rgbdAlignment = std::make_shared<RgbdAlignment>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
       get_parameter("frame_alignment.initOnPrior").as_bool(),
@@ -161,7 +161,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.max_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points_part").as_double_array());
-  } else if (get_parameter("odometry.method").as_string() == "rgb") {
+  } else if (get_parameter("frame_alignment.method").as_string() == "rgb") {
     _rgbdAlignment = std::make_shared<RgbdAlignmentRgb>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
       get_parameter("frame_alignment.initOnPrior").as_bool(),
@@ -244,7 +244,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
 
   _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
-  _trackKeyFrame = get_parameter("odometry.trackKeyFrame").as_bool();
+  _trackKeyFrame = get_parameter("frame_alignment.trackKeyFrame").as_bool();
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
@@ -418,7 +418,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
 
   auto f = std::make_unique<Frame>(img, depth, _camera, t);
   f->computePyramid(get_parameter("frame_alignment.pyramid.levels").as_double_array().size());
-  f->computeDerivatives();
+  f->computeIntensityDerivatives();
   f->computePcl();
   f->computeNormals();
   return f;

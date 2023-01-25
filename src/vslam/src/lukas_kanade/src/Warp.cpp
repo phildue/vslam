@@ -20,6 +20,25 @@
 #include "core/core.h"
 namespace pd::vslam::lukas_kanade
 {
+double Warp::apply(const Image & img, int u, int v) const
+{
+  Eigen::Vector2d uvI = apply(u, v);
+  if (1 < uvI.x() && uvI.x() < img.cols() - 1 && 1 < uvI.y() && uvI.y() < img.rows() - 1) {
+    return algorithm::bilinearInterpolation(img, uvI.x(), uvI.y());
+  } else {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+}
+Image Warp::apply(const Image & img) const
+{
+  Image warped = Image::Zero(img.rows(), img.cols());
+  for (int v = 0; v < warped.rows(); v++) {
+    for (int u = 0; u < warped.cols(); u++) {
+      warped(v, u) = apply(img, u, v);
+    }
+  }
+  return warped;
+}
 WarpAffine::WarpAffine(const Eigen::VectorXd & x, double cx, double cy)
 : Warp(6, x), _cx(cx), _cy(cy)
 {
@@ -148,12 +167,12 @@ WarpSE3::WarpSE3(
 
 void WarpSE3::updateAdditive(const Eigen::VectorXd & dx)
 {
-  _se3 = _se3 * Sophus::SE3d::exp(dx);
+  _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
 }
 void WarpSE3::updateCompositional(const Eigen::VectorXd & dx)
 {
-  _se3 = _se3 * Sophus::SE3d::exp(dx);
+  _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
 }
 Eigen::Vector2d WarpSE3::apply(int u, int v) const
@@ -169,6 +188,7 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   /*A tutorial on SE(3) transformation parameterizations and on-manifold optimization
   A.2. Projection of a point p.43
   Jacobian of uv = K * T_SE3 * p3d
+  Jw = J_K * J_T
   with respect to tx,ty,tz,rx,ry,rz the parameters of the lie algebra element of T_SE3
   */
   Eigen::Matrix<double, 2, 6> jac;
@@ -198,21 +218,67 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   jac(1, 5) = x * z_inv;
   jac.row(0) *= _camRef->fx();
   jac.row(1) *= _camRef->fy();
+
   return jac;
 }
-
-Image WarpSE3::apply(const Image & img) const
+double WarpSE3::apply(const Image & img, int u, int v) const
 {
-  Image warped = Image::Zero(img.rows(), img.cols());
-  for (int i = 0; i < warped.rows(); i++) {
-    for (int j = 0; j < warped.cols(); j++) {
-      Eigen::Vector2d uvI = apply(j, i);
-      if (1 < uvI.x() && uvI.x() < img.cols() - 1 && 1 < uvI.y() && uvI.y() < img.rows() - 1) {
-        warped(i, j) = algorithm::bilinearInterpolation(img, uvI.x(), uvI.y());
-      }
+  const Vec3d & p = _pcl[v * _width + u];
+  if (p.z() > 0.0) {
+    const Vec3d pt = _se3 * p;
+    const Vec2d uv = _camCur->camera2image(pt);
+    if (1 < uv(0) && uv(0) < img.cols() - 1 && 1 < uv(1) && uv(1) < img.rows() - 1) {
+      return interpolate(img, uv, pt.z());
+    } else {
+      return std::numeric_limits<double>::quiet_NaN();
     }
+  } else {
+    return std::numeric_limits<double>::quiet_NaN();
   }
-  return warped;
+}
+
+double WarpSE3::interpolate(const Image & img, const Eigen::Vector2d & uv, double z) const
+{
+  const double x = uv(0);
+  const double y = uv(1);
+
+  const int x0 = (int)std::floor(x);
+  const int y0 = (int)std::floor(y);
+  const int x1 = x0 + 1;
+  const int y1 = y0 + 1;
+
+  const float x1_weight = x - x0;
+  const float x0_weight = 1.0f - x1_weight;
+  const float y1_weight = y - y0;
+  const float y0_weight = 1.0f - y1_weight;
+  const float z_eps = z - 0.05f;
+
+  float val = 0.0f;
+  float sum = 0.0f;
+
+  auto depth = [&](int v, int u) { return _pcl[v * _width + u].z(); };
+
+  if (std::isfinite(depth(y0, x0)) && depth(y0, x0) > z_eps) {
+    val += x0_weight * y0_weight * img(y0, x0);
+    sum += x0_weight * y0_weight;
+  }
+
+  if (std::isfinite(depth(y0, x1)) && depth(y0, x1) > z_eps) {
+    val += x1_weight * y0_weight * img(y0, x1);
+    sum += x1_weight * y0_weight;
+  }
+
+  if (std::isfinite(depth(y1, x0)) && depth(y1, x0) > z_eps) {
+    val += x0_weight * y1_weight * img(y1, x0);
+    sum += x0_weight * y1_weight;
+  }
+
+  if (std::isfinite(depth(y1, x1)) && depth(y1, x1) > z_eps) {
+    val += x1_weight * y1_weight * img(y1, x1);
+    sum += x1_weight * y1_weight;
+  }
+
+  return sum > 0.0f ? val / sum : std::numeric_limits<double>::quiet_NaN();
 }
 
 DepthMap WarpSE3::apply(const DepthMap & img) const

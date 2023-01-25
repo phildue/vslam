@@ -20,6 +20,7 @@
 #include "utils/utils.h"
 namespace pd::vslam::lukas_kanade
 {
+constexpr double NORMALIZER = 1 / (255.0 * 255.0);
 InverseCompositional::InverseCompositional(
   const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
   std::shared_ptr<Warp> w0, least_squares::Loss::ShPtr l, double minGradient)
@@ -105,13 +106,8 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   VecXd w = VecXd::Zero(_interestPoints.size());
 
   std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
-    Eigen::Vector2d uvI = _w->apply(kp.pos.x(), kp.pos.y());
-    const bool visible = 1 < uvI.x() && uvI.x() < _I.cols() - 1 && 1 < uvI.y() &&
-                         uvI.y() < _I.rows() - 1 && std::isfinite(uvI.x());
-    if (visible) {
-      IWxp(kp.pos.y(), kp.pos.x()) = algorithm::bilinearInterpolation(_I, uvI.x(), uvI.y());
-      //IWxp(kp.pos.y(), kp.pos.x()) =
-      //  _I(static_cast<int>(std::round(uvI.y())), static_cast<int>(std::round(uvI.x())));
+    IWxp(kp.pos.y(), kp.pos.x()) = _w->apply(_I, kp.pos.x(), kp.pos.y());
+    if (std::isfinite(IWxp(kp.pos.y(), kp.pos.x()))) {
       R(kp.pos.y(), kp.pos.x()) =
         (double)IWxp(kp.pos.y(), kp.pos.x()) - (double)_T(kp.pos.y(), kp.pos.x());
       W(kp.pos.y(), kp.pos.x()) = 1.0;
@@ -119,16 +115,19 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
     }
   });
+  if (!_scale) _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
 
-  auto s = _loss->computeScale(r);
   std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
     if (w(kp.idx) > 0.0) {
-      W(kp.pos.y(), kp.pos.x()) = _loss->computeWeight((r(kp.idx) - s.offset) / s.scale);
+      W(kp.pos.y(), kp.pos.x()) =
+        _loss->computeWeight((r(kp.idx) - _scale->offset) / _scale->scale);
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
     }
   });
   auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
-
+  /*ne->A() /= ne->nConstraints();
+  ne->b() /= ne->nConstraints();
+  ne->chi2() /= ne->nConstraints();*/
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;
   LOG_IMG("Weights") << W;

@@ -21,16 +21,24 @@ public:
   typedef std::unique_ptr<const DataLoader> ConstUnPtr;
 
   DataLoader(
-    const std::string & path =
-      "/mnt/dataset/tum_rgbd/rgbd_dataset_freiburg2_desk/rgbd_dataset_freiburg2_desk");
+    const std::string & datasetRoot = "/mnt/dataset/tum_rgbd/",
+    const std::string & sequenceId = "rgbd_dataset_freiburg2_desk/rgbd_dataset_freiburg2_desk");
 
   Frame::UnPtr loadFrame(std::uint64_t fNo) const;
   size_t nFrames() const { return _timestamps.size(); }
   Camera::ConstShPtr cam() const { return _cam; }
   Trajectory::ConstShPtr trajectoryGt() const { return _trajectoryGt; }
   std::string datasetPath() const { return _datasetPath; }
+  std::string sequenceId() const { return _sequenceId; }
+  std::string datasetRoot() const { return _datasetRoot; }
+
+  const std::vector<std::string> & pathsImage() const { return _imgFilenames; }
+  const std::vector<std::string> & pathsDepth() const { return _depthFilenames; }
+  const std::vector<Timestamp> & timestamps() const { return _timestamps; }
 
 private:
+  std::string _datasetRoot;
+  std::string _sequenceId;
   std::string _datasetPath;
   Camera::ShPtr _cam;
   Trajectory::ShPtr _trajectoryGt;

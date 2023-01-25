@@ -36,17 +36,19 @@ public:
 
   Frame(
     const Image & rgb, const DepthMap & depth, Camera::ConstShPtr cam, const Timestamp & t = 0U,
-    const PoseWithCovariance & pose = {});
+    const Pose & pose = Pose(SE3d(), Mat6d::Identity()));
 
   Frame(
     const Image & intensity, Camera::ConstShPtr cam, const Timestamp & t = 0U,
-    const PoseWithCovariance & pose = {});
+    const Pose & pose = Pose(SE3d(), Mat6d::Identity()));
   virtual ~Frame() = default;
   std::uint64_t id() const { return _id; }
 
   const Image & intensity(size_t level = 0) const { return _intensity.at(level); }
-  const MatXd & dIx(size_t level = 0) const;
-  const MatXd & dIy(size_t level = 0) const;
+  const MatXd & dIdx(size_t level = 0) const;
+  const MatXd & dIdy(size_t level = 0) const;
+  const MatXd & dZdx(size_t level = 0) const;
+  const MatXd & dZdy(size_t level = 0) const;
 
   const Pose & pose() const { return _pose; }
 
@@ -76,6 +78,8 @@ public:
   void removeFeatures();
   void removeFeature(Feature2D::ShPtr f);
   void computeDerivatives();
+  void computeIntensityDerivatives();
+  void computeDepthDerivatives();
   void computePcl();
   void computePyramid(size_t nLevels, double scale = 0.5);
   void computeNormals();
@@ -90,7 +94,7 @@ public:
 private:
   const std::uint64_t _id;
   ImageVec _intensity;
-  MatXdVec _dIx, _dIy;
+  MatXdVec _dIdx, _dIdy, _dZdx, _dZdy;
   Camera::ConstShPtrVec _cam;
   Timestamp _t;
   Pose _pose;  //<< Pf = pose * Pw

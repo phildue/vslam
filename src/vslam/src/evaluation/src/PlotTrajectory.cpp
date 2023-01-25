@@ -89,7 +89,7 @@ void PlotTrajectoryCovariance::plot() const
     Timestamp t0 = n_traj.second->tStart();
     for (auto p : n_traj.second->poses()) {
       t.push_back((p.first - t0) / 1e9);
-      tz.push_back(p.second->twistCov().determinant());
+      tz.push_back(p.second->twistCov().norm());
     }
     vis::plt::named_plot(n_traj.first, t, tz);
   }

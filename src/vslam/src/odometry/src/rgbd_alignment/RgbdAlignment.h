@@ -40,6 +40,8 @@ public:
   {
     throw pd::Exception("Method not implemented.");
   }
+  virtual least_squares::Problem::UnPtr setupProblem(
+    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
 
 protected:
   const vslam::least_squares::Loss::ShPtr _loss;
@@ -52,8 +54,6 @@ protected:
   const std::vector<double> _maxPointsPart;
   const int _distanceToBorder;
   virtual std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;
-  virtual least_squares::Problem::UnPtr setupProblem(
-    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
 };
 
 }  // namespace pd::vslam

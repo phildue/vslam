@@ -37,11 +37,11 @@ public:
     double maxDepth = 50, const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
   Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
+  least_squares::Problem::UnPtr setupProblem(
+    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const override;
 
 protected:
   std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const override;
-  least_squares::Problem::UnPtr setupProblem(
-    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const override;
 };
 
 }  // namespace pd::vslam

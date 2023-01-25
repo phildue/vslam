@@ -36,6 +36,9 @@ public:
   virtual void updateAdditive(const Eigen::VectorXd & dx) = 0;
   virtual void updateCompositional(const Eigen::VectorXd & dx) = 0;
   virtual Eigen::Vector2d apply(int u, int v) const = 0;
+  virtual double apply(const Image & img, int u, int v) const;
+  virtual Image apply(const Image & img) const;
+
   virtual Eigen::MatrixXd J(int u, int v) const = 0;
 
   virtual void setX(const Eigen::VectorXd & x) { _x = x; }
@@ -100,10 +103,10 @@ public:
   void updateAdditive(const Eigen::VectorXd & dx);
   void updateCompositional(const Eigen::VectorXd & dx);
 
-  Eigen::Vector2d apply(int u, int v) const;
+  Eigen::Vector2d apply(int u, int v) const override;
+  double apply(const Image & img, int u, int v) const override;
   Eigen::MatrixXd J(int u, int v) const;
 
-  Image apply(const Image & img) const;
   DepthMap apply(const DepthMap & img) const;
 
   void setX(const Eigen::VectorXd & x);
@@ -114,6 +117,7 @@ private:
   const int _width;
   const std::shared_ptr<const Camera> _camCur, _camRef;
   std::vector<Eigen::Vector3d> _pcl;
+  double interpolate(const Image & img, const Eigen::Vector2d & uv, double z) const;
 };
 
 }  // namespace pd::vslam::lukas_kanade

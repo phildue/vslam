@@ -89,8 +89,8 @@ public:
     _warp(std::make_shared<lukas_kanade::WarpSE3>(
       se3Init, f0->pcl(level, false), f0->width(level), f0->camera(level), f1->camera(level))),
     _lk(std::make_unique<lukas_kanade::InverseCompositional>(
-      f0->intensity(level), f0->dIx(level), f0->dIy(level), f1->intensity(level), _warp, keyPoints,
-      loss))
+      f0->intensity(level), f0->dIdx(level), f0->dIdy(level), f1->intensity(level), _warp,
+      keyPoints, loss))
   {
   }
   void setX(const Eigen::VectorXd & x)
@@ -185,14 +185,12 @@ std::vector<Vec2i> RgbdAlignmentRgb::selectInterestPoints(Frame::ConstShPtr fram
   std::vector<Eigen::Vector2i> interestPoints;
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
-    frame->dIx(level).array().pow(2) + frame->dIy(level).array().pow(2);
+    frame->dIdx(level).array().pow(2) + frame->dIdy(level).array().pow(2);
   const auto & depth = frame->depth(level);
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (
       frame->withinImage({u, v}, _distanceToBorder, level) && p >= _minGradient2[level] &&
-      _minDepth < depth(v, u) && depth(v, u) < _maxDepth && depth(v - 1, u) > _minDepth &&
-      depth(v - 1, u - 1) > _minDepth && depth(v + 1, u) > _minDepth &&
-      depth(v + 1, u + 1) > _minDepth && depth(v, u + 1) > _minDepth) {
+      _minDepth < depth(v, u) && depth(v, u) < _maxDepth) {
       interestPoints.emplace_back(u, v);
     }
   });
@@ -236,7 +234,7 @@ least_squares::Problem::UnPtr RgbdAlignmentRgb::setupProblem(
       SE3d::exp(twistInit), from->pcl(level, false), from->width(level), from->camera(level),
       to->camera(level));
     return std::make_unique<lukas_kanade::InverseCompositional>(
-      from->intensity(level), from->dIx(level), from->dIy(level), to->intensity(level), warp,
+      from->intensity(level), from->dIdx(level), from->dIdy(level), to->intensity(level), warp,
       interestPoints, _loss);
   }
 }

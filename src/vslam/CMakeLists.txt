@@ -7,6 +7,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
+add_subdirectory(src/dvo/dvo_core)
 add_subdirectory(src/core)
 add_subdirectory(src/utils)
 add_subdirectory(src/least_squares)
