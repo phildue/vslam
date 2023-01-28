@@ -16,6 +16,7 @@
 from ament_index_python import get_package_share_directory
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
+from launch_ros.actions import Node
 import os
 import shutil
 from launch import LaunchDescription
@@ -57,14 +58,6 @@ def ld_opaque(context):
     composable_nodes = [
         ComposableNode(
             package='vslam_ros',
-            plugin='vslam_ros::NodeGtLoader',
-            name='gtLoader',
-            remappings=[('/path', '/path/gt')],
-            parameters=[{'gtTrajectoryFile': gt_traj_file},
-                        {"use_sim_time": use_sim_time}],
-            extra_arguments=[{'use_intra_process_comms': False}]),
-        ComposableNode(
-            package='vslam_ros',
             plugin='vslam_ros::NodeResultWriter',
             name='resultWriter',
             # remappings=[('/image', '/burgerimage')],
@@ -78,7 +71,23 @@ def ld_opaque(context):
             # remappings=[('/image', '/burgerimage')],
             parameters=[{'bag_file': bag_file},
                         {"use_sim_time": use_sim_time},
-                        {'timeout': 60}
+                        {'timeout': 100},
+                        {'delay': 0.1},
+                        {'duration': -1.0},
+                        ],
+            extra_arguments=[{'use_intra_process_comms': False}]),
+        ComposableNode(
+            package='vslam_ros',
+            plugin='vslam_ros::NodeGtLoader',
+            name='nodeEvaluation',
+            # remappings=[('/image', '/burgerimage')],
+            parameters=[  
+                  #  {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'config', 'log')},
+                  #  {"log.root_dir": os.path.join(experiment_folder, 'log')},
+                  #  {"log.image.TrajectoryCovariance.save": False},
+                  #  {"log.image.Trajectory.save": False},
+                    {'gtTrajectoryFile': gt_traj_file},
+                    {"use_sim_time": use_sim_time}
                         ],
             extra_arguments=[{'use_intra_process_comms': False}])
     ]
@@ -96,8 +105,23 @@ def ld_opaque(context):
         composable_node_descriptions=composable_nodes,
         output='both',
     )
-
     return [container]
+    """
+    node_eval = Node(
+            package='vslam_ros',
+            executable='nodeEvaluation',
+            name='nodeEvaluation',
+            parameters=[
+                    {"log.config_dir": os.path.join(get_package_share_directory('vslam_ros'), 'config', 'log')},
+                    {"log.root_dir": os.path.join(experiment_folder, 'log')},
+                    {"log.image.TrajectoryCovariance.save": False},
+                    {"log.image.Trajectory.save": False},
+                    {'gtTrajectoryFile': gt_traj_file},
+                    {"use_sim_time": use_sim_time}
+                    ],
+            remappings=[('/path', '/path/gt')])
+    return [container, node_eval]
+    """
 
 
 def generate_launch_description():

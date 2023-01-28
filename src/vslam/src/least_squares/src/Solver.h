@@ -47,6 +47,17 @@ public:
   typedef std::unique_ptr<Solver> UnPtr;
   typedef std::shared_ptr<const Solver> ConstShPtr;
   typedef std::unique_ptr<const Solver> ConstUnPtr;
+
+  enum class ConvergenceCriteria {
+    PARAMETER_THRESHOLD_REACHED,
+    GRADIENT_THRESHOLD_REACHED,
+    ERROR_INCREASED,
+    HESSIAN_SINGULAR,
+    NOT_ENOUGH_CONSTRAINTS,
+    MAX_ITERATIONS_EXCEEDED,
+    BELOW_MIN_ERROR_REDUCTION,
+    NAN_DURING_OPTIMIZATION
+  };
   struct Results
   {
     typedef std::shared_ptr<Results> ShPtr;
@@ -58,6 +69,7 @@ public:
     Eigen::MatrixXd x;
     std::vector<NormalEquations::UnPtr> normalEquations;
     size_t iteration;
+    ConvergenceCriteria convergenceCriteria;
     bool hasSolution() const;
     VecXd solution(int iter = -1) const;
     MatXd covariance(int iter = -1) const;
@@ -66,5 +78,7 @@ public:
   virtual ~Solver() = default;
   virtual Results::ConstUnPtr solve(std::shared_ptr<Problem> problem) const = 0;
 };
+
+std::string to_string(const Solver::ConvergenceCriteria & criteria);
 }  // namespace pd::vslam::least_squares
 #endif

@@ -32,7 +32,7 @@ public:
     vslam::least_squares::Solver::ShPtr solver, vslam::least_squares::Loss::ShPtr loss,
     bool includePrior = false, bool initializeOnPrediction = true,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
-    double maxDepth = 50, double maxDepthDiff = 0.1,
+    double maxDepth = 50, double minDepthDiff = 0.1, double maxDepthDiff = 0.1,
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
   virtual Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
@@ -50,7 +50,7 @@ protected:
   std::vector<double> _minGradient2;
   const double _minDepth;
   const double _maxDepth;
-  const double _maxDepthDiff;
+  const double _minDepthDiff, _maxDepthDiff;
   const std::vector<double> _maxPointsPart;
   const int _distanceToBorder;
   virtual std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;

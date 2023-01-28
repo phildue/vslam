@@ -29,7 +29,8 @@ LukasKanadeWithDepth::LukasKanadeWithDepth(
   _w(w),
   _sqrtw(_w),
   _warp(std::make_shared<lukas_kanade::WarpSE3>(
-    se3, fRef->pcl(level, false), fRef->width(level), fRef->camera(level), fTo->camera(level))),
+    se3, fTo->depth(level), fRef->pcl(level, false), fRef->width(level), fRef->camera(level),
+    fTo->camera(level))),
   _lk(std::make_unique<lukas_kanade::InverseCompositional>(
     fRef->intensity(level), fRef->dIdx(level), fRef->dIdy(level), fTo->intensity(level), _warp,
     interestPoints, l)),

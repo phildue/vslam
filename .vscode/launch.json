@@ -124,6 +124,25 @@
           }
         ]
       },
+      {
+        "name": "(gdb) Launch App DVO",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/app/compare_dvo",
+        "preLaunchTask": "build_app_dvo",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      },
     // Example launch of a python file
     {
       "name": "Python: Current File",

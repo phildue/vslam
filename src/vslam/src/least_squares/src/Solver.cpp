@@ -30,4 +30,27 @@ MatXd Solver::Results::covariance(int iter) const
   //auto normalizer = 1.0;
   return normalizer * normalEquations[idx]->A().inverse();
 }
+std::string to_string(const Solver::ConvergenceCriteria & criteria)
+{
+  switch (criteria) {
+    case Solver::ConvergenceCriteria::ERROR_INCREASED:
+      return "Error Increased";
+    case Solver::ConvergenceCriteria::GRADIENT_THRESHOLD_REACHED:
+      return "Gradient Threshold Reached";
+    case Solver::ConvergenceCriteria::HESSIAN_SINGULAR:
+      return "Hessian Singular";
+    case Solver::ConvergenceCriteria::PARAMETER_THRESHOLD_REACHED:
+      return "Parameter threshold reached";
+    case Solver::ConvergenceCriteria::NOT_ENOUGH_CONSTRAINTS:
+      return "Not enough constraints";
+    case Solver::ConvergenceCriteria::NAN_DURING_OPTIMIZATION:
+      return "NaN during optimization";
+    case Solver::ConvergenceCriteria::MAX_ITERATIONS_EXCEEDED:
+      return "Maximum iterations exceeded";
+    case Solver::ConvergenceCriteria::BELOW_MIN_ERROR_REDUCTION:
+      return "Below minimum error reduction";
+    default:
+      return "Unknown";
+  }
+}
 }  // namespace pd::vslam::least_squares

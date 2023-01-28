@@ -106,28 +106,29 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   VecXd w = VecXd::Zero(_interestPoints.size());
 
   std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
-    IWxp(kp.pos.y(), kp.pos.x()) = _w->apply(_I, kp.pos.x(), kp.pos.y());
-    if (std::isfinite(IWxp(kp.pos.y(), kp.pos.x()))) {
-      R(kp.pos.y(), kp.pos.x()) =
-        (double)IWxp(kp.pos.y(), kp.pos.x()) - (double)_T(kp.pos.y(), kp.pos.x());
+    const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
+    if (std::isfinite(iw)) {
+      R(kp.pos.y(), kp.pos.x()) = iw - (double)_T(kp.pos.y(), kp.pos.x());
+      IWxp(kp.pos.y(), kp.pos.x()) = iw;
       W(kp.pos.y(), kp.pos.x()) = 1.0;
       r(kp.idx) = R(kp.pos.y(), kp.pos.x());
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
     }
   });
   if (!_scale) _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
+  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
 
   std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
     if (w(kp.idx) > 0.0) {
       W(kp.pos.y(), kp.pos.x()) =
         _loss->computeWeight((r(kp.idx) - _scale->offset) / _scale->scale);
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
+      ne->addConstraint(_J.row(kp.idx), r(kp.idx), w(kp.idx));
     }
   });
-  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
-  /*ne->A() /= ne->nConstraints();
+  ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
-  ne->chi2() /= ne->nConstraints();*/
+  ne->chi2() /= ne->nConstraints();
   LOG_IMG("ImageWarped") << IWxp;
   LOG_IMG("Residual") << R;
   LOG_IMG("Weights") << W;

@@ -73,7 +73,8 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     "frame_alignment.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
   declare_parameter("frame_alignment.features.min_depth", 0.0);
   declare_parameter("frame_alignment.features.max_depth", 4.0);
-  declare_parameter("frame_alignment.features.max_depth_diff", 0.1);
+  declare_parameter("frame_alignment.features.min_depth_diff", 0.05);
+  declare_parameter("frame_alignment.features.max_depth_diff", 1.0);
   declare_parameter(
     "frame_alignment.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
   declare_parameter("frame_alignment.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
@@ -150,6 +151,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points_part").as_double_array());
   } else if (get_parameter("frame_alignment.method").as_string() == "rgbd") {
@@ -159,6 +161,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points_part").as_double_array());
   } else if (get_parameter("frame_alignment.method").as_string() == "rgb") {
@@ -168,10 +171,12 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
+      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points_part").as_double_array());
   } else {
     throw pd::Exception(format(
-      "Unknown odometry method {} available are: [rgbd, depth, rgb]",
+      "Unknown frame_alignment method {} available are: [rgbd, depth, rgb]",
       get_parameter("prediction.model").as_string().c_str()));
   }
 

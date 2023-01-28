@@ -34,14 +34,15 @@ namespace pd::vslam
 {
 RgbdAlignment::RgbdAlignment(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth, double maxDepthDiff,
-  const std::vector<double> & maxPointsPart)
+  const std::vector<double> & minGradient, double minDepth, double maxDepth, double minDepthDiff,
+  double maxDepthDiff, const std::vector<double> & maxPointsPart)
 : _loss(loss),
   _solver(solver),
   _includePrior(includePrior),
   _initializeOnPrediction(initializeOnPrediction),
   _minDepth(minDepth),
   _maxDepth(maxDepth),
+  _minDepthDiff(minDepthDiff),
   _maxDepthDiff(maxDepthDiff),
   _maxPointsPart(maxPointsPart),
   _distanceToBorder(0)

@@ -94,11 +94,10 @@ public:
   typedef std::unique_ptr<const WarpSE3> ConstUnPtr;
 
   WarpSE3(
-    const SE3d & poseCur, const Eigen::MatrixXd & depth, Camera::ConstShPtr camRef,
-    Camera::ConstShPtr camCur, const SE3d & poseRef = {});
-  WarpSE3(
-    const SE3d & poseCur, const std::vector<Vec3d> & pcl, size_t width, Camera::ConstShPtr camRef,
-    Camera::ConstShPtr camCur, const SE3d & poseRef = {});
+    const SE3d & pose1, const DepthMap & depth1, const std::vector<Vec3d> & pcl0, size_t width,
+    Camera::ConstShPtr cam0, Camera::ConstShPtr cam1, const SE3d & pose0 = {},
+    double minDepthDiff = 0.05, double maxDepthDiff = 0.5);
+
   virtual ~WarpSE3() = default;
   void updateAdditive(const Eigen::VectorXd & dx);
   void updateCompositional(const Eigen::VectorXd & dx);
@@ -113,10 +112,13 @@ public:
   SE3d poseCur() const;
 
 private:
-  SE3d _se3, _poseRef;
+  SE3d _se3, _pose0;
+  DepthMap _depth1;
   const int _width;
-  const std::shared_ptr<const Camera> _camCur, _camRef;
-  std::vector<Eigen::Vector3d> _pcl;
+  const std::shared_ptr<const Camera> _cam1, _cam0;
+  std::vector<Eigen::Vector3d> _pcl0;
+  const double _minDepthDiff, _maxDepthDiff;
+
   double interpolate(const Image & img, const Eigen::Vector2d & uv, double z) const;
 };
 

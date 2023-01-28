@@ -40,6 +40,15 @@
             }
         },
         {
+            "label": "build_app_dvo",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/src/app && make compare_dvo -j4",
+            "type": "shell",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+            }
+        },
+        {
             "label": "build_vslam",
             "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam && make ${input:test} -j4",
             "type": "shell",

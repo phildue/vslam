@@ -87,7 +87,8 @@ public:
     _keyPoints(keyPoints),
     _prior(std::make_unique<GaussianPrior>(se3Init, prior)),
     _warp(std::make_shared<lukas_kanade::WarpSE3>(
-      se3Init, f0->pcl(level, false), f0->width(level), f0->camera(level), f1->camera(level))),
+      se3Init, f1->depth(level), f0->pcl(level, false), f0->width(level), f0->camera(level),
+      f1->camera(level), SE3d())),
     _lk(std::make_unique<lukas_kanade::InverseCompositional>(
       f0->intensity(level), f0->dIdx(level), f0->dIdy(level), f1->intensity(level), _warp,
       keyPoints, loss))
@@ -125,11 +126,11 @@ private:
 
 RgbdAlignmentRgb::RgbdAlignmentRgb(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth,
-  const std::vector<double> & maxPointsPart)
+  const std::vector<double> & minGradient, double minDepth, double maxDepth, double minDepthDiff,
+  double maxDepthDiff, const std::vector<double> & maxPointsPart)
 : RgbdAlignment(
-    solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth, 0.1,
-    maxPointsPart)
+    solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth,
+    minDepthDiff, maxDepthDiff, maxPointsPart)
 {
   std::transform(
     minGradient.begin(), minGradient.end(), std::back_inserter(_minGradient2),
@@ -170,8 +171,8 @@ Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
     }
 
     LOG_ODOM(INFO) << format(
-      "Aligned with {} iterations: {} +- {}", r->iteration, twist.transpose(),
-      covariance.diagonal().cwiseSqrt().transpose());
+      "Aligned with [{}] iterations: {} +- {}, Reason: [{}]", r->iteration, twist.transpose(),
+      covariance.diagonal().cwiseSqrt().transpose(), to_string(r->convergenceCriteria));
 
     plot << PlotAlignment::Entry({level, r});
   }
@@ -231,8 +232,8 @@ least_squares::Problem::UnPtr RgbdAlignmentRgb::setupProblem(
   } else {
     //auto warp = std::make_shared<WarpSE3>(SE3d::exp(twistInit), from, to, level);
     auto warp = std::make_shared<lukas_kanade::WarpSE3>(
-      SE3d::exp(twistInit), from->pcl(level, false), from->width(level), from->camera(level),
-      to->camera(level));
+      SE3d::exp(twistInit), to->depth(level), from->pcl(level, false), from->width(level),
+      from->camera(level), to->camera(level), SE3d(), _minDepthDiff, _maxDepthDiff);
     return std::make_unique<lukas_kanade::InverseCompositional>(
       from->intensity(level), from->dIdx(level), from->dIdy(level), to->intensity(level), warp,
       interestPoints, _loss);

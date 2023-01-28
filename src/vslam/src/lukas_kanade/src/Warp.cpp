@@ -122,45 +122,19 @@ Eigen::Matrix3d WarpOpticalFlow::toMat(const Eigen::VectorXd & x) const
 }
 
 WarpSE3::WarpSE3(
-  const SE3d & poseCur, const Eigen::MatrixXd & depth, Camera::ConstShPtr camCur,
-  Camera::ConstShPtr camRef, const SE3d & poseRef)
+  const SE3d & poseCur, const DepthMap & depth1, const std::vector<Vec3d> & pcl, size_t width,
+  Camera::ConstShPtr camCur, Camera::ConstShPtr camRef, const SE3d & poseRef, double minDepthDiff,
+  double maxDepthDiff)
 : Warp(6),
   _se3(poseCur * poseRef.inverse()),
-  _poseRef(poseRef),
-  _width(depth.cols()),
-  _camCur(camCur),
-  _camRef(camRef),
-  _pcl(depth.rows() * depth.cols())
-{
-  _x = _se3.log();
-  // TODO(unknown): move pcl to frame so its only computed once
-  for (int v = 0; v < depth.rows(); v++) {
-    for (int u = 0; u < depth.cols(); u++) {
-      /* Exclude pixels that are close to not having depth since we do bilinear interpolation later*/
-      if (
-        std::isfinite(depth(v, u)) && depth(v, u) > 0 && std::isfinite(depth(v + 1, u + 1)) &&
-        depth(v + 1, u + 1) > 0 && std::isfinite(depth(v + 1, u - 1)) && depth(v + 1, u - 1) > 0 &&
-        std::isfinite(depth(v - 1, u + 1)) && depth(v - 1, u + 1) > 0 &&
-        std::isfinite(depth(v - 1, u - 1)) &&
-        depth(v - 1, u - 1) > 0)  // TODO(unknown): move to actual interpolation?
-      {
-        _pcl[v * _width + u] = _camRef->image2camera({u, v}, depth(v, u));
-      } else {
-        _pcl[v * _width + u] = Eigen::Vector3d::Zero();
-      }
-    }
-  }
-}
-WarpSE3::WarpSE3(
-  const SE3d & poseCur, const std::vector<Vec3d> & pcl, size_t width, Camera::ConstShPtr camCur,
-  Camera::ConstShPtr camRef, const SE3d & poseRef)
-: Warp(6),
-  _se3(poseCur * poseRef.inverse()),
-  _poseRef(poseRef),
+  _pose0(poseRef),
+  _depth1(depth1),
   _width(width),
-  _camCur(camCur),
-  _camRef(camRef),
-  _pcl(pcl)
+  _cam1(camCur),
+  _cam0(camRef),
+  _pcl0(pcl),
+  _minDepthDiff(minDepthDiff),
+  _maxDepthDiff(maxDepthDiff)
 {
   _x = _se3.log();
 }
@@ -177,9 +151,9 @@ void WarpSE3::updateCompositional(const Eigen::VectorXd & dx)
 }
 Eigen::Vector2d WarpSE3::apply(int u, int v) const
 {
-  auto & p = _pcl[v * _width + u];
+  auto & p = _pcl0[v * _width + u];
   return p.z() > 0.0
-           ? _camCur->camera2image(_se3 * p)
+           ? _cam1->camera2image(_se3 * p)
            : Eigen::Vector2d(
                std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
 }
@@ -193,7 +167,7 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   */
   Eigen::Matrix<double, 2, 6> jac;
   jac.setConstant(std::numeric_limits<double>::quiet_NaN());
-  const Eigen::Vector3d & p = _pcl[v * _width + u];
+  const Eigen::Vector3d & p = _pcl0[v * _width + u];
   if (p.z() <= 0.0) {
     return jac;
   }
@@ -216,31 +190,31 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   jac(1, 3) = -1.0 + y * jac(1, 2);
   jac(1, 4) = -jac(0, 3);
   jac(1, 5) = x * z_inv;
-  jac.row(0) *= _camRef->fx();
-  jac.row(1) *= _camRef->fy();
+  jac.row(0) *= _cam0->fx();
+  jac.row(1) *= _cam0->fy();
 
   return jac;
 }
 double WarpSE3::apply(const Image & img, int u, int v) const
 {
-  const Vec3d & p = _pcl[v * _width + u];
-  if (p.z() > 0.0) {
-    const Vec3d pt = _se3 * p;
-    const Vec2d uv = _camCur->camera2image(pt);
-    if (1 < uv(0) && uv(0) < img.cols() - 1 && 1 < uv(1) && uv(1) < img.rows() - 1) {
-      return interpolate(img, uv, pt.z());
-    } else {
-      return std::numeric_limits<double>::quiet_NaN();
+  const Vec3d & p0 = _pcl0[v * _width + u];
+  if (p0.z() > 0.0) {
+    const Vec3d pt0 = _se3 * p0;
+    if (pt0.z() > 0.0) {
+      const Vec2d uv1 = _cam1->camera2image(pt0);
+      if (1 < uv1(0) && uv1(0) < img.cols() - 1 && 1 < uv1(1) && uv1(1) < img.rows() - 1) {
+        return interpolate(img, uv1, pt0.z());
+        //return algorithm::bilinearInterpolation(img, uv1(0), uv1(1));
+      }
     }
-  } else {
-    return std::numeric_limits<double>::quiet_NaN();
   }
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
-double WarpSE3::interpolate(const Image & img, const Eigen::Vector2d & uv, double z) const
+double WarpSE3::interpolate(const Image & img1, const Eigen::Vector2d & uv1, double z0t) const
 {
-  const double x = uv(0);
-  const double y = uv(1);
+  const double x = uv1(0);
+  const double y = uv1(1);
 
   const int x0 = (int)std::floor(x);
   const int y0 = (int)std::floor(y);
@@ -251,30 +225,28 @@ double WarpSE3::interpolate(const Image & img, const Eigen::Vector2d & uv, doubl
   const float x0_weight = 1.0f - x1_weight;
   const float y1_weight = y - y0;
   const float y0_weight = 1.0f - y1_weight;
-  const float z_eps = z - 0.05f;
-
+  const float zmax = std::max(0.0, z0t + _maxDepthDiff);
+  const double zmin = std::min(zmax - 0.01, z0t - _minDepthDiff);
   float val = 0.0f;
   float sum = 0.0f;
-
-  auto depth = [&](int v, int u) { return _pcl[v * _width + u].z(); };
-
-  if (std::isfinite(depth(y0, x0)) && depth(y0, x0) > z_eps) {
-    val += x0_weight * y0_weight * img(y0, x0);
+  auto validZ = [&zmin, &zmax](double z) -> bool { return zmin < z && z < zmax; };
+  if (validZ(_depth1(y0, x0))) {
+    val += x0_weight * y0_weight * (double)img1(y0, x0);
     sum += x0_weight * y0_weight;
   }
 
-  if (std::isfinite(depth(y0, x1)) && depth(y0, x1) > z_eps) {
-    val += x1_weight * y0_weight * img(y0, x1);
+  if (validZ(_depth1(y0, x1))) {
+    val += x1_weight * y0_weight * (double)img1(y0, x1);
     sum += x1_weight * y0_weight;
   }
 
-  if (std::isfinite(depth(y1, x0)) && depth(y1, x0) > z_eps) {
-    val += x0_weight * y1_weight * img(y1, x0);
+  if (validZ(_depth1(y1, x0))) {
+    val += x0_weight * y1_weight * (double)img1(y1, x0);
     sum += x0_weight * y1_weight;
   }
 
-  if (std::isfinite(depth(y1, x1)) && depth(y1, x1) > z_eps) {
-    val += x1_weight * y1_weight * img(y1, x1);
+  if (validZ(_depth1(y1, x1))) {
+    val += x1_weight * y1_weight * (double)img1(y1, x1);
     sum += x1_weight * y1_weight;
   }
 
@@ -303,6 +275,6 @@ void WarpSE3::setX(const Eigen::VectorXd & x)
   _se3 = Sophus::SE3d::exp(x);
 }
 
-SE3d WarpSE3::poseCur() const { return _se3 * _poseRef; }
+SE3d WarpSE3::poseCur() const { return _se3 * _pose0; }
 
 }  // namespace pd::vslam::lukas_kanade

@@ -22,7 +22,7 @@ public:
       std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
     _map = std::make_shared<Map>(5, 3);
     _rgbdAlignment = std::make_shared<RgbdAlignment>(
-      solver, loss, false, false, std::vector<double>({20, 20, 20, 20}), 0.1, 4.0, 0.1,
+      solver, loss, false, false, std::vector<double>({20, 20, 20, 20}), 0.1, 4.0, 0.1, 0.1,
       std::vector<double>({0.06, 0.06, 0.06, 0.06}));
     Matd<12, 12> covProcess = Matd<12, 12>::Identity();
     for (int i = 0; i < 6; i++) {

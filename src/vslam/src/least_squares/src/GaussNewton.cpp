@@ -37,9 +37,9 @@ GaussNewton::GaussNewton(
   double maxIncrease)
 : _minStepSize(minStepSize),
   _minGradient(minGradient),
-  _minReduction(minReduction),
+  _minReduction(std::min(1.0, minReduction)),
   _maxIterations(maxIterations),
-  _maxIncrease(maxIncrease)
+  _maxIncrease(std::max(1.0, maxIncrease))
 {
   Log::get("solver");
   LOG_IMG("Solver");
@@ -57,6 +57,8 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
   r->x = Eigen::MatrixXd::Zero(_maxIterations, problem->nParameters());
   r->normalEquations.reserve(_maxIterations);
   r->iteration = 0;
+  r->convergenceCriteria = ConvergenceCriteria::MAX_ITERATIONS_EXCEEDED;
+
   for (size_t i = 0; i < _maxIterations; i++) {
     TIMED_SCOPE(timerI, "solve ( " + std::to_string(i) + " )");
 
@@ -70,12 +72,14 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
       SOLVER(WARNING) << i << " > "
                       << "STOP. Not enough constraints: " << ne->nConstraints() << " / "
                       << problem->nParameters();
+      r->convergenceCriteria = ConvergenceCriteria::NOT_ENOUGH_CONSTRAINTS;
       break;
     }
     if (!std::isfinite(det) || std::abs(det) < 1e-6) {
       SOLVER(WARNING) << i << " > "
                       << "STOP. Bad Hessian. det| H | = " << det << " \n"
                       << ne->toString();
+      r->convergenceCriteria = ConvergenceCriteria::HESSIAN_SINGULAR;
       break;
     }
 
@@ -89,6 +93,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
                    << "CONVERGED. No improvement"
                    << " dChi2: " << dChi2 << "/" << _maxIncrease;
       problem->setX(r->x.row(i - 1));
+      r->convergenceCriteria = ConvergenceCriteria::ERROR_INCREASED;
       break;
     }
     const VecXd dx = ne->A().ldlt().solve(ne->b());
@@ -104,16 +109,30 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     r->normalEquations.push_back(std::move(ne));
     r->iteration = i + 1;
 
-    if (i > 1 && (r->stepSize(i) < _minStepSize || gradient < _minGradient)) {
-      SOLVER(INFO) << i << " > \n Step Size: " << r->stepSize(i) << "/" << _minStepSize
-                   << "\n MinGradient: " << gradient << "/" << _minGradient << "\nCONVERGED. ";
-      break;
+    if (i > 1) {
+      SOLVER(INFO) << i << "CONVERGED.";
+      if (r->stepSize(i) < _minStepSize) {
+        r->convergenceCriteria = ConvergenceCriteria::PARAMETER_THRESHOLD_REACHED;
+        SOLVER(INFO) << to_string(r->convergenceCriteria);
+        break;
+      }
+      if (gradient < _minGradient) {
+        r->convergenceCriteria = ConvergenceCriteria::GRADIENT_THRESHOLD_REACHED;
+        SOLVER(INFO) << to_string(r->convergenceCriteria);
+        break;
+      }
+      if (1.0 > dChi2 && dChi2 > _minReduction) {
+        r->convergenceCriteria = ConvergenceCriteria::BELOW_MIN_ERROR_REDUCTION;
+        SOLVER(INFO) << to_string(r->convergenceCriteria);
+        break;
+      }
     }
 
     if (!std::isfinite(r->stepSize(i))) {
       SOLVER(ERROR) << i << " > "
                     << "STOP. NaN during optimization.";
       problem->setX(r->x.row(i - 1));
+      r->convergenceCriteria = ConvergenceCriteria::NAN_DURING_OPTIMIZATION;
       break;
     }
   }
