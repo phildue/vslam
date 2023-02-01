@@ -329,18 +329,22 @@ void NodeRgbdAlignment::processFrame(
 
   frame->set(_motionModel->predictPose(frame->t()));
 
-  Pose last2cur;
+  Pose pose;
   if (_trackKeyFrame && _map->lastKf()) {
-    Pose kf2cur = _rgbdAlignment->align(_map->lastKf(), frame);
-    last2cur = (kf2cur * _map->lastKf()->pose()) * _map->lastFrame()->pose().inverse();
+    pose = _rgbdAlignment->align(_map->lastKf(), frame);
+
+  } else if (
+    _includeKeyFrame && _map->lastKf() && _map->lastFrame() &&
+    _map->lastKf() != _map->lastFrame()) {
+    pose = _rgbdAlignment->align({_map->lastFrame(), _map->lastKf()}, frame);
 
   } else if (_map->lastFrame()) {
-    last2cur = _rgbdAlignment->align(_map->lastFrame(), frame);
+    pose = _rgbdAlignment->align(_map->lastFrame(), frame);
   }
+  //TODO
+  //_motionModel->update(pose, frame->t());
 
-  _motionModel->update(last2cur, frame->t());
-
-  frame->set(_motionModel->pose());
+  frame->set(pose);
 
   _keyFrameSelection->update(frame);
 
@@ -408,15 +412,13 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
-  auto cvImage = cv_bridge::toCvShare(msgImg);
-  cv::Mat mat = cvImage->image;
-  cv::cvtColor(mat, mat, cv::COLOR_RGB2GRAY);
+  cv::Mat mat;
+  cv::cvtColor(cv_bridge::toCvShare(msgImg)->image, mat, cv::COLOR_RGB2GRAY);
   Image img;
   cv::cv2eigen(mat, img);
-  auto cvDepth = cv_bridge::toCvShare(msgDepth);
 
   Eigen::MatrixXd depth;
-  cv::cv2eigen(cvDepth->image, depth);
+  cv::cv2eigen(cv_bridge::toCvShare(msgDepth)->image, depth);
   depth = depth.array().isNaN().select(0, depth);
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();

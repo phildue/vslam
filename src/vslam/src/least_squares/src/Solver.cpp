@@ -13,9 +13,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <execution>
 #include "Solver.h"
 namespace pd::vslam::least_squares
 {
+CombinedProblem::CombinedProblem(const std::vector<Problem::ShPtr> & problems)
+: Problem(problems[0]->nParameters()), _problems(problems)
+{
+}
+void CombinedProblem::updateX(const Eigen::VectorXd & dx)
+{
+  std::for_each(_problems.begin(), _problems.end(), [&dx](const auto & p) { p->updateX(dx); });
+}
+void CombinedProblem::setX(const Eigen::VectorXd & x)
+{
+  std::for_each(_problems.begin(), _problems.end(), [&x](const auto & p) { p->setX(x); });
+}
+Eigen::VectorXd CombinedProblem::x() const { return _problems[0]->x(); }
+NormalEquations::UnPtr CombinedProblem::computeNormalEquations()
+{
+  std::vector<NormalEquations> nes;
+  std::transform(_problems.begin(), _problems.end(), std::back_inserter(nes), [](const auto & p) {
+    return *p->computeNormalEquations();
+  });
+  return std::make_unique<NormalEquations>(nes);
+}
+
 bool Solver::Results::hasSolution() const { return iteration > 0; }
 VecXd Solver::Results::solution(int iter) const
 {

@@ -30,9 +30,12 @@ typedef Eigen::Matrix<double, 6, 1> Vector6d;
 
 namespace pd::vslam
 {
-typedef Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic> Image;
+typedef float image_value_t;
+typedef Eigen::Matrix<image_value_t, Eigen::Dynamic, Eigen::Dynamic> Image;
 typedef std::vector<Image> ImageVec;
-typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> DepthMap;
+
+typedef double depth_value_t;
+typedef Eigen::Matrix<depth_value_t, Eigen::Dynamic, Eigen::Dynamic> DepthMap;
 typedef std::vector<DepthMap> DepthMapVec;
 
 typedef std::uint64_t Timestamp;

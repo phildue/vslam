@@ -54,7 +54,7 @@ double sad(const Eigen::MatrixXi & patch1, const Eigen::MatrixXi & patch2)
   return sum;
 }
 
-Image resize(const Image & mat, double scale) { return resize<std::uint8_t>(mat, scale); }
+Image resize(const Image & mat, double scale) { return resize<image_value_t>(mat, scale); }
 
 Eigen::MatrixXd resize(const Eigen::MatrixXd & mat, double scale)
 {
@@ -66,7 +66,7 @@ Image gradient(const Image & image)
   const auto ix = gradX(image);
   const auto iy = gradY(image);
   const auto grad = ix.array().pow(2) + iy.array().pow(2);
-  return grad.array().sqrt().cast<std::uint8_t>();
+  return grad.array().sqrt().cast<image_value_t>();
 }
 
 Eigen::MatrixXi gradX(const Image & image)

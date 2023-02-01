@@ -116,14 +116,14 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
     }
   });
   if (!_scale) _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
-  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
+  auto ne = std::make_unique<least_squares::NormalEquations>(6);
 
   std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
     if (w(kp.idx) > 0.0) {
       W(kp.pos.y(), kp.pos.x()) =
         _loss->computeWeight((r(kp.idx) - _scale->offset) / _scale->scale);
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
-      ne->addConstraint(_J.row(kp.idx), r(kp.idx), w(kp.idx));
+      ne->addConstraint(_J.row(kp.idx), r(kp.idx), w(kp.idx) * NORMALIZER);
     }
   });
   ne->A() /= ne->nConstraints();

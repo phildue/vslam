@@ -16,6 +16,8 @@
 #ifndef VSLAM_SOLVER_H__
 #define VSLAM_SOLVER_H__
 
+#include <execution>
+
 #include "NormalEquations.h"
 namespace pd::vslam::least_squares
 {
@@ -38,6 +40,19 @@ public:
 
 private:
   size_t _nParameters;
+};
+
+class CombinedProblem : public least_squares::Problem
+{
+public:
+  CombinedProblem(const std::vector<Problem::ShPtr> & problems);
+  void updateX(const Eigen::VectorXd & dx);
+  void setX(const Eigen::VectorXd & x);
+  Eigen::VectorXd x() const;
+  NormalEquations::UnPtr computeNormalEquations();
+
+private:
+  std::vector<Problem::ShPtr> _problems;
 };
 
 class Solver

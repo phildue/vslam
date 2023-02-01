@@ -147,9 +147,7 @@ RgbdAlignmentRgb::RgbdAlignmentRgb(
 
 Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
-  Vec6d twist = _initializeOnPrediction
-                  ? algorithm::computeRelativeTransform(from->pose().SE3(), to->pose().SE3()).log()
-                  : Vec6d::Zero();
+  Vec6d twist = _initializeOnPrediction ? to->pose().SE3().log() : from->pose().SE3().log();
 
   Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
   PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
@@ -215,8 +213,7 @@ std::vector<Vec2i> RgbdAlignmentRgb::selectInterestPoints(Frame::ConstShPtr fram
   }
 
   LOG_ODOM(INFO) << format(
-    "Selected [{}] features at level [{}] with min gradient magnitude [{}]", interestPoints.size(),
-    level, _minGradient2[level]);
+    "Selected [{}] features at level [{}] in frame[{}]", interestPoints.size(), level, frame->id());
   return interestPoints;
 }
 
@@ -233,7 +230,7 @@ least_squares::Problem::UnPtr RgbdAlignmentRgb::setupProblem(
     //auto warp = std::make_shared<WarpSE3>(SE3d::exp(twistInit), from, to, level);
     auto warp = std::make_shared<lukas_kanade::WarpSE3>(
       SE3d::exp(twistInit), to->depth(level), from->pcl(level, false), from->width(level),
-      from->camera(level), to->camera(level), SE3d(), _minDepthDiff, _maxDepthDiff);
+      from->camera(level), to->camera(level), from->pose().SE3(), _minDepthDiff, _maxDepthDiff);
     return std::make_unique<lukas_kanade::InverseCompositional>(
       from->intensity(level), from->dIdx(level), from->dIdy(level), to->intensity(level), warp,
       interestPoints, _loss);

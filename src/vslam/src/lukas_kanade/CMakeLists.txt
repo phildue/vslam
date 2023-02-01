@@ -4,8 +4,7 @@ project(lukas_kanade VERSION 1.0.0)
 set( sources
   src/Warp.cpp
   src/InverseCompositional.cpp
-  src/ForwardAdditive.cpp
-  src/InverseCompositionalStacked.cpp )
+  src/ForwardAdditive.cpp )
 
 set( headers
   src/ForwardAdditive.h

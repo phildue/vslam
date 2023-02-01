@@ -126,7 +126,7 @@ WarpSE3::WarpSE3(
   Camera::ConstShPtr camCur, Camera::ConstShPtr camRef, const SE3d & poseRef, double minDepthDiff,
   double maxDepthDiff)
 : Warp(6),
-  _se3(poseCur * poseRef.inverse()),
+  _se3(poseCur),
   _pose0(poseRef),
   _depth1(depth1),
   _width(width),
@@ -153,7 +153,7 @@ Eigen::Vector2d WarpSE3::apply(int u, int v) const
 {
   auto & p = _pcl0[v * _width + u];
   return p.z() > 0.0
-           ? _cam1->camera2image(_se3 * p)
+           ? _cam1->camera2image(_se3 * _pose0.inverse() * p)
            : Eigen::Vector2d(
                std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
 }
@@ -167,7 +167,7 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   */
   Eigen::Matrix<double, 2, 6> jac;
   jac.setConstant(std::numeric_limits<double>::quiet_NaN());
-  const Eigen::Vector3d & p = _pcl0[v * _width + u];
+  const Eigen::Vector3d p = _pcl0[v * _width + u];
   if (p.z() <= 0.0) {
     return jac;
   }
@@ -199,7 +199,7 @@ double WarpSE3::apply(const Image & img, int u, int v) const
 {
   const Vec3d & p0 = _pcl0[v * _width + u];
   if (p0.z() > 0.0) {
-    const Vec3d pt0 = _se3 * p0;
+    const Vec3d pt0 = _se3 * _pose0.inverse() * p0;
     if (pt0.z() > 0.0) {
       const Vec2d uv1 = _cam1->camera2image(pt0);
       if (1 < uv1(0) && uv1(0) < img.cols() - 1 && 1 < uv1(1) && uv1(1) < img.rows() - 1) {

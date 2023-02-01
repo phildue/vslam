@@ -18,7 +18,6 @@
 
 #include "ForwardAdditive.h"
 #include "InverseCompositional.h"
-#include "InverseCompositionalStacked.h"
 #include "Warp.h"
 
 #endif  //VSLAM_LUKAS_KANADE_PACKAGE_H__

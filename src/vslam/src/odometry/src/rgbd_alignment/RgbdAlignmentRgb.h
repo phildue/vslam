@@ -38,6 +38,7 @@ public:
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
   Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
+
   least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const override;
 

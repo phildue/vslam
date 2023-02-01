@@ -96,6 +96,44 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
   return Pose(twist, covariance);
 }
 
+Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const
+{
+  Vec6d twist = _initializeOnPrediction ? to->pose().SE3().log() : from[0]->pose().SE3().log();
+
+  Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
+  PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
+  for (int level = from[0]->nLevels() - 1; level >= 0; level--) {
+    TIMED_SCOPE(timerI, "align at level ( " + std::to_string(level) + " )");
+    LOG_ODOM(INFO) << "Aligning at level: [" << level << "] image size: [" << from[0]->width(level)
+                   << "," << from[0]->height(level) << "].";
+
+    LOG_IMG("Image") << to->intensity(level);
+    LOG_IMG("Template") << from[0]->intensity(level);
+    LOG_IMG("Depth") << from[0]->depth(level);
+
+    std::vector<Problem::ShPtr> ps;
+    for (const auto f : from) {
+      ps.push_back(setupProblem(twist, f, to, level));
+    }
+    auto p = std::make_shared<least_squares::CombinedProblem>(ps);
+    least_squares::Solver::Results::ConstShPtr r = _solver->solve(p);
+
+    if (r->hasSolution()) {
+      twist = r->solution();
+      covariance = r->covariance();
+    }
+
+    LOG_ODOM(INFO) << format(
+      "Aligned with [{}] iterations: {} +- {}, Reason: [{}]", r->iteration, twist.transpose(),
+      covariance.diagonal().cwiseSqrt().transpose(), to_string(r->convergenceCriteria));
+
+    plot << PlotAlignment::Entry({level, r});
+  }
+  LOG_IMG("Alignment") << plot;
+
+  return Pose(twist, covariance);
+}
+
 std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, int level) const
 {
   std::vector<Eigen::Vector2i> interestPoints;

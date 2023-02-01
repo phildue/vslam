@@ -36,10 +36,7 @@ public:
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
   virtual Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
-  virtual Pose align(const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const
-  {
-    throw pd::Exception("Method not implemented.");
-  }
+  virtual Pose align(const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const;
   virtual least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
 
