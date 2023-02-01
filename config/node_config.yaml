@@ -7,19 +7,19 @@
     frame_alignment:
       method: rgb
       methods: [rgbd, depth, rgb]
-      includeKeyFrame: false
+      includeKeyFrame: true
       trackKeyFrame: false
       includePrior: false
       initOnPrior: false
       features:
-        min_gradients: [0.0,0.0,0.0,0.0]
-        min_depth: 0.8
-        max_depth: 10.0
-        min_depth_diff: 0.05
-        max_depth_diff: 0.2
-        max_points_part: [1.0,1.0,1.0,1.0]
+        min_gradients: [10.0,10.0,10.0,10.0]
+        min_depth: 0.1
+        max_depth: 50.0
+        min_depth_diff: 0.1
+        max_depth_diff: 0.1
+        max_points_part: [0.05,0.05,0.05,0.05]
       loss:
-        function: tdistribution
+        function: None
         functions: [None, Huber, tdistribution]
         huber:
           c: 1.43
@@ -28,10 +28,10 @@
       pyramid:
         levels: [1.0, 0.5, 0.25, 0.125]
       solver:
-        max_iterations: 150
-        min_step_size: 0.00001
+        max_iterations: 100
+        min_step_size: 0.000001
         min_gradient: 0.000000000001
-        min_reduction: 0.999999
+        min_reduction: 0.99999999
         max_increase: 1.1
     prediction:
       model: NoMotion
@@ -61,7 +61,7 @@
         period: 5
       custom:
         max_translation: 0.1
-        max_rotation: 1.0
+        max_rotation: 5.0
         min_visible_points: 0
     map:
       n_keyframes: 5
