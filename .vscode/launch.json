@@ -186,7 +186,7 @@
         "name": "(gdb) Launch Composition",
         "type": "cppdbg",
         "request": "launch",
-        "program": "${workspaceFolder}/install/vslam_ros/lib/composition_evaluation",
+        "program": "${workspaceFolder}/install/vslam_ros/lib/composition_evaluation_tum",
         "args": ["--ros-args","--params-file","${workspaceFolder}/config/node_config.yaml",
         "-p","bag_file:=/mnt/dataset/tum_rgbd/${input:sequence_id}",
         "-p","gtTrajectoryFile:=/mnt/dataset/tum_rgbd/${input:sequence_id}/${input:sequence_id}-groundtruth.txt",
