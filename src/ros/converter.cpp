@@ -30,10 +30,23 @@ void convert(const builtin_interfaces::msg::Time & tRos, pd::vslam::Timestamp & 
 }
 pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
 {
-  const double fx = msg.k[0 * 3 + 0];
-  const double fy = msg.k[1 * 3 + 1];
-  const double cx = msg.k[0 * 3 + 2];
-  const double cy = msg.k[1 * 3 + 2];
+  double fx = msg.k[0 * 3 + 0];
+  double fy = msg.k[1 * 3 + 1];
+  double cx = msg.k[0 * 3 + 2];
+  double cy = msg.k[1 * 3 + 2];
+
+  if ((fx == 0 || cx == 0) && (msg.p[0 * 4 + 0] > 0 && msg.p[1 * 4 + 3] <= 1e-3)) {
+    //seems like k is not set but instead P TODO: its a bit hacky or risky
+    /*
+    P(i)rect = [[fu 0  cx  -fu*bx],
+               [0  fv  cy -fv*by],
+               [0   0   1  0]]
+    */
+    fx = msg.p[0 * 4 + 0];
+    fy = msg.p[1 * 4 + 1];
+    cx = msg.p[0 * 4 + 2];
+    cy = msg.p[1 * 4 + 2];
+  }
 
   return std::make_shared<pd::vslam::Camera>(fx, fy, cx, cy);
 }
