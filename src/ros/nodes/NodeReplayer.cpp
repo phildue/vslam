@@ -34,10 +34,6 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
 
   RCLCPP_INFO(get_logger(), "Opened: %s", _bagName.c_str());
 
-  _pubTf = create_publisher<tf2_msgs::msg::TFMessage>("/tf", 100);
-  _pubImg = create_publisher<sensor_msgs::msg::Image>("/camera/rgb/image_color", 100);
-  _pubCamInfo = create_publisher<sensor_msgs::msg::CameraInfo>("/camera/rgb/camera_info", 100);
-  _pubDepth = create_publisher<sensor_msgs::msg::Image>("/camera/depth/image", 100);
   _syncTopic = get_parameter("sync_topic").as_string();
   auto meta = _reader->get_metadata();
   _duration = static_cast<double>(meta.duration.count()) / 1e9;
@@ -46,14 +42,31 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
     meta.message_count, meta.topics_with_message_count.size());
 
   for (const auto & mc : _reader->get_metadata().topics_with_message_count) {
+    const auto & name = mc.topic_metadata.name;
     RCLCPP_INFO(
-      get_logger(), "Topic: [%s] is type [%s] has [%ld] messages", mc.topic_metadata.name.c_str(),
+      get_logger(), "Topic: [%s] is type [%s] has [%ld] messages", name.c_str(),
       mc.topic_metadata.type.c_str(), mc.message_count);
-    _nMessages[mc.topic_metadata.name] = mc.message_count;
-    _msgCtr[mc.topic_metadata.name] = 0U;
+    _nMessages[name] = mc.message_count;
+    _msgCtr[name] = 0U;
+
+    if (
+      name == "/camera/rgb/image_color" || name == "/kitti/camera_gray_right/image_rect" ||
+      name == "/kitti/camera_gray_left/image_rect") {
+      _pubImg[name] = create_publisher<sensor_msgs::msg::Image>(name, 100);
+    }
+    if (
+      name == "/camera/rgb/camera_info" || name == "/kitti/camera_gray_right/camera_info" ||
+      name == "/kitti/camera_gray_left/camera_info") {
+      _pubCamInfo[name] = create_publisher<sensor_msgs::msg::CameraInfo>(name, 100);
+    }
+    if (name == "/tf") {
+      _pubTf = create_publisher<tf2_msgs::msg::TFMessage>("/tf", 100);
+    }
+    if (name == "/camera/depth/image") {
+      _pubDepth = create_publisher<sensor_msgs::msg::Image>(name, 100);
+    }
   }
   const auto tStartDesired = getStartingTime(meta);
-
   _tStart = seek(tStartDesired);
   if (_tStart == 0) {
     RCLCPP_WARN(get_logger(), "Could not start at desired t = [%ld].", tStartDesired);
@@ -96,23 +109,29 @@ void NodeReplayer::publish(rosbag2_storage::SerializedBagMessageSharedPtr msg)
 {
   //std::cout << fNo << "/" << _nFrames << " t: " << msg->time_stamp << " topic: " << msg->topic_name << std::endl;
 
-  if (msg->topic_name == "/camera/rgb/image_color") {
+  if (
+    msg->topic_name == "/camera/rgb/image_color" ||
+    msg->topic_name == "/kitti/camera_gray_right/image_rect" ||
+    msg->topic_name == "/kitti/camera_gray_left/image_rect") {
     auto img = std::make_shared<sensor_msgs::msg::Image>();
     rclcpp::SerializedMessage extracted_serialized_msg(*msg->serialized_data);
     rclcpp::Serialization<sensor_msgs::msg::Image> serialization;
     serialization.deserialize_message(&extracted_serialized_msg, img.get());
-    _pubImg->publish(*img);
+    _pubImg[msg->topic_name]->publish(*img);
     //RCLCPP_INFO(
     //  get_logger(), "Topic [%s], replayed [%ld/%ld] messages.", msg->topic_name.c_str(),
     //  _msgCtr[msg->topic_name], _nMessages[msg->topic_name]);
   }
 
-  if (msg->topic_name == "/camera/rgb/camera_info") {
+  if (
+    msg->topic_name == "/camera/rgb/camera_info" ||
+    msg->topic_name == "/kitti/camera_gray_right/camera_info" ||
+    msg->topic_name == "/kitti/camera_gray_left/camera_info") {
     auto camInfo = std::make_shared<sensor_msgs::msg::CameraInfo>();
     rclcpp::SerializedMessage extracted_serialized_msg(*msg->serialized_data);
     rclcpp::Serialization<sensor_msgs::msg::CameraInfo> serialization;
     serialization.deserialize_message(&extracted_serialized_msg, camInfo.get());
-    _pubCamInfo->publish(*camInfo);
+    _pubCamInfo[msg->topic_name]->publish(*camInfo);
   }
 
   if (msg->topic_name == "/camera/depth/image") {

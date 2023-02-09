@@ -47,9 +47,9 @@ private:
   int _idx = 0;
   int _fNoOut = 0;
   rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr _pubTf;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pubImg;
+  std::map<std::string, rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr> _pubImg;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _pubDepth;
-  rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr _pubCamInfo;
+  std::map<std::string, rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr> _pubCamInfo;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr _srvReady;
   std::condition_variable _cond;
   std::mutex _mutex;
