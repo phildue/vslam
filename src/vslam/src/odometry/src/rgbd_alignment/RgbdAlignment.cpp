@@ -45,7 +45,7 @@ RgbdAlignment::RgbdAlignment(
   _minDepthDiff(minDepthDiff),
   _maxDepthDiff(maxDepthDiff),
   _maxPointsPart(maxPointsPart),
-  _distanceToBorder(0)
+  _distanceToBorder(7)
 {
   std::transform(
     minGradient.begin(), minGradient.end(), std::back_inserter(_minGradient2),
