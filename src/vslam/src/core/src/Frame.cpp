@@ -13,6 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+using fmt::format;
+
 #include <Eigen/Dense>
 #include <iostream>
 #include <map>
@@ -26,6 +30,7 @@
 #include "Frame.h"
 #include "Point3D.h"
 #include "algorithm.h"
+
 namespace pd::vslam
 {
 std::uint64_t Frame::_idCtr = 0U;
@@ -172,9 +177,13 @@ Frame::Frame(
 {
   if (
     intensity.cols() != depth.cols() ||
-    std::abs(intensity.cols() / 2 - cam->principalPoint().x()) > 10 ||
+    std::abs(intensity.cols() / 2 - cam->principalPoint().x()) > 50 ||
     intensity.rows() != depth.rows()) {
-    throw pd::Exception("Inconsistent camera parameters / image / depth dimensions detected.");
+    throw pd::Exception(format(
+      "Inconsistent camera parameters / image / depth dimensions detected: I:{}x{}, Z:{}x{}, "
+      "pp:{},{}",
+      intensity.cols(), intensity.rows(), depth.cols(), depth.rows(), cam->principalPoint().x(),
+      cam->principalPoint().y()));
   }
 }
 

@@ -16,7 +16,9 @@
 //
 // Created by phil on 30.06.21.
 //
-
+#include <fmt/chrono.h>
+#include <fmt/core.h>
+using fmt::format;
 #include "Camera.h"
 namespace pd::vslam
 {
@@ -41,10 +43,16 @@ Eigen::Vector3d Camera::image2ray(const Eigen::Vector2d & pImage) const
 Camera::Camera(double f, double cx, double cy) : Camera(f, f, cx, cy) {}
 
 Camera::Camera(double fx, double fy, double cx, double cy)
+: Camera(fx, fy, cx, cy, std::ceil(2 * cx), std::ceil(2 * cy))
+{
+}
+Camera::Camera(double fx, double fy, double cx, double cy, int width, int height)
+: _width(width), _height(height)
 {
   _K << fx, 0, cx, 0, fy, cy, 0, 0, 1;
   _Kinv = _K.inverse();
 }
+
 void Camera::resize(double s)
 {
   _K *= s;
@@ -54,6 +62,12 @@ Camera::ShPtr Camera::resize(Camera::ConstShPtr cam, double s)
 {
   return std::make_shared<Camera>(
     cam->fx() * s, cam->fy() * s, cam->principalPoint().x() * s, cam->principalPoint().y() * s);
+}
+std::string Camera::toString() const
+{
+  return format(
+    "Focal Length: {},{} | Principal Point: {},{} | Resolution: {},{}", fx(), fy(),
+    principalPoint().x(), principalPoint().y(), _width, _height);
 }
 
 }  // namespace pd::vslam

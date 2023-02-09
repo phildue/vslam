@@ -36,6 +36,7 @@ public:
 
   Camera(double f, double cx, double cy);
   Camera(double fx, double fy, double cx, double cy);
+  Camera(double fx, double fy, double cx, double cy, int width, int height);
 
   Eigen::Vector2d camera2image(const Eigen::Vector3d & pCamera) const;
   Eigen::Vector3d image2camera(const Eigen::Vector2d & pImage, double depth = 1.0) const;
@@ -45,17 +46,20 @@ public:
   const double & focalLength() const { return _K(0, 0); }
   const double & fx() const { return _K(0, 0); }
   const double & fy() const { return _K(1, 1); }
+  const int & width() const { return _width; }
+  const int & height() const { return _height; }
 
   Eigen::Vector2d principalPoint() const { return {_K(0, 2), _K(1, 2)}; }
   const Eigen::Matrix3d & K() const { return _K; }
   const Eigen::Matrix3d & Kinv() const { return _Kinv; }
   ShPtr static resize(ConstShPtr cam, double s);
 
-  static ShPtr TUM_RGBD() { return std::make_shared<Camera>(525.0, 525.0, 319.5, 239.5); }
+  std::string toString() const;
 
 private:
   Eigen::Matrix<double, 3, 3> _K;     //< Intrinsic camera matrix
   Eigen::Matrix<double, 3, 3> _Kinv;  //< Intrinsic camera matrix inverted
+  int _width, _height;
 };
 }  // namespace pd::vslam
 
