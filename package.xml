@@ -36,7 +36,7 @@
     <depend>stereo_msgs</depend>
     <depend>vision_opencv</depend>
     <depend>message_filters</depend>
-
+    <depend>stereo_image_proc</depend>
     <depend>geometry_msgs</depend>
 
   </export>

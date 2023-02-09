@@ -19,5 +19,6 @@
 #include "nodes/NodeEvaluation.h"
 #include "nodes/NodeReplayer.h"
 #include "nodes/NodeRgbdAlignment.h"
+#include "nodes/NodeStereoDepth.h"
 #include "vslam/vslam.h"
 #endif
