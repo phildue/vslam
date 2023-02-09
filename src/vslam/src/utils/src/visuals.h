@@ -36,6 +36,8 @@ cv::Mat drawAsImage(const Eigen::MatrixXd & mat);
 
 cv::Mat drawMat(const Image & mat);
 
+cv::Mat colorMap(const cv::Mat & input /*CV_32FC1*/, int color_map);
+
 class Drawable
 {
 public:
