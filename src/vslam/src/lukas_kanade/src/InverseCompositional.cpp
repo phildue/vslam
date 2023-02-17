@@ -109,11 +109,11 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   Image IWxp = Image::Zero(_I.rows(), _I.cols());
   MatXd R = MatXd::Zero(_I.rows(), _I.cols());
   MatXd W = MatXd::Zero(_I.rows(), _I.cols());
-
-  auto ne = std::make_unique<least_squares::NormalEquations>(6);
-  std::mutex m;
+  VecXd r = VecXd::Zero(_interestPoints.size());
+  VecXd w = VecXd::Zero(_interestPoints.size());
+  VecXd J = MatXd::Zero(_interestPoints.size(), 6);
   std::for_each(
-    std::execution::unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+    std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
       const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
       if (std::isfinite(iw)) {
         const double ri = iw - (double)_T(kp.pos.y(), kp.pos.x());
@@ -121,18 +121,12 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
         R(kp.pos.y(), kp.pos.x()) = ri;
         IWxp(kp.pos.y(), kp.pos.x()) = iw;
         W(kp.pos.y(), kp.pos.x()) = wi;
-        const VecXd & Ji = _J.row(kp.idx);
-        const double wn = wi * NORMALIZER;
-        const MatXd JJtw = Ji * Ji.transpose() * wn;
-        const VecXd Jrw = Ji * ri * wn;
-        const double rrw = ri * ri * wn;
-        //std::lock_guard<std::mutex> lock(m);
-        ne->A().noalias() += JJtw;
-        ne->b().noalias() += Jrw;
-        ne->chi2() += rrw;
-        ne->nConstraints()++;
+        w(kp.idx) = wi * NORMALIZER;
+        r(kp.idx) = ri;
       }
     });
+  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
+
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();
@@ -149,39 +143,31 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   MatXd W = MatXd::Zero(_I.rows(), _I.cols());
   VecXd r = VecXd::Zero(_interestPoints.size());
   VecXd w = VecXd::Zero(_interestPoints.size());
-
-  std::for_each(std::execution::seq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
-    const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
-    if (std::isfinite(iw)) {
-      R(kp.pos.y(), kp.pos.x()) = iw - (double)_T(kp.pos.y(), kp.pos.x());
-      IWxp(kp.pos.y(), kp.pos.x()) = iw;
-      W(kp.pos.y(), kp.pos.x()) = 1.0;
-      r(kp.idx) = R(kp.pos.y(), kp.pos.x());
-      w(kp.idx) = W(kp.pos.y(), kp.pos.x());
-    }
-  });
+  VecXd J = MatXd::Zero(_interestPoints.size(), 6);
+  std::for_each(
+    std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+      const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
+      if (std::isfinite(iw)) {
+        R(kp.pos.y(), kp.pos.x()) = iw - (double)_T(kp.pos.y(), kp.pos.x());
+        IWxp(kp.pos.y(), kp.pos.x()) = iw;
+        W(kp.pos.y(), kp.pos.x()) = 1.0;
+        r(kp.idx) = R(kp.pos.y(), kp.pos.x());
+        w(kp.idx) = W(kp.pos.y(), kp.pos.x());
+      }
+    });
 
   _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
 
-  auto ne = std::make_unique<least_squares::NormalEquations>(6);
-  std::mutex m;
-  std::for_each(std::execution::seq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
-    if (w(kp.idx) > 0.0) {
-      const double & ri = r(kp.idx);
-      const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
-      const VecXd & Ji = _J.row(kp.idx);
-      W(kp.pos.y(), kp.pos.x()) = wi;
-      const double wn = wi * NORMALIZER;
-      const MatXd JJtw = Ji * Ji.transpose() * wn;
-      const VecXd Jrw = Ji * ri * wn;
-      const double rrw = ri * ri * wn;
-      //std::lock_guard<std::mutex> lock(m);
-      ne->A().noalias() += JJtw;
-      ne->b().noalias() += Jrw;
-      ne->chi2() += rrw;
-      ne->nConstraints()++;
-    }
-  });
+  std::for_each(
+    std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+      if (w(kp.idx) > 0.0) {
+        const double & ri = r(kp.idx);
+        const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
+        W(kp.pos.y(), kp.pos.x()) = wi * NORMALIZER;
+      }
+    });
+  auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
+
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();

@@ -12,15 +12,16 @@
       methods: [rgbd, depth, rgb]
       includeKeyFrame: false
       trackKeyFrame: false
-      includePrior: false
-      initOnPrior: false
+      includePrior: true
+      initOnPrior: true
       features:
-        min_gradients: [1.0,1.0,1.0,1.0]
+        min_gradients: [50.0,50.0,50.0,50.0]
         min_depth: 0.1
         max_depth: 30.0
         min_depth_diff: 0.1
-        max_depth_diff: 30.0
-        max_points_part: [0.05,0.05,0.05,0.05]
+        max_depth_diff: 10.0
+        max_points: [307200.0,307200.0,307200.0,307200.0]
+        # 640*480=307200
       loss:
         function: tdistribution
         functions: [None, Tukey, Huber, tdistribution]
@@ -32,15 +33,16 @@
         levels: [1.0, 0.5, 0.25, 0.125]
       solver:
         max_iterations: 100
-        min_step_size: 0.000001
+        min_step_size: 0.00001
         min_gradient: 0.000000000001
         min_reduction: 0.99999999
         max_increase: 1.1
     prediction:
-      model: NoMotion
+      model: ConstantMotion
       models: [NoMotion, ConstantMotion, Kalman]
-      constant_motion:
-        covariance: [0.01,0.01,0.01,0.01,0.01,0.01]
+      constant_speed:
+      #[m,m,m,°,°,°]
+        covariance: [0.3, 0.3, 0.3, 15.0, 15.0, 15.0]
       kalman: 
       # uncertainties are 1 std errors in SI units
         initial_uncertainty:
