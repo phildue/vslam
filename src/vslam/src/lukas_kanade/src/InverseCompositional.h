@@ -73,6 +73,8 @@ public:
   Eigen::VectorXd x() const override { return _w->x(); }
 
   least_squares::NormalEquations::UnPtr computeNormalEquations() override;
+  least_squares::NormalEquations::UnPtr computeNormalEquationsScaled();
+  least_squares::NormalEquations::UnPtr computeNormalEquationsAndScale();
 
 protected:
   const Image _T;

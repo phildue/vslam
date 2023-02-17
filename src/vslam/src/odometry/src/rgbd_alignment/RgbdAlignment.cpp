@@ -17,6 +17,7 @@
 #include <fmt/ostream.h>
 
 #include "LukasKanadeWithDepth.h"
+#include "MotionPrior.h"
 #include "PlotAlignment.h"
 #include "RgbdAlignment.h"
 #include "lukas_kanade/lukas_kanade.h"
@@ -44,7 +45,7 @@ RgbdAlignment::RgbdAlignment(
   _maxDepth(maxDepth),
   _minDepthDiff(minDepthDiff),
   _maxDepthDiff(maxDepthDiff),
-  _maxPointsPart(maxPointsPart),
+  _maxPoints(maxPointsPart),
   _distanceToBorder(7)
 {
   std::transform(
@@ -62,6 +63,7 @@ RgbdAlignment::RgbdAlignment(
 
 Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
+  TIMED_SCOPE(timerF, "align");
   Vec6d twist = _initializeOnPrediction
                   ? algorithm::computeRelativeTransform(from->pose().SE3(), to->pose().SE3()).log()
                   : Vec6d::Zero();
@@ -70,15 +72,18 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
   PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
   for (int level = from->nLevels() - 1; level >= 0; level--) {
     TIMED_SCOPE(timerI, "align at level ( " + std::to_string(level) + " )");
-    LOG_ODOM(INFO) << "Aligning at level: [" << level << "] image size: [" << from->width(level)
-                   << "," << from->height(level) << "].";
 
     LOG_IMG("Image") << to->intensity(level);
     LOG_IMG("Template") << from->intensity(level);
     LOG_IMG("Depth") << from->depth(level);
 
-    least_squares::Problem::ShPtr p = setupProblem(twist, from, to, level);
-    least_squares::Solver::Results::ConstShPtr r = _solver->solve(p);
+    auto p = setupProblem(twist, from, to, level);
+
+    if (_includePrior) {
+      p = least_squares::Problem::UnPtr(
+        std::make_unique<PriorRegularizedLeastSquares>(SE3d::exp(twist), to->pose(), std::move(p)));
+    }
+    least_squares::Solver::Results::ConstShPtr r = _solver->solve(std::move(p));
 
     if (r->hasSolution()) {
       twist = r->solution();
@@ -86,8 +91,9 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
     }
 
     LOG_ODOM(INFO) << format(
-      "Aligned with {} iterations: {} +- {}", r->iteration, twist.transpose(),
-      covariance.diagonal().cwiseSqrt().transpose());
+      "Aligned at level [{}] with [{}] iterations: {} +- {}, Reason: [{}]. Solution is {}.", level,
+      r->iteration, twist.transpose(), covariance.diagonal().cwiseSqrt().transpose(),
+      to_string(r->convergenceCriteria), r->hasSolution() ? "valid" : "not valid");
 
     plot << PlotAlignment::Entry({level, r});
   }
@@ -98,6 +104,7 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 
 Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const
 {
+  TIMED_SCOPE(timerF, "align" + std::to_string(from.size()));
   Vec6d twist = _initializeOnPrediction ? to->pose().SE3().log() : from[0]->pose().SE3().log();
 
   Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
@@ -113,7 +120,12 @@ Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr t
 
     std::vector<Problem::ShPtr> ps;
     for (const auto f : from) {
-      ps.push_back(setupProblem(twist, f, to, level));
+      auto p = setupProblem(twist, f, to, level);
+      if (_includePrior) {
+        p = least_squares::Problem::UnPtr(std::make_unique<PriorRegularizedLeastSquares>(
+          SE3d::exp(twist), to->pose(), std::move(p)));
+      }
+      ps.push_back(std::move(p));
     }
     auto p = std::make_shared<least_squares::CombinedProblem>(ps);
     least_squares::Solver::Results::ConstShPtr r = _solver->solve(p);
@@ -152,9 +164,17 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
     }
   });
 
-  //TODO is this faster/better than grid based subsampling?
-  const size_t needCount = std::max<size_t>(
-    100, size_t(frame->width(level) * frame->height(level) * _maxPointsPart[level]));
+  interestPoints = uniformSubselection(frame, interestPoints, level);
+
+  LOG_ODOM(DEBUG) << format(
+    "Selected [{}] features at level [{}] in frame[{}]", interestPoints.size(), level, frame->id());
+  return interestPoints;
+}
+
+std::vector<Vec2i> RgbdAlignment::uniformSubselection(
+  Frame::ConstShPtr frame, const std::vector<Vec2i> & interestPoints, int level) const
+{
+  const size_t needCount = std::max<size_t>(20, size_t(_maxPoints[level]));
   std::vector<bool> mask(frame->width(level) * frame->height(level), false);
   std::vector<Eigen::Vector2i> subset;
   subset.reserve(interestPoints.size());
@@ -167,27 +187,18 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
         mask[idx] = true;
       }
     }
-    interestPoints = std::move(subset);
+    return subset;
   }
-
-  LOG_ODOM(INFO) << format(
-    "Selected [{}] features at level [{}] with min gradient magnitude [{}]", interestPoints.size(),
-    level, _minGradient2[level]);
   return interestPoints;
 }
 
 least_squares::Problem::UnPtr RgbdAlignment::setupProblem(
-  const Vec6d & twistInit, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const
+  const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const
 {
   auto interestPoints = selectInterestPoints(from, level);
 
-  if (_includePrior) {
-    throw pd::Exception("Not Implemented!");
-
-  } else {
-    return std::make_unique<LukasKanadeWithDepth>(
-      SE3d::exp(twistInit), from, to, interestPoints, level, 0.0, _maxDepthDiff, _loss);
-  }
+  return std::make_unique<LukasKanadeWithDepth>(
+    SE3d::exp(twist), from, to, interestPoints, level, 0.0, _maxDepthDiff, _loss);
 }
 
 }  // namespace pd::vslam

@@ -32,6 +32,15 @@ MotionModelNoMotion::MotionModelNoMotion()
 : MotionModel(), _speed(Vec6d::Zero()), _lastPose(SE3d(), MatXd::Identity(6, 6)), _lastT(0U)
 {
 }
+bool MotionModelNoMotion::exceedsThresholds(const Vec6d & speed) const
+{
+  const double _maxTranslationalSpeed = 2.0;
+  const double _maxAngularSpeed = 30 * M_PI / 180.0;
+  return (
+    speed.block(0, 0, 3, 1).norm() > _maxTranslationalSpeed ||
+    speed.block(3, 0, 3, 1).norm() > _maxAngularSpeed);
+}
+
 void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (timestamp < _lastT) {
@@ -39,8 +48,17 @@ void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
   }
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   if (dT > 0) {
-    _speed = relativePose.twist() / dT;
-    _speedCov = relativePose.twistCov() / dT;
+    const Vec6d speed = relativePose.twist() / dT;
+    const Mat6d speedCov = relativePose.twistCov() / dT;
+
+    if (exceedsThresholds(speed)) {
+      LOG_ODOM(WARNING) << "Speed exceeded, ignoring t = " << timestamp
+                        << " with: {} tl=" << speed.block(0, 0, 3, 1).norm()
+                        << ", tr=" << speed.block(3, 0, 3, 1).norm() * 180.0 / M_PI;
+      return;
+    }
+    _speed = speed;
+    _speedCov = speedCov;
   }
   _lastPose = relativePose * _lastPose;
   _lastT = timestamp;
@@ -59,7 +77,11 @@ Pose MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   const Pose predictedRelativePose(SE3d::exp(_speed * dT), dT * _speedCov);
-  return Pose(predictedRelativePose * _lastPose);
+  Pose predictedPose(predictedRelativePose.SE3() * _lastPose.SE3(), _covariance);
+  LOG_ODOM(DEBUG) << format(
+    "Prediction: {} +- {}", predictedPose.mean().transpose(),
+    predictedPose.twistCov().diagonal().transpose());
+  return predictedPose;
 }
 
 MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)

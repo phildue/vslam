@@ -48,9 +48,11 @@ protected:
   const double _minDepth;
   const double _maxDepth;
   const double _minDepthDiff, _maxDepthDiff;
-  const std::vector<double> _maxPointsPart;
+  const std::vector<double> _maxPoints;
   const int _distanceToBorder;
   virtual std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;
+  virtual std::vector<Vec2i> uniformSubselection(
+    Frame::ConstShPtr frame, const std::vector<Vec2i> & interestPoints, int level) const;
 };
 
 }  // namespace pd::vslam

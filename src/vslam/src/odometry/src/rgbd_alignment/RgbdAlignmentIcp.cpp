@@ -47,13 +47,8 @@ least_squares::Problem::UnPtr RgbdAlignmentIcp::setupProblem(
 {
   auto interestPoints = selectInterestPoints(from, level);
 
-  if (_includePrior) {
-    throw pd::Exception("Not Implemented!");
-
-  } else {
-    return std::make_unique<IterativeClosestPoint>(
-      SE3d::exp(twistInit), from, to, interestPoints, level, _maxDepthDiff, _loss);
-  }
+  return std::make_unique<IterativeClosestPoint>(
+    SE3d::exp(twistInit), from, to, interestPoints, level, _maxDepthDiff, _loss);
 }
 std::vector<Vec2i> RgbdAlignmentIcp::selectInterestPoints(Frame::ConstShPtr frame, int level) const
 {
@@ -67,27 +62,10 @@ std::vector<Vec2i> RgbdAlignmentIcp::selectInterestPoints(Frame::ConstShPtr fram
     }
   });
 
-  //TODO is this faster/better than grid based subsampling?
-  const size_t needCount = std::max<size_t>(
-    100, size_t(frame->width(level) * frame->height(level) * _maxPointsPart[level]));
-  std::vector<bool> mask(frame->width(level) * frame->height(level), false);
-  std::vector<Eigen::Vector2i> subset;
-  subset.reserve(interestPoints.size());
-  if (needCount < interestPoints.size()) {
-    while (subset.size() < needCount) {
-      auto ip = interestPoints[random::U(0, interestPoints.size() - 1)];
-      const size_t idx = ip.y() * frame->width(level) + ip.x();
-      if (!mask[idx]) {
-        subset.push_back(ip);
-        mask[idx] = true;
-      }
-    }
-    interestPoints = std::move(subset);
-  }
+  interestPoints = uniformSubselection(frame, interestPoints, level);
 
-  LOG_ODOM(INFO) << format(
-    "Selected [{}] features at level [{}] with min gradient magnitude [{}]", interestPoints.size(),
-    level, _minGradient2[level]);
+  LOG_ODOM(DEBUG) << format(
+    "Selected [{}] features at level [{}] in frame[{}]", interestPoints.size(), level, frame->id());
   return interestPoints;
 }
 

@@ -14,6 +14,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
+#include <execution>
+#include <mutex>
 
 #include "InverseCompositional.h"
 #include "core/core.h"
@@ -99,13 +101,56 @@ InverseCompositional::InverseCompositional(
 void InverseCompositional::updateX(const Eigen::VectorXd & dx) { _w->updateCompositional(-dx); }
 least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquations()
 {
+  return _scale ? computeNormalEquationsScaled() : computeNormalEquationsAndScale();
+}
+
+least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquationsScaled()
+{
+  Image IWxp = Image::Zero(_I.rows(), _I.cols());
+  MatXd R = MatXd::Zero(_I.rows(), _I.cols());
+  MatXd W = MatXd::Zero(_I.rows(), _I.cols());
+
+  auto ne = std::make_unique<least_squares::NormalEquations>(6);
+  std::mutex m;
+  std::for_each(
+    std::execution::unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+      const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
+      if (std::isfinite(iw)) {
+        const double ri = iw - (double)_T(kp.pos.y(), kp.pos.x());
+        const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
+        R(kp.pos.y(), kp.pos.x()) = ri;
+        IWxp(kp.pos.y(), kp.pos.x()) = iw;
+        W(kp.pos.y(), kp.pos.x()) = wi;
+        const VecXd & Ji = _J.row(kp.idx);
+        const double wn = wi * NORMALIZER;
+        const MatXd JJtw = Ji * Ji.transpose() * wn;
+        const VecXd Jrw = Ji * ri * wn;
+        const double rrw = ri * ri * wn;
+        //std::lock_guard<std::mutex> lock(m);
+        ne->A().noalias() += JJtw;
+        ne->b().noalias() += Jrw;
+        ne->chi2() += rrw;
+        ne->nConstraints()++;
+      }
+    });
+  ne->A() /= ne->nConstraints();
+  ne->b() /= ne->nConstraints();
+  ne->chi2() /= ne->nConstraints();
+  LOG_IMG("ImageWarped") << IWxp;
+  LOG_IMG("Residual") << R;
+  LOG_IMG("Weights") << W;
+
+  return ne;
+}
+least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquationsAndScale()
+{
   Image IWxp = Image::Zero(_I.rows(), _I.cols());
   MatXd R = MatXd::Zero(_I.rows(), _I.cols());
   MatXd W = MatXd::Zero(_I.rows(), _I.cols());
   VecXd r = VecXd::Zero(_interestPoints.size());
   VecXd w = VecXd::Zero(_interestPoints.size());
 
-  std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+  std::for_each(std::execution::seq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
     const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
     if (std::isfinite(iw)) {
       R(kp.pos.y(), kp.pos.x()) = iw - (double)_T(kp.pos.y(), kp.pos.x());
@@ -115,15 +160,26 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
       w(kp.idx) = W(kp.pos.y(), kp.pos.x());
     }
   });
-  if (!_scale) _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
-  auto ne = std::make_unique<least_squares::NormalEquations>(6);
 
-  std::for_each(_interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
+  _scale = std::make_unique<least_squares::Scaler::Scale>(_loss->computeScale(r));
+
+  auto ne = std::make_unique<least_squares::NormalEquations>(6);
+  std::mutex m;
+  std::for_each(std::execution::seq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
     if (w(kp.idx) > 0.0) {
-      W(kp.pos.y(), kp.pos.x()) =
-        _loss->computeWeight((r(kp.idx) - _scale->offset) / _scale->scale);
-      w(kp.idx) = W(kp.pos.y(), kp.pos.x());
-      ne->addConstraint(_J.row(kp.idx), r(kp.idx), w(kp.idx) * NORMALIZER);
+      const double & ri = r(kp.idx);
+      const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
+      const VecXd & Ji = _J.row(kp.idx);
+      W(kp.pos.y(), kp.pos.x()) = wi;
+      const double wn = wi * NORMALIZER;
+      const MatXd JJtw = Ji * Ji.transpose() * wn;
+      const VecXd Jrw = Ji * ri * wn;
+      const double rrw = ri * ri * wn;
+      //std::lock_guard<std::mutex> lock(m);
+      ne->A().noalias() += JJtw;
+      ne->b().noalias() += Jrw;
+      ne->chi2() += rrw;
+      ne->nConstraints()++;
     }
   });
   ne->A() /= ne->nConstraints();

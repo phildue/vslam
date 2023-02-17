@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <execution>
+
 #include "Solver.h"
 namespace pd::vslam::least_squares
 {
@@ -32,14 +33,20 @@ void CombinedProblem::setX(const Eigen::VectorXd & x)
 Eigen::VectorXd CombinedProblem::x() const { return _problems[0]->x(); }
 NormalEquations::UnPtr CombinedProblem::computeNormalEquations()
 {
-  std::vector<NormalEquations> nes;
-  std::transform(_problems.begin(), _problems.end(), std::back_inserter(nes), [](const auto & p) {
-    return *p->computeNormalEquations();
-  });
+  std::vector<NormalEquations> nes(_problems.size(), NormalEquations(nParameters()));
+  std::transform(
+    _problems.begin(), _problems.end(), nes.begin(),
+    [](const auto & p) -> NormalEquations { return *p->computeNormalEquations(); });
   return std::make_unique<NormalEquations>(nes);
 }
 
-bool Solver::Results::hasSolution() const { return iteration > 0; }
+bool Solver::Results::hasSolution() const
+{
+  return iteration > 0 && convergenceCriteria != Solver::ConvergenceCriteria::HESSIAN_SINGULAR &&
+         convergenceCriteria != Solver::ConvergenceCriteria::NOT_ENOUGH_CONSTRAINTS &&
+         convergenceCriteria != Solver::ConvergenceCriteria::NAN_DURING_OPTIMIZATION &&
+         std::isfinite(solution(iteration - 1).norm());
+}
 VecXd Solver::Results::solution(int iter) const
 {
   return iter < 0 ? x.row(iter + iteration) : x.row(iter);

@@ -47,6 +47,7 @@ public:
   Pose predictPose(Timestamp UNUSED(timestamp)) const override;
   Pose pose() const override;
   Pose speed() const override;
+  bool exceedsThresholds(const Vec6d & speed) const;
 
 protected:
   Vec6d _speed = Vec6d::Zero();

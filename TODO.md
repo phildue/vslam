@@ -3,7 +3,7 @@
 ## Algorithm
 - [ ] Integrate kalman filter for motion prediction
 - [ ] Integrate alignment on depth error
-- [ ] Fix open problems in motion prior
+- [x] Fix open problems in motion prior
 - [ ] Integrate descriptor based matching for key frames
 - [ ] Integrate bundle adjustment for pose graph optimization
 - [ ] Implement 3D mapping that fuses depth, RGB based on trajectory (kinect fusion?)

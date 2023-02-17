@@ -68,7 +68,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("frame_alignment.features.min_depth_diff", 0.05);
   declare_parameter("frame_alignment.features.max_depth_diff", 1.0);
   declare_parameter(
-    "frame_alignment.features.max_points_part", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
+    "frame_alignment.features.max_points", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
   declare_parameter("frame_alignment.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
   declare_parameter("frame_alignment.solver.max_iterations", 100);
   declare_parameter("frame_alignment.solver.min_step_size", 1e-7);
@@ -92,6 +92,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("prediction.kalman.initial_uncertainty.pose.rotation", 1e-15);
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.rotation", 1e-15);
+  declare_parameter(
+    "prediction.constant_speed.covariance", std::vector<double>({0.1, 0.1, 0.1, 0.1, 0.1, 0.1}));
+
   declare_parameter("map.n_keyframes", 7);
   declare_parameter("map.n_frames", 7);
 
@@ -143,7 +146,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.max_depth").as_double(),
       get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+      get_parameter("frame_alignment.features.max_points").as_double_array());
   } else if (get_parameter("frame_alignment.method").as_string() == "rgbd") {
     _rgbdAlignment = std::make_shared<RgbdAlignment>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
@@ -153,7 +156,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.max_depth").as_double(),
       get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+      get_parameter("frame_alignment.features.max_points").as_double_array());
   } else if (get_parameter("frame_alignment.method").as_string() == "rgb") {
     _rgbdAlignment = std::make_shared<RgbdAlignmentRgb>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
@@ -163,7 +166,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.max_depth").as_double(),
       get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points_part").as_double_array());
+      get_parameter("frame_alignment.features.max_points").as_double_array());
   } else {
     throw pd::Exception(format(
       "Unknown frame_alignment method {} available are: [rgbd, depth, rgb]",
@@ -175,6 +178,11 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
     auto covarianceVector = get_parameter("prediction.constant_speed.covariance").as_double_array();
     Eigen::Map<Vec6d> covDiag(covarianceVector.data());
+    covDiag = covDiag.array() * covDiag.array();
+    covDiag(3) *= M_PI / 180.0;
+    covDiag(4) *= M_PI / 180.0;
+    covDiag(5) *= M_PI / 180.0;
+
     _motionModel = std::make_shared<MotionModelConstantSpeed>(covDiag.asDiagonal());
   } else if (get_parameter("prediction.model").as_string() == "Kalman") {
     const double processVarRot = std::pow(
@@ -345,7 +353,8 @@ void NodeRgbdAlignment::imageCallback(
   }
 
   try {
-    TIMED_FUNC(timerF);
+    TIMED_SCOPE(timerF, "processFrame");
+
     Frame::ShPtr frame = createFrame(msgImg, msgDepth);
 
     frame->set(_motionModel->predictPose(frame->t()));
@@ -362,10 +371,11 @@ void NodeRgbdAlignment::imageCallback(
     } else if (_map->lastFrame()) {
       pose = _rgbdAlignment->align(_map->lastFrame(), frame);
     }
-    //TODO
-    //_motionModel->update(pose, frame->t());
 
-    frame->set(pose);
+    auto relativePose = _map->lastFrame() ? pose * _map->lastFrame()->pose().inverse() : pose;
+    _motionModel->update(relativePose, frame->t());
+
+    frame->set(_motionModel->pose());
 
     _keyFrameSelection->update(frame);
 
@@ -388,17 +398,18 @@ void NodeRgbdAlignment::timerCallback()
   if (_map->lastFrame()) {
     auto x = _map->lastFrame()->pose().inverse().twist();
     auto cx = _map->lastFrame()->pose().inverse().twistCov();
+    const auto fId = _map->lastFrame()->id();
 
     RCLCPP_INFO(
-      get_logger(), "Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", x(0), x(1), x(2),
-      x(3), x(4), x(5), cx.norm());
+      get_logger(), "Frame: %ld Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", fId, x(0),
+      x(1), x(2), x(3), x(4), x(5), cx.norm());
   }
 
   RCLCPP_INFO(
     get_logger(), format(
                     "Translational Speed: {} [m/s] | Cov | {}",
-                    _motionModel->speed().SE3().translation().transpose() * 1e9,
-                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose() * 1e9)
+                    _motionModel->speed().SE3().translation().transpose(),
+                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose())
                     .c_str());
 }
 
@@ -439,6 +450,8 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   sensor_msgs::msg::Image::ConstSharedPtr msgImg,
   sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
 {
+  TIMED_SCOPE(timerF, "createFrame");
+
   //TODO(me) try to avoid copying here
   namespace enc = sensor_msgs::image_encodings;
   auto cv_ptr = cv_bridge::toCvShare(msgImg);
@@ -459,7 +472,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   f->computePyramid(get_parameter("frame_alignment.pyramid.levels").as_double_array().size());
   f->computeIntensityDerivatives();
   f->computePcl();
-  f->computeNormals();
+  //f->computeNormals();
   return f;
 }
 
