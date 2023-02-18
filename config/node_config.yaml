@@ -11,7 +11,7 @@
       method: rgb
       methods: [rgbd, depth, rgb]
       includeKeyFrame: false
-      trackKeyFrame: false
+      trackKeyFrame: true
       includePrior: true
       initOnPrior: true
       features:
@@ -19,7 +19,7 @@
         min_depth: 0.1
         max_depth: 30.0
         min_depth_diff: 0.1
-        max_depth_diff: 10.0
+        max_depth_diff: 0.1
         max_points: [307200.0,307200.0,307200.0,307200.0]
         # 640*480=307200
       loss:
@@ -68,9 +68,11 @@
         max_translation: 0.1
         max_rotation: 5.0
         min_visible_points: 0
+      entropy:
+        max_entropy_ratio: 1.5
     map:
       n_keyframes: 5
-      n_frames: 2
+      n_frames: 50
     bundle_adjustment:
       max_iterations: 0
       huber_constant: 3.0

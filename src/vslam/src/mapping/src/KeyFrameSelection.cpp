@@ -15,6 +15,9 @@
 
 #include "KeyFrameSelection.h"
 #include "utils/utils.h"
+
+#define LOG_MAPPING(level) CLOG(level, "mapping")
+
 namespace pd::vslam
 {
 KeyFrameSelectionCustom::KeyFrameSelectionCustom(
@@ -53,4 +56,30 @@ bool KeyFrameSelectionCustom::isKeyFrame() const
   return _relativePose.translation().norm() > _maxTranslation ||
          _visiblePoints < _minVisiblePoints || rotation > _maxRotation;
 }
+
+KeyFrameSelectionEntropy::KeyFrameSelectionEntropy(Map::ConstShPtr map, double maxEntropy)
+: KeyFrameSelection(),
+  _map(map),
+  _maxEntropy(maxEntropy),
+  _entropyRatio(0.0),
+  _entropyRef(1.0),
+  _refId(std::numeric_limits<uint64_t>::max())
+{
+}
+void KeyFrameSelectionEntropy::update(Frame::ConstShPtr frame)
+{
+  if (!_map->lastKf()) {
+    _entropyRatio = 1000.0;
+  } else if (_refId != _map->lastKf()->id()) {
+    _refId = _map->lastKf()->id();
+    _entropyRatio = 1.0;
+    _entropyRef = std::max(0.0001, std::log(frame->pose().twistCov().determinant()));
+
+  } else {
+    _entropyRatio = std::log(frame->pose().twistCov().determinant()) / _entropyRef;
+  }
+
+  LOG_MAPPING(INFO) << "Entropy ratio: " << _entropyRatio;
+}
+bool KeyFrameSelectionEntropy::isKeyFrame() const { return _entropyRatio > _maxEntropy; }
 }  // namespace pd::vslam

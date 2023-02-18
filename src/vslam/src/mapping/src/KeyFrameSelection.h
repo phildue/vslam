@@ -72,6 +72,26 @@ private:
   uint64_t _visiblePoints;
   SE3d _relativePose;
 };
+
+class KeyFrameSelectionEntropy : public KeyFrameSelection
+{
+public:
+  typedef std::shared_ptr<KeyFrameSelectionEntropy> ShPtr;
+  typedef std::unique_ptr<KeyFrameSelectionEntropy> UnPtr;
+  typedef std::shared_ptr<const KeyFrameSelectionEntropy> ConstShPtr;
+  typedef std::unique_ptr<const KeyFrameSelectionEntropy> ConstUnPtr;
+
+  KeyFrameSelectionEntropy(Map::ConstShPtr map, double maxEntropy);
+  void update(Frame::ConstShPtr frame) override;
+  bool isKeyFrame() const override;
+
+private:
+  const Map::ConstShPtr _map;
+  const double _maxEntropy;
+  double _entropyRatio, _entropyRef;
+  uint64_t _refId;
+};
+
 class KeyFrameSelectionNever : public KeyFrameSelection
 {
 public:
