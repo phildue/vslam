@@ -26,37 +26,47 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 {
 };
 #define LOG_ODOM(level) CLOG(level, "odometry")
-namespace pd::vslam
+namespace pd::vslam::motion_model
 {
-MotionModelNoMotion::MotionModelNoMotion()
-: MotionModel(), _speed(Vec6d::Zero()), _lastPose(SE3d(), MatXd::Identity(6, 6)), _lastT(0U)
+NoMotion::NoMotion(double maxTranslationalVelocity, double maxAngularVelocity)
+: MotionModel(),
+  _maxTranslationalVelocity(maxTranslationalVelocity),
+  _maxAngularVelocity(maxAngularVelocity),
+  _speed(Vec6d::Zero()),
+  _lastPose(SE3d(), MatXd::Identity(6, 6)),
+  _lastT(0U)
 {
 }
-bool MotionModelNoMotion::exceedsThresholds(const Vec6d & speed) const
+bool NoMotion::exceedsThresholds(const Vec6d & speed) const
 {
-  const double _maxTranslationalSpeed = 2.0;
-  const double _maxAngularSpeed = 30 * M_PI / 180.0;
-  return (
-    speed.block(0, 0, 3, 1).norm() > _maxTranslationalSpeed ||
-    speed.block(3, 0, 3, 1).norm() > _maxAngularSpeed);
+  using time::to_time_point;
+
+  const double translationalVelocity = speed.block(0, 0, 3, 1).norm();
+  const double angularVelocity = speed.block(3, 0, 3, 1).norm();
+  const bool exceeds =
+    translationalVelocity > _maxTranslationalVelocity || angularVelocity > _maxAngularVelocity;
+
+  if (exceeds) {
+    LOG_ODOM(WARNING) << format(
+      "Speed exceeded, ignoring t={{:%Y-%m-%d %H:%M:%S}} with vt = {}/{} m/s, va = {}/{} deg/s",
+      to_time_point(_lastT), translationalVelocity, _maxTranslationalVelocity,
+      angularVelocity * 180.0 / M_PI, _maxAngularVelocity * 180.0 / M_PI);
+  }
+  return exceeds;
 }
 
-void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
+void NoMotion::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
   }
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
-  if (dT > 0) {
+  if (_lastT > 0 && dT > 0) {
     const Vec6d speed = relativePose.twist() / dT;
     const Mat6d speedCov = relativePose.twistCov() / dT;
 
-    if (exceedsThresholds(speed)) {
-      LOG_ODOM(WARNING) << "Speed exceeded, ignoring t = " << timestamp
-                        << " with: {} tl=" << speed.block(0, 0, 3, 1).norm()
-                        << ", tr=" << speed.block(3, 0, 3, 1).norm() * 180.0 / M_PI;
-      return;
-    }
+    if (exceedsThresholds(speed)) return;
+
     _speed = speed;
     _speedCov = speedCov;
   }
@@ -64,16 +74,17 @@ void MotionModelNoMotion::update(const Pose & relativePose, Timestamp timestamp)
   _lastT = timestamp;
 }
 
-Pose MotionModelNoMotion::predictPose(Timestamp UNUSED(timestamp)) const { return pose(); }
-Pose MotionModelNoMotion::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
-Pose MotionModelNoMotion::speed() const { return Pose(SE3d::exp(_speed), _speedCov); }
+Pose NoMotion::predictPose(Timestamp UNUSED(timestamp)) const { return pose(); }
+Pose NoMotion::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
+Pose NoMotion::speed() const { return Pose(SE3d::exp(_speed), _speedCov); }
 
-MotionModelConstantSpeed::MotionModelConstantSpeed(const Mat6d & covariance)
-: MotionModelNoMotion(), _covariance(covariance)
+ConstantMotion::ConstantMotion(
+  const Mat6d & covariance, double maxTranslationalVelocity, double maxAngularVelocity)
+: NoMotion(maxTranslationalVelocity, maxAngularVelocity), _covariance(covariance)
 {
 }
 
-Pose MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
+Pose ConstantMotion::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   const Pose predictedRelativePose(SE3d::exp(_speed * dT), dT * _speedCov);
@@ -84,7 +95,7 @@ Pose MotionModelConstantSpeed::predictPose(Timestamp timestamp) const
   return predictedPose;
 }
 
-MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)
+ConstantMotionWindow::ConstantMotionWindow(Timestamp timeFrame)
 : MotionModel(),
   _timeFrame(timeFrame),
   _traj(std::make_unique<Trajectory>()),
@@ -93,7 +104,7 @@ MotionModelMovingAverage::MotionModelMovingAverage(Timestamp timeFrame)
   _lastT(0U)
 {
 }
-void MotionModelMovingAverage::update(const Pose & relativePose, Timestamp timestamp)
+void ConstantMotionWindow::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (timestamp < _lastT) {
     throw pd::Exception("New timestamp is older than last one!");
@@ -113,16 +124,16 @@ void MotionModelMovingAverage::update(const Pose & relativePose, Timestamp times
   _lastT = timestamp;
 }
 
-Pose MotionModelMovingAverage::predictPose(Timestamp timestamp) const
+Pose ConstantMotionWindow::predictPose(Timestamp timestamp) const
 {
   const double dT = (static_cast<double>(timestamp) - static_cast<double>(_lastT)) / 1e9;
   const Pose predictedRelativePose(SE3d::exp(_speed * dT), dT * _speedCov);
   return Pose(predictedRelativePose * _lastPose);
 }
-Pose MotionModelMovingAverage::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
-Pose MotionModelMovingAverage::speed() const { return Pose(SE3d::exp(_speed), _lastPose.cov()); }
+Pose ConstantMotionWindow::pose() const { return Pose(_lastPose.pose(), _lastPose.cov()); }
+Pose ConstantMotionWindow::speed() const { return Pose(SE3d::exp(_speed), _lastPose.cov()); }
 
-MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(
+ConstantMotionKalman::ConstantMotionKalman(
   const Matd<12, 12> & covProcess, const Matd<12, 12> & covState)
 : MotionModel(),
   _kalman(std::make_unique<EKFConstantVelocitySE3>(
@@ -131,7 +142,7 @@ MotionModelConstantSpeedKalman::MotionModelConstantSpeedKalman(
   _lastT(0U)
 {
 }
-Pose MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
+Pose ConstantMotionKalman::predictPose(Timestamp timestamp) const
 {
   Pose pose = _lastPose;
   if (_kalman->t() != std::numeric_limits<uint64_t>::max()) {
@@ -142,7 +153,7 @@ Pose MotionModelConstantSpeedKalman::predictPose(Timestamp timestamp) const
     "Prediction: {} +- {}", pose.mean().transpose(), pose.twistCov().diagonal().transpose());
   return pose;
 }
-void MotionModelConstantSpeedKalman::update(const Pose & relativePose, Timestamp timestamp)
+void ConstantMotionKalman::update(const Pose & relativePose, Timestamp timestamp)
 {
   if (_kalman->t() == std::numeric_limits<Timestamp>::max()) {
     _kalman->reset(timestamp, {Vec6d::Zero(), Vec6d::Zero(), _kalman->state()->covariance()});
@@ -153,16 +164,16 @@ void MotionModelConstantSpeedKalman::update(const Pose & relativePose, Timestamp
   _lastT = timestamp;
 }
 
-Pose MotionModelConstantSpeedKalman::speed() const
+Pose ConstantMotionKalman::speed() const
 {
   auto state = _kalman->state();
   return Pose(SE3d::exp(state->velocity() / 1e9), state->covVelocity() / 1e9);
 }
 
-Pose MotionModelConstantSpeedKalman::pose() const
+Pose ConstantMotionKalman::pose() const
 {
   auto state = _kalman->state();
   return Pose(SE3d::exp(state->pose()), state->covPose());
 }
 
-}  // namespace pd::vslam
+}  // namespace pd::vslam::motion_model

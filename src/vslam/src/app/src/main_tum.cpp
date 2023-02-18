@@ -39,7 +39,7 @@ public:
 
     //_motionModel =
     //  std::make_shared<MotionModelConstantSpeedKalman>(covProcess, Matd<12, 12>::Identity() * 100);
-    _motionModel = std::make_shared<MotionModelNoMotion>();
+    _motionModel = std::make_shared<motion_model::NoMotion>(0.15, 15);
     _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(_map, 100, 0.1);
     _ba = std::make_shared<mapping::BundleAdjustment>(0, 1.43);
 

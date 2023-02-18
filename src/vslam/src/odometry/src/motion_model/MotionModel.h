@@ -35,14 +35,16 @@ public:
   virtual Pose pose() const = 0;
   virtual Pose speed() const = 0;
 };
-class MotionModelNoMotion : public MotionModel
+namespace motion_model
+{
+class NoMotion : public MotionModel
 {
 public:
-  typedef std::shared_ptr<MotionModelNoMotion> ShPtr;
-  typedef std::unique_ptr<MotionModelNoMotion> UnPtr;
-  typedef std::shared_ptr<const MotionModelNoMotion> ConstShPtr;
-  typedef std::unique_ptr<const MotionModelNoMotion> ConstUnPtr;
-  MotionModelNoMotion();
+  typedef std::shared_ptr<NoMotion> ShPtr;
+  typedef std::unique_ptr<NoMotion> UnPtr;
+  typedef std::shared_ptr<const NoMotion> ConstShPtr;
+  typedef std::unique_ptr<const NoMotion> ConstUnPtr;
+  NoMotion(double maxTranslationalVelocity, double maxAngularVelocity);
   void update(const Pose & relativePose, Timestamp timestamp) override;
   Pose predictPose(Timestamp UNUSED(timestamp)) const override;
   Pose pose() const override;
@@ -50,33 +52,35 @@ public:
   bool exceedsThresholds(const Vec6d & speed) const;
 
 protected:
+  const double _maxTranslationalVelocity, _maxAngularVelocity;
   Vec6d _speed = Vec6d::Zero();
   Mat6d _speedCov = Mat6d::Identity();
   Pose _lastPose;
   Timestamp _lastT;
 };
-class MotionModelConstantSpeed : public MotionModelNoMotion
+class ConstantMotion : public NoMotion
 {
 public:
-  typedef std::shared_ptr<MotionModelConstantSpeed> ShPtr;
-  typedef std::unique_ptr<MotionModelConstantSpeed> UnPtr;
-  typedef std::shared_ptr<const MotionModelConstantSpeed> ConstShPtr;
-  typedef std::unique_ptr<const MotionModelConstantSpeed> ConstUnPtr;
-  MotionModelConstantSpeed(const Mat6d & covariance = Mat6d::Identity());
+  typedef std::shared_ptr<ConstantMotion> ShPtr;
+  typedef std::unique_ptr<ConstantMotion> UnPtr;
+  typedef std::shared_ptr<const ConstantMotion> ConstShPtr;
+  typedef std::unique_ptr<const ConstantMotion> ConstUnPtr;
+  ConstantMotion(
+    const Mat6d & covariance, double maxTranslationalVelocity, double maxAngularVelocity);
   Pose predictPose(Timestamp timestamp) const override;
 
 private:
   Mat6d _covariance;
 };
 
-class MotionModelMovingAverage : public MotionModel
+class ConstantMotionWindow : public MotionModel
 {
 public:
-  typedef std::shared_ptr<MotionModelMovingAverage> ShPtr;
-  typedef std::unique_ptr<MotionModelMovingAverage> UnPtr;
-  typedef std::shared_ptr<const MotionModelMovingAverage> ConstShPtr;
-  typedef std::unique_ptr<const MotionModelMovingAverage> ConstUnPtr;
-  MotionModelMovingAverage(Timestamp timeFrame);
+  typedef std::shared_ptr<ConstantMotionWindow> ShPtr;
+  typedef std::unique_ptr<ConstantMotionWindow> UnPtr;
+  typedef std::shared_ptr<const ConstantMotionWindow> ConstShPtr;
+  typedef std::unique_ptr<const ConstantMotionWindow> ConstUnPtr;
+  ConstantMotionWindow(Timestamp timeFrame);
   void update(const Pose & relativePose, Timestamp timestamp) override;
   Pose predictPose(Timestamp timestamp) const override;
   Pose pose() const override;
@@ -90,14 +94,14 @@ protected:
   Pose _lastPose;
   Timestamp _lastT;
 };
-class MotionModelConstantSpeedKalman : public MotionModel
+class ConstantMotionKalman : public MotionModel
 {
 public:
-  typedef std::shared_ptr<MotionModelConstantSpeedKalman> ShPtr;
-  typedef std::unique_ptr<MotionModelConstantSpeedKalman> UnPtr;
-  typedef std::shared_ptr<const MotionModelConstantSpeedKalman> ConstShPtr;
-  typedef std::unique_ptr<const MotionModelConstantSpeedKalman> ConstUnPtr;
-  MotionModelConstantSpeedKalman(const Matd<12, 12> & covProcess, const Matd<12, 12> & covState);
+  typedef std::shared_ptr<ConstantMotionKalman> ShPtr;
+  typedef std::unique_ptr<ConstantMotionKalman> UnPtr;
+  typedef std::shared_ptr<const ConstantMotionKalman> ConstShPtr;
+  typedef std::unique_ptr<const ConstantMotionKalman> ConstUnPtr;
+  ConstantMotionKalman(const Matd<12, 12> & covProcess, const Matd<12, 12> & covState);
   void update(const Pose & pose, Timestamp timestamp) override;
 
   Pose predictPose(Timestamp timestamp) const override;
@@ -109,5 +113,6 @@ private:
   Pose _lastPose;
   Timestamp _lastT;
 };
+}  // namespace motion_model
 }  // namespace pd::vslam
 #endif  // VSLAM_MOTION_PREDICTION

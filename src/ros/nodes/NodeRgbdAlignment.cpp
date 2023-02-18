@@ -93,7 +93,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.rotation", 1e-15);
   declare_parameter(
-    "prediction.constant_speed.covariance", std::vector<double>({0.1, 0.1, 0.1, 0.1, 0.1, 0.1}));
+    "prediction.constant_motion.covariance", std::vector<double>({0.1, 0.1, 0.1, 0.1, 0.1, 0.1}));
 
   declare_parameter("map.n_keyframes", 7);
   declare_parameter("map.n_frames", 7);
@@ -174,16 +174,23 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   }
 
   if (get_parameter("prediction.model").as_string() == "NoMotion") {
-    _motionModel = std::make_shared<MotionModelNoMotion>();
+    _motionModel = std::make_shared<motion_model::NoMotion>(
+      declare_parameter<double>("prediction.no_motion.max_translational_velocity", 0.15),
+      declare_parameter<double>("prediction.no_motion.max_angular_velocity", 15) * M_PI / 180.0);
   } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
-    auto covarianceVector = get_parameter("prediction.constant_speed.covariance").as_double_array();
+    auto covarianceVector =
+      get_parameter("prediction.constant_motion.covariance").as_double_array();
     Eigen::Map<Vec6d> covDiag(covarianceVector.data());
     covDiag = covDiag.array() * covDiag.array();
     covDiag(3) *= M_PI / 180.0;
     covDiag(4) *= M_PI / 180.0;
     covDiag(5) *= M_PI / 180.0;
 
-    _motionModel = std::make_shared<MotionModelConstantSpeed>(covDiag.asDiagonal());
+    _motionModel = std::make_shared<motion_model::ConstantMotion>(
+      covDiag.asDiagonal(),
+      declare_parameter<double>("prediction.constant_motion.max_translational_velocity", 0.15),
+      declare_parameter<double>("prediction.constant_motion.max_angular_velocity", 15) * M_PI /
+        180.0);
   } else if (get_parameter("prediction.model").as_string() == "Kalman") {
     const double processVarRot = std::pow(
       get_parameter("prediction.kalman.process_noise.pose.rotation").as_double() / 180.0 * M_PI, 2);
@@ -217,7 +224,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       stateVarRot, stateVarTransVel, stateVarTransVel, stateVarTransVel, stateVarRotVel,
       stateVarRotVel, stateVarRotVel;
 
-    _motionModel = std::make_shared<MotionModelConstantSpeedKalman>(
+    _motionModel = std::make_shared<motion_model::ConstantMotionKalman>(
       processVarDiag.asDiagonal(), stateVarDiag.asDiagonal());
   } else {
     throw pd::Exception(format(
@@ -362,12 +369,13 @@ void NodeRgbdAlignment::imageCallback(
     frame->set(_motionModel->predictPose(frame->t()));
 
     Pose pose;
-    auto framesRef = _map->referenceFrames();
-    if (!framesRef.empty()) {
-      pose = framesRef.size() > 1 ? _rgbdAlignment->align(framesRef, frame)
-                                  : _rgbdAlignment->align(framesRef[0], frame);
+    {
+      auto framesRef = _map->referenceFrames();
+      if (!framesRef.empty()) {
+        pose = framesRef.size() > 1 ? _rgbdAlignment->align(framesRef, frame)
+                                    : _rgbdAlignment->align(framesRef[0], frame);
+      }
     }
-
     auto relativePose = _map->lastFrame() ? pose * _map->lastFrame()->pose().inverse() : pose;
     _motionModel->update(relativePose, frame->t());
 
