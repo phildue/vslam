@@ -200,13 +200,7 @@ double WarpSE3::apply(const Image & img, int u, int v) const
   const Vec3d & p0 = _pcl0[v * _width + u];
   if (p0.z() > 0.0) {
     const Vec3d pt0 = _se3 * _pose0.inverse() * p0;
-    if (pt0.z() > 0.0) {
-      const Vec2d uv1 = _cam1->camera2image(pt0);
-      if (1 < uv1(0) && uv1(0) < img.cols() - 1 && 1 < uv1(1) && uv1(1) < img.rows() - 1) {
-        return interpolate(img, uv1, pt0.z());
-        //return algorithm::bilinearInterpolation(img, uv1(0), uv1(1));
-      }
-    }
+    return interpolate(img, _cam1->camera2image(pt0), pt0.z());
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
@@ -216,17 +210,17 @@ double WarpSE3::interpolate(const Image & img1, const Eigen::Vector2d & uv1, dou
   const double x = uv1(0);
   const double y = uv1(1);
 
-  const int x0 = (int)std::floor(x);
-  const int y0 = (int)std::floor(y);
-  const int x1 = x0 + 1;
-  const int y1 = y0 + 1;
+  const int x0 = (int)std::max(0.0, std::floor(x));
+  const int y0 = (int)std::max(0.0, std::floor(y));
+  const int x1 = std::min<int>(img1.cols(), x0 + 1);
+  const int y1 = std::min<int>(img1.rows(), y0 + 1);
 
   const float x1_weight = x - x0;
   const float x0_weight = 1.0f - x1_weight;
   const float y1_weight = y - y0;
   const float y0_weight = 1.0f - y1_weight;
-  const float zmax = std::max(0.0, z0t + _maxDepthDiff);
-  const double zmin = std::min(zmax - 0.01, z0t - _minDepthDiff);
+  const float zmax = std::max(0.1, z0t + _maxDepthDiff);
+  const double zmin = std::max(0.0, std::min(zmax - 0.01, z0t - _minDepthDiff));
   float val = 0.0f;
   float sum = 0.0f;
   auto validZ = [&zmin, &zmax](double z) -> bool { return zmin < z && z < zmax; };
