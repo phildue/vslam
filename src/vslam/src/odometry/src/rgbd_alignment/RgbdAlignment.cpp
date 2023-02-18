@@ -35,12 +35,13 @@ namespace pd::vslam
 {
 RgbdAlignment::RgbdAlignment(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth, double minDepthDiff,
-  double maxDepthDiff, const std::vector<double> & maxPointsPart)
+  int nLevels, const std::vector<double> & minGradient, double minDepth, double maxDepth,
+  double minDepthDiff, double maxDepthDiff, const std::vector<double> & maxPointsPart)
 : _loss(loss),
   _solver(solver),
   _includePrior(includePrior),
   _initializeOnPrediction(initializeOnPrediction),
+  _nLevels(nLevels),
   _minDepth(minDepth),
   _maxDepth(maxDepth),
   _minDepthDiff(minDepthDiff),
@@ -59,6 +60,34 @@ RgbdAlignment::RgbdAlignment(
   LOG_IMG("Template");
   LOG_IMG("Depth");
   LOG_IMG("Alignment");
+}
+
+void RgbdAlignment::preprocessReference(Frame::ShPtr f) const
+{
+  f->computePyramid(_nLevels);
+  f->computeIntensityDerivatives();
+  f->computePcl();
+  f->computeNormals();
+}
+void RgbdAlignment::preprocessReference(Frame::VecShPtr frames) const
+{
+  for (auto f : frames) {
+    preprocessReference(f);
+  }
+}
+void RgbdAlignment::preprocessTarget(Frame::ShPtr f) const { f->computePyramid(_nLevels); }
+
+Pose RgbdAlignment::align(Frame::ShPtr from, Frame::ShPtr to) const
+{
+  preprocessReference(from);
+  preprocessTarget(to);
+  return align(Frame::ConstShPtr(from), Frame::ConstShPtr(to));
+}
+Pose RgbdAlignment::align(const Frame::VecShPtr & from, Frame::ShPtr to) const
+{
+  preprocessReference(from);
+  preprocessTarget(to);
+  return align(Frame::VecConstShPtr(from.begin(), from.end()), Frame::ConstShPtr(to));
 }
 
 Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const

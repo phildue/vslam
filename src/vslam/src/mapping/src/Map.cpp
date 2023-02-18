@@ -21,9 +21,17 @@
 
 namespace pd::vslam
 {
-Map::Map(size_t nKeyFrames, size_t nFrames)
-: _frames(), _keyFrames(), _maxFrames(nFrames), _maxKeyFrames(nKeyFrames)
+Map::Map(bool trackKeyFrame, bool includeKeyFrame, size_t nKeyFrames, size_t nFrames)
+: _frames(),
+  _keyFrames(),
+  _maxFrames(nFrames),
+  _maxKeyFrames(nKeyFrames),
+  _trackKeyFrame(trackKeyFrame),
+  _includeKeyFrame(includeKeyFrame)
 {
+  if (_trackKeyFrame && _includeKeyFrame) {
+    throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
+  }
   Log::get("mapping");
 }
 void Map::insert(Frame::ShPtr frame, bool isKeyFrame)
@@ -131,11 +139,57 @@ Frame::ConstShPtr Map::frame(size_t idx) const
 {
   return _frames.size() <= idx ? nullptr : _frames.at(idx);
 }
+Frame::ShPtr Map::keyFrame(size_t idx)
+{
+  return _keyFrames.size() <= idx ? nullptr : _keyFrames.at(idx);
+}
 
+Frame::ShPtr Map::frame(size_t idx) { return _frames.size() <= idx ? nullptr : _frames.at(idx); }
 Frame::ConstShPtr Map::lastKf() const { return keyFrame(0); }
 Frame::ConstShPtr Map::lastFrame() const { return !_frames.empty() ? frame(0) : lastKf(); }
+Frame::ShPtr Map::lastKf() { return keyFrame(0); }
+Frame::ShPtr Map::lastFrame() { return !_frames.empty() ? frame(0) : lastKf(); }
 
 Frame::ConstShPtr Map::oldestKf() const { return keyFrame(nKeyFrames() - 1); }
+Frame::ConstShPtr Map::oldestFrame() const { return frame(nFrames() - 1); }
+
+Frame::VecConstShPtr Map::referenceFrames() const
+{
+  auto kf = lastKf();
+  auto f = lastFrame();
+
+  if (_trackKeyFrame && kf) {
+    return {kf};
+  } else {
+    Frame::VecConstShPtr fs;
+    if (f) {
+      fs.push_back(f);
+    }
+    if (_includeKeyFrame && kf) {
+      fs.push_back(kf);
+    }
+    return fs;
+  }
+}
+
+Frame::VecShPtr Map::referenceFrames()
+{
+  Frame::ShPtr kf = lastKf();
+  Frame::ShPtr f = lastFrame();
+
+  if (_trackKeyFrame && kf) {
+    return {kf};
+  } else {
+    Frame::VecShPtr fs;
+    if (f) {
+      fs.push_back(f);
+    }
+    if (_includeKeyFrame && kf) {
+      fs.push_back(kf);
+    }
+    return fs;
+  }
+}
 
 size_t Map::nKeyFrames() const { return _keyFrames.size(); }
 size_t Map::nFrames() const { return _frames.size(); }

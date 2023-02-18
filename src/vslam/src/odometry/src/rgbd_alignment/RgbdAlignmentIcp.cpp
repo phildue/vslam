@@ -34,12 +34,19 @@ namespace pd::vslam
 {
 RgbdAlignmentIcp::RgbdAlignmentIcp(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth, double minDepthDiff,
-  double maxDepthDiff, const std::vector<double> & maxPointsPart)
+  int nLevels, const std::vector<double> & minGradient, double minDepth, double maxDepth,
+  double minDepthDiff, double maxDepthDiff, const std::vector<double> & maxPointsPart)
 : RgbdAlignment(
-    solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth,
+    solver, loss, includePrior, initializeOnPrediction, nLevels, minGradient, minDepth, maxDepth,
     minDepthDiff, maxDepthDiff, maxPointsPart)
 {
+}
+
+void RgbdAlignmentIcp::preprocessReference(Frame::ShPtr f) const
+{
+  f->computePyramid(_nLevels);
+  f->computePcl();
+  f->computeNormals();
 }
 
 least_squares::Problem::UnPtr RgbdAlignmentIcp::setupProblem(

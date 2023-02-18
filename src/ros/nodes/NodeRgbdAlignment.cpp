@@ -105,12 +105,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   }
 
   _map = std::make_shared<Map>(
+    get_parameter("frame_alignment.trackKeyFrame").as_bool(),
+    get_parameter("frame_alignment.includeKeyFrame").as_bool(),
     get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-
-  _includeKeyFrame = get_parameter("frame_alignment.includeKeyFrame").as_bool();
-  if (_trackKeyFrame && _includeKeyFrame) {
-    throw pd::Exception("Should be either trackKeyFrame OR includeKeyFrame");
-  }
 
   least_squares::Loss::ShPtr loss =
     std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
@@ -141,6 +138,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     _rgbdAlignment = std::make_shared<RgbdAlignmentIcp>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
       get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
@@ -151,6 +149,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     _rgbdAlignment = std::make_shared<RgbdAlignment>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
       get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
@@ -161,6 +160,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
     _rgbdAlignment = std::make_shared<RgbdAlignmentRgb>(
       solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
       get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
       get_parameter("frame_alignment.features.min_gradients").as_double_array(),
       get_parameter("frame_alignment.features.min_depth").as_double(),
       get_parameter("frame_alignment.features.max_depth").as_double(),
@@ -233,6 +233,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int(),
       get_parameter("keyframe_selection.custom.max_translation").as_double(),
       get_parameter("keyframe_selection.custom.max_rotation").as_double() / 180.0 * M_PI);
+  } else if (get_parameter("keyframe_selection.method").as_string() == "entropy") {
+    _keyFrameSelection = std::make_shared<KeyFrameSelectionEntropy>(
+      _map, declare_parameter<double>("keyframe_selection.entropy.max_entropy_ratio", 5.0));
   } else if (get_parameter("keyframe_selection.method").as_string() == "never") {
     _keyFrameSelection = std::make_shared<KeyFrameSelectionNever>();
   } else {
@@ -247,7 +250,6 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
 
   _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
   _tracking = std::make_shared<FeatureTracking>(_matcher);
-  _trackKeyFrame = get_parameter("frame_alignment.trackKeyFrame").as_bool();
 
   // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
   //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
@@ -360,16 +362,10 @@ void NodeRgbdAlignment::imageCallback(
     frame->set(_motionModel->predictPose(frame->t()));
 
     Pose pose;
-    if (_trackKeyFrame && _map->lastKf()) {
-      pose = _rgbdAlignment->align(_map->lastKf(), frame);
-
-    } else if (
-      _includeKeyFrame && _map->lastKf() && _map->lastFrame() &&
-      _map->lastKf() != _map->lastFrame()) {
-      pose = _rgbdAlignment->align({_map->lastFrame(), _map->lastKf()}, frame);
-
-    } else if (_map->lastFrame()) {
-      pose = _rgbdAlignment->align(_map->lastFrame(), frame);
+    auto framesRef = _map->referenceFrames();
+    if (!framesRef.empty()) {
+      pose = framesRef.size() > 1 ? _rgbdAlignment->align(framesRef, frame)
+                                  : _rgbdAlignment->align(framesRef[0], frame);
     }
 
     auto relativePose = _map->lastFrame() ? pose * _map->lastFrame()->pose().inverse() : pose;
@@ -468,12 +464,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
-  auto f = std::make_unique<Frame>(img, depth, _camera, t);
-  f->computePyramid(get_parameter("frame_alignment.pyramid.levels").as_double_array().size());
-  f->computeIntensityDerivatives();
-  f->computePcl();
-  //f->computeNormals();
-  return f;
+  return std::make_unique<Frame>(img, depth, _camera, t);
 }
 
 void NodeRgbdAlignment::publish(const rclcpp::Time & t)

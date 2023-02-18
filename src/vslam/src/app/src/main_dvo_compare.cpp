@@ -41,7 +41,7 @@ public:
     auto loss =
       std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
     _rgbdAlignment = std::make_unique<RgbdAlignmentRgb>(
-      solver, loss, false, false, std::vector<double>({0, 0, 0, 0}), 0.1, 0.1, 0.1, 100.0,
+      solver, loss, false, false, 4, std::vector<double>({0, 0, 0, 0}), 0.1, 0.1, 0.1, 100.0,
       std::vector<double>({1.0, 1.0, 1.0, 1.0}));
   }
 

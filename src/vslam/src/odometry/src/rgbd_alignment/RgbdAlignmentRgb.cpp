@@ -34,10 +34,10 @@ namespace pd::vslam
 {
 RgbdAlignmentRgb::RgbdAlignmentRgb(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
-  const std::vector<double> & minGradient, double minDepth, double maxDepth, double minDepthDiff,
-  double maxDepthDiff, const std::vector<double> & maxPointsPart)
+  int nLevels, const std::vector<double> & minGradient, double minDepth, double maxDepth,
+  double minDepthDiff, double maxDepthDiff, const std::vector<double> & maxPointsPart)
 : RgbdAlignment(
-    solver, loss, includePrior, initializeOnPrediction, minGradient, minDepth, maxDepth,
+    solver, loss, includePrior, initializeOnPrediction, nLevels, minGradient, minDepth, maxDepth,
     minDepthDiff, maxDepthDiff, maxPointsPart)
 {
   std::transform(
@@ -51,6 +51,14 @@ RgbdAlignmentRgb::RgbdAlignmentRgb(
   LOG_IMG("Template");
   LOG_IMG("Depth");
   LOG_IMG("Alignment");
+}
+
+void RgbdAlignmentRgb::preprocessReference(Frame::ShPtr f) const
+{
+  f->computePyramid(_nLevels);
+  f->computeIntensityDerivatives();
+  f->computePcl();
+  f->computeNormals();
 }
 
 Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const

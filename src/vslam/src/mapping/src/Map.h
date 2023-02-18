@@ -28,7 +28,9 @@ public:
   typedef std::shared_ptr<const Map> ConstShPtr;
   typedef std::unique_ptr<const Map> ConstUnPtr;
 
-  Map(size_t nKeyFrames = 7, size_t nFrames = 7);
+  Map(
+    bool trackKeyFrame = false, bool includeKeyFrame = false, size_t nKeyFrames = 7,
+    size_t nFrames = 7);
 
   virtual void insert(Frame::ShPtr frame, bool isKeyFrame);
   virtual void insert(Point3D::ShPtr point);
@@ -47,10 +49,15 @@ public:
 
   Frame::ConstShPtr lastKf() const;
   Frame::ConstShPtr lastFrame() const;
+  Frame::ShPtr lastKf();
+  Frame::ShPtr lastFrame();
   Frame::ConstShPtr oldestKf() const;
+  Frame::ConstShPtr oldestFrame() const;
+
   Frame::ConstShPtr frame(size_t idx) const;
   Frame::ConstShPtr keyFrame(size_t idx) const;
-
+  Frame::ShPtr frame(size_t idx);
+  Frame::ShPtr keyFrame(size_t idx);
   size_t nKeyFrames() const;
   size_t nFrames() const;
 
@@ -60,6 +67,8 @@ public:
   std::vector<Frame::ConstShPtr> keyFrames() const;
   std::vector<Frame::ConstShPtr> keyFrames(size_t fromIdx, size_t toIdx) const;
   std::vector<Frame::ConstShPtr> frames() const;
+  Frame::VecConstShPtr referenceFrames() const;
+  Frame::VecShPtr referenceFrames();
 
   std::vector<Point3D::ShPtr> points();
   std::vector<Point3D::ConstShPtr> points() const;
@@ -69,6 +78,7 @@ private:
   std::deque<Frame::ShPtr> _keyFrames;
   std::map<std::uint64_t, Point3D::ShPtr> _points;
   const size_t _maxFrames, _maxKeyFrames;
+  const bool _trackKeyFrame, _includeKeyFrame;
 };
 
 }  // namespace pd::vslam

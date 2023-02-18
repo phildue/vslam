@@ -32,11 +32,13 @@ public:
 
   RgbdAlignmentIcp(
     vslam::least_squares::Solver::ShPtr solver, vslam::least_squares::Loss::ShPtr loss,
-    bool includePrior = false, bool initializeOnPrediction = true,
+    bool includePrior = false, bool initializeOnPrediction = true, int nLevels = 4,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, double minDepthDiff = 0.1, double maxDepthDiff = 0.1,
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
   virtual std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;
+
+  void preprocessReference(Frame::ShPtr f) const override;
 
   least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const override;

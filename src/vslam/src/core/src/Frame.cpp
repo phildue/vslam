@@ -281,6 +281,8 @@ void Frame::computeIntensityDerivatives()
 }
 void Frame::computeDepthDerivatives()
 {
+  if (_dZdx.size() == nLevels()) return;
+
   _dZdx.resize(nLevels());
   _dZdy.resize(nLevels());
 
@@ -303,6 +305,7 @@ void Frame::computeDerivatives()
 
 void Frame::computePcl()
 {
+  if (_pcl.size() == nLevels()) return;
   _pcl.resize(nLevels());
 
   auto depth2pcl = [](const DepthMap & d, Camera::ConstShPtr c) {
@@ -325,6 +328,8 @@ void Frame::computePcl()
 
 void Frame::computeNormals()
 {
+  if (_normals.size() == nLevels()) return;
+  _normals.resize(nLevels());
   auto depth2normal = [](const DepthMap & depth) {
     std::vector<Vec3d> normals(depth.rows() * depth.cols());
     // TODO(unknown): replace using custom implementation
@@ -362,7 +367,6 @@ void Frame::computeNormals()
   normalComputer(points, normals_cv);
   std::vector<cv::Mat> normalsPyramid;
   cv::buildPyramid(normals_cv, normalsPyramid, nLevels());
-  _normals.resize(nLevels());
   for (size_t i = 0; i < nLevels(); i++) {
     _normals[i].resize(height(i) * width(i));
     for (size_t y = 0; y < height(i); ++y) {
@@ -387,6 +391,7 @@ const Vec3d & Frame::normal(int v, int u, size_t level) const
 
 void Frame::computePyramid(size_t nLevels, double s)
 {
+  if (_intensity.size() == nLevels) return;
   _intensity.resize(nLevels);
   _cam.resize(nLevels);
 

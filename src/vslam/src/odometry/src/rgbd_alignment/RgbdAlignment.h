@@ -30,20 +30,27 @@ public:
 
   RgbdAlignment(
     vslam::least_squares::Solver::ShPtr solver, vslam::least_squares::Loss::ShPtr loss,
-    bool includePrior = false, bool initializeOnPrediction = true,
+    bool includePrior = false, bool initializeOnPrediction = true, int nLevels = 4,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, double minDepthDiff = 0.1, double maxDepthDiff = 0.1,
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
 
+  virtual Pose align(Frame::ShPtr from, Frame::ShPtr to) const;
+  virtual Pose align(const Frame::VecShPtr & from, Frame::ShPtr to) const;
+
   virtual Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const;
-  virtual Pose align(const Frame::VecConstShPtr & UNUSED(from), Frame::ConstShPtr UNUSED(to)) const;
+  virtual Pose align(const Frame::VecConstShPtr & from, Frame::ConstShPtr to) const;
   virtual least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
+  virtual void preprocessReference(Frame::ShPtr frame) const;
+  virtual void preprocessReference(Frame::VecShPtr frames) const;
+  virtual void preprocessTarget(Frame::ShPtr frame) const;
 
 protected:
   const vslam::least_squares::Loss::ShPtr _loss;
   const vslam::least_squares::Solver::ShPtr _solver;
   const bool _includePrior, _initializeOnPrediction;
+  const int _nLevels;
   std::vector<double> _minGradient2;
   const double _minDepth;
   const double _maxDepth;

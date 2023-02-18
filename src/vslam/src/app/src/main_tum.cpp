@@ -22,7 +22,7 @@ public:
       std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
     _map = std::make_shared<Map>(5, 3);
     _rgbdAlignment = std::make_shared<RgbdAlignment>(
-      solver, loss, false, false, std::vector<double>({20, 20, 20, 20}), 0.1, 4.0, 0.1, 0.1,
+      solver, loss, false, false, 4, std::vector<double>({20, 20, 20, 20}), 0.1, 4.0, 0.1, 0.1,
       std::vector<double>({0.06, 0.06, 0.06, 0.06}));
     Matd<12, 12> covProcess = Matd<12, 12>::Identity();
     for (int i = 0; i < 6; i++) {
@@ -84,10 +84,10 @@ public:
         }
         frameRef = frame;
 
-        auto x = frame->pose().pose().inverse().log();
+        /*auto x = frame->pose().pose().inverse().log();
         auto cx = frame->pose().cov();
 
-        /* print(
+         print(
         "Pose: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f} | Cov | {:.3f}\n", x(0), x(1), x(2),
         x(3), x(4), x(5), cx.norm());
       print(

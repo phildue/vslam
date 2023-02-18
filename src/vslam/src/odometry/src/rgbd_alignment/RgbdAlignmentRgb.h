@@ -32,10 +32,12 @@ public:
 
   RgbdAlignmentRgb(
     vslam::least_squares::Solver::ShPtr solver, vslam::least_squares::Loss::ShPtr loss,
-    bool includePrior = false, bool initializeOnPrediction = true,
+    bool includePrior = false, bool initializeOnPrediction = true, int nLevels = 4,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, double minDepthDiff = 0.05, double maxDepthDiff = 0.1,
     const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
+
+  void preprocessReference(Frame::ShPtr f) const override;
 
   Pose align(Frame::ConstShPtr from, Frame::ConstShPtr to) const override;
 
