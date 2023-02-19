@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 from tum.dataset_analysis import read_trajectory, ominus
+import wandb
+import os
 
 def compute_relative_poses(traj):
     t = list(traj.keys())
@@ -12,19 +14,11 @@ def compute_relative_poses(traj):
     
     return relative_poses
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-                    description='''Plot two trajectories for comparison ( xy, z )''')
-    parser.add_argument('algo_file', help='algo text file (format: timestamp data)', default='/mnt/dataset/tum_rgbd/freiburg1_floor/')
-    parser.add_argument('--gt_file', help='gt text file (format: timestamp data)')
-    parser.add_argument('--show', help='if true show live', action='store_true')
-    parser.add_argument('--out', help='where to save plot png', default="")
 
-    args = parser.parse_args()
-
-    files = [args.algo_file]
-    if args.gt_file:
-        files.append(args.gt_file)
+def plot_trajectory(algo_file, gt_file, out, show, upload):
+    files = [algo_file]
+    if gt_file and os.path.exists(gt_file):
+        files.append(gt_file)
     trajs = [read_trajectory(f, matrix=True) for f in files]
     motions = [compute_relative_poses(t) for t in trajs]
     plt.figure(figsize=(20, 10))
@@ -41,7 +35,7 @@ if __name__ == "__main__":
         y = np.array([pose[1, 3] for _,pose in traj.items()])
         plt.plot(x, y, '.--')
         plt.axis("equal")
-    plt.legend([f for f in files])
+    plt.legend([f[-10:-3] for f in files])
 
     plt.subplot(2, 2, 2)
     plt.ylabel("$t_z   [m]$")
@@ -64,7 +58,7 @@ if __name__ == "__main__":
         plt.plot(t, v, '.--')
 
     try:
-        cov = read_trajectory(args.algo_file, covariance=True)[1]
+        cov = read_trajectory(algo_file, covariance=True)[1]
         
         plt.subplot(2, 2, 4)
         plt.ylabel("$|\Sigma| $")
@@ -75,7 +69,25 @@ if __name__ == "__main__":
         plt.plot(t, y, '.--')
     except Exception as e:
         print(e)
-    if args.out:
-        plt.savefig(args.out)
-    if args.show:
+    if out:
+        plt.savefig(out)
+    if show:
         plt.show()
+    if upload:
+        wandb.log({"trajectory": plt})
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+                    description='''Plot two trajectories for comparison ( xy, z )''')
+    parser.add_argument('algo_file', help='algo text file (format: timestamp data)', default='/mnt/dataset/tum_rgbd/freiburg1_floor/')
+    parser.add_argument('--gt_file', help='gt text file (format: timestamp data)')
+    parser.add_argument('--show', help='if true show live', action='store_true')
+    parser.add_argument('--upload', help='if true show live', action='store_true')
+    parser.add_argument('--out', help='where to save plot png', default="")
+
+    args = parser.parse_args()
+
+    plot_trajectory(args.algo_file, args.gt_file, args.out, args.show, args.upload)
+
+    

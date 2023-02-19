@@ -1,7 +1,7 @@
 import os
 from typing import List
-
-
+from tum.evaluate_rpe import read_trajectory, evaluate_trajectory
+import numpy
 class Dataset:
 
     def __init__(self, sequence_id):
@@ -44,11 +44,90 @@ class TumRgbd(Dataset):
         ate_plot = os.path.join(output_dir, "ate.png")
         rpe_txt = os.path.join(output_dir, 'rpe.txt')
         ate_txt = os.path.join(output_dir, 'ate.txt')
+        max_pairs = 10000
+        fixed_delta = True
+        delta = 1.0
+        delta_unit = 's'
+        save = rpe_txt
+        plot = rpe_plot
+        verbose = True
+        offset = 0
+        scale = 1.0
+        upload = True
         print("---------Evaluating Relative Pose Error-----------------")
-        os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_rpe.py \
-            {gt_traj} {algo_traj} \
-            --verbose --plot {rpe_plot} --fixed_delta --delta_unit s --save {rpe_txt} \
-                > {output_dir}/rpe_summary.txt && cat {output_dir}/rpe_summary.txt")
+        #os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_rpe.py \
+        #    {gt_traj} {algo_traj} \
+        #    --verbose --plot {rpe_plot} --fixed_delta --delta_unit s --save {rpe_txt} \
+        #        > {output_dir}/rpe_summary.txt && cat {output_dir}/rpe_summary.txt")
+        
+        traj_gt = read_trajectory(gt_traj)
+        traj_est = read_trajectory(algo_traj)
+        
+        result = evaluate_trajectory(traj_gt,
+                                    traj_est,
+                                    int(max_pairs),
+                                    fixed_delta,
+                                    float(delta),
+                                    delta_unit,
+                                    float(offset),
+                                    float(scale))
+        
+        stamps = numpy.array(result)[:,0]
+        trans_error = numpy.array(result)[:,4]
+        rot_error = numpy.array(result)[:,5]
+        
+        if save:
+            f = open(save,"w")
+            f.write("\n".join([" ".join(["%f"%v for v in line]) for line in result]))
+            f.close()
+        
+        if verbose:
+            print ("compared_pose_pairs %d pairs"%(len(trans_error)))
+
+            print ("translational_error.rmse %f m"%numpy.sqrt(numpy.dot(trans_error,trans_error) / len(trans_error)))
+            print ("translational_error.mean %f m"%numpy.mean(trans_error))
+            print ("translational_error.median %f m"%numpy.median(trans_error))
+            print ("translational_error.std %f m"%numpy.std(trans_error))
+            print ("translational_error.min %f m"%numpy.min(trans_error))
+            print ("translational_error.max %f m"%numpy.max(trans_error))
+
+            print ("rotational_error.rmse %f deg"%(numpy.sqrt(numpy.dot(rot_error,rot_error) / len(rot_error)) * 180.0 / numpy.pi))
+            print ("rotational_error.mean %f deg"%(numpy.mean(rot_error) * 180.0 / numpy.pi))
+            print ("rotational_error.median %f deg"%(numpy.median(rot_error) * 180.0 / numpy.pi))
+            print ("rotational_error.std %f deg"%(numpy.std(rot_error) * 180.0 / numpy.pi))
+            print ("rotational_error.min %f deg"%(numpy.min(rot_error) * 180.0 / numpy.pi))
+            print ("rotational_error.max %f deg"%(numpy.max(rot_error) * 180.0 / numpy.pi))
+        else:
+            print (numpy.mean(trans_error))
+
+        if plot:    
+            print("---Plotting---")
+
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            import matplotlib.pylab as pylab
+            fig = plt.figure()
+            ax = fig.add_subplot(111)        
+            ax.plot(stamps - stamps[0],trans_error,'-',color="blue")
+            #ax.plot([t for t,e in err_rot],[e for t,e in err_rot],'-',color="red")
+            ax.set_xlabel('time [s]')
+            ax.set_ylabel('translational error [m]')
+            plt.savefig(plot,dpi=300)
+
+        if upload:
+            print("---Uploading results---")
+            import wandb
+            metric_t = wandb.define_metric("Timestamp", summary=None, hidden=True)
+            wandb.define_metric("translational_error", summary="mean", goal='minimize', step_metric=metric_t)
+            wandb.define_metric("rotational_error", summary="mean", goal='minimize', step_metric=metric_t)
+
+            for i in range(trans_error.shape[0]):
+                wandb.log({'Timestamp': stamps[i]-stamps[0],
+                           'translational_error': trans_error[i],
+                           'rotational_error': rot_error[i]})
+            wandb.run.summary['translational_error.RMSE'] = numpy.sqrt(numpy.dot(trans_error, trans_error) / len(trans_error))
+            wandb.run.summary['rotational_error.RMSE'] = numpy.sqrt(numpy.dot(rot_error, rot_error) / len(rot_error))
 
         print("---------Evaluating Average Trajectory Error------------")
         os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_ate.py \

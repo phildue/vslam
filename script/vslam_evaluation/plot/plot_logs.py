@@ -4,14 +4,26 @@ import argparse
 import pandas as pd
 import os
 
-from plot_log_alignment import plot_alignment
-from plot_log_kalman import plot_kalman
+from plot.plot_log_alignment import plot_alignment
+from plot.plot_log_kalman import plot_kalman
 
      
 plots = {
     "Alignment": plot_alignment,
     "Kalman": plot_kalman
 }
+
+def plot_logs(experiment_name, sequence_id, sequence_root):
+    result_dir = os.path.join(sequence_root, sequence_id, 'algorithm_results', experiment_name)
+    log_dir = os.path.join(result_dir, 'log')
+    for log in os.listdir(log_dir):
+        if log in plots.keys():
+            try:
+                plots[log](os.path.join(log_dir, log), result_dir)
+            except Exception as e:
+                print(e)
+        else:
+            print(f"No Display for: {log}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='''
@@ -24,10 +36,5 @@ if __name__ == "__main__":
                         help='Root folder for sequences',
                         default='/mnt/dataset/tum_rgbd')
     args = parser.parse_args()
-    result_dir = os.path.join(args.sequence_root, args.sequence_id, 'algorithm_results', args.experiment_name)
-    log_dir = os.path.join(result_dir, 'log')
-    for log in os.listdir(log_dir):
-        if log in plots.keys():
-            plots[log](os.path.join(log_dir, log), result_dir)
-        else:
-            print(f"No Display for: {log}")
+    plot_logs(args.experiment_name, args.sequence_id, args.sequence_root)
+   
