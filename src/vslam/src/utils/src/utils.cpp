@@ -45,6 +45,12 @@ Image utils::loadImage(const fs::path & path, int height, int width, bool graysc
 {
   auto mat = cv::imread(path.string(), grayscale ? cv::IMREAD_GRAYSCALE : cv::IMREAD_COLOR);
 
+  if (std::is_floating_point<image_value_t>::value) {
+    mat.convertTo(mat, CV_32F);
+  } else {
+    mat.convertTo(mat, CV_8U);
+  }
+
   if (mat.cols == 0 || mat.rows == 0) {
     throw pd::Exception("Failure during load of: " + path.string());
   }
@@ -61,6 +67,7 @@ Image utils::loadImage(const fs::path & path, int height, int width, bool graysc
 Eigen::MatrixXd utils::loadDepth(const fs::path & path, int height, int width)
 {
   auto mat = cv::imread(path.string(), cv::IMREAD_ANYDEPTH);
+  mat.convertTo(mat, CV_32F);
 
   if (mat.cols == 0 || mat.rows == 0) {
     throw pd::Exception("Failure during load of: " + path.string());
