@@ -33,7 +33,8 @@ public:
     bool includePrior = false, bool initializeOnPrediction = true, int nLevels = 4,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, double minDepthDiff = 0.1, double maxDepthDiff = 0.1,
-    const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
+    const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0},
+    int distanceToBorder = 7.0);
 
   virtual Pose align(Frame::ShPtr from, Frame::ShPtr to) const;
   virtual Pose align(const Frame::VecShPtr & from, Frame::ShPtr to) const;

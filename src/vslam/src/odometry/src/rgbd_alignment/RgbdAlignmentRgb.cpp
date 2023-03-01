@@ -35,10 +35,11 @@ namespace pd::vslam
 RgbdAlignmentRgb::RgbdAlignmentRgb(
   Solver::ShPtr solver, Loss::ShPtr loss, bool includePrior, bool initializeOnPrediction,
   int nLevels, const std::vector<double> & minGradient, double minDepth, double maxDepth,
-  double minDepthDiff, double maxDepthDiff, const std::vector<double> & maxPointsPart)
+  double minDepthDiff, double maxDepthDiff, const std::vector<double> & maxPointsPart,
+  int distanceToBorder)
 : RgbdAlignment(
     solver, loss, includePrior, initializeOnPrediction, nLevels, minGradient, minDepth, maxDepth,
-    minDepthDiff, maxDepthDiff, maxPointsPart)
+    minDepthDiff, maxDepthDiff, maxPointsPart, distanceToBorder)
 {
   std::transform(
     minGradient.begin(), minGradient.end(), std::back_inserter(_minGradient2),
@@ -51,6 +52,10 @@ RgbdAlignmentRgb::RgbdAlignmentRgb(
   LOG_IMG("Template");
   LOG_IMG("Depth");
   LOG_IMG("Alignment");
+  for (int i = 0; i <= nLevels; i++) {
+    LOG_IMG(format("WarpedImage{}", i));
+    LOG_IMG(format("ResidualFinal{}", i));
+  }
 }
 
 void RgbdAlignmentRgb::preprocessReference(Frame::ShPtr f) const
@@ -58,7 +63,6 @@ void RgbdAlignmentRgb::preprocessReference(Frame::ShPtr f) const
   f->computePyramid(_nLevels);
   f->computeIntensityDerivatives();
   f->computePcl();
-  f->computeNormals();
 }
 
 Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
@@ -70,11 +74,8 @@ Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
   Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
   PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
   for (int level = from->nLevels() - 1; level >= 0; level--) {
+    LOG_ID = std::to_string(level);
     //TIMED_SCOPE(timerI, "align at level ( " + std::to_string(level) + " )");
-
-    LOG_IMG("Image") << to->intensity(level);
-    LOG_IMG("Template") << from->intensity(level);
-    LOG_IMG("Depth") << from->depth(level);
 
     least_squares::Problem::ShPtr p = setupProblem(twist, from, to, level);
     least_squares::Solver::Results::ConstShPtr r = _solver->solve(p);
@@ -83,11 +84,8 @@ Pose RgbdAlignmentRgb::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
       twist = r->solution();
       covariance = r->covariance();
     }
-
-    LOG_ODOM(INFO) << format(
-      "Aligned at level [{}] with [{}] iterations: {} +- {}, Reason: [{}]. Solution is {}.", level,
-      r->iteration, twist.transpose(), covariance.diagonal().cwiseSqrt().transpose(),
-      to_string(r->convergenceCriteria), r->hasSolution() ? "valid" : "not valid");
+    //TODO(me): make generic csv logging interface
+    logging(from, to, level, r);
     plot << PlotAlignment::Entry({level, r});
   }
   LOG_IMG("Alignment") << plot;
@@ -122,15 +120,44 @@ least_squares::Problem::UnPtr RgbdAlignmentRgb::setupProblem(
 {
   auto interestPoints = selectInterestPoints(from, level);
 
-  auto warp = std::make_shared<lukas_kanade::WarpSE3>(
-    SE3d::exp(twist), to->depth(level), from->pcl(level, false), from->width(level),
-    from->camera(level), to->camera(level), from->pose().SE3(), _minDepthDiff, _maxDepthDiff);
+  lukas_kanade::Warp::ShPtr warp = constructWarp(twist, from, to, level);
+
   least_squares::Problem::UnPtr lk = std::make_unique<lukas_kanade::InverseCompositional>(
     from->intensity(level), from->dIdx(level), from->dIdy(level), to->intensity(level), warp,
     interestPoints, _loss);
 
   return std::make_unique<PriorRegularizedLeastSquares>(
     SE3d::exp(twist), to->pose(), std::move(lk));
+}
+
+lukas_kanade::Warp::UnPtr RgbdAlignmentRgb::constructWarp(
+  const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const
+{
+  return std::make_unique<lukas_kanade::WarpSE3>(
+    SE3d::exp(twist), to->depth(level), from->pcl(level, false), from->width(level),
+    from->camera(level), to->camera(level), from->pose().SE3(), _minDepthDiff, _maxDepthDiff);
+}
+
+void RgbdAlignmentRgb::logging(
+  Frame::ConstShPtr from, Frame::ConstShPtr to, int level,
+  least_squares::Solver::Results::ConstShPtr r) const
+{
+  auto twist = r->solution();
+  auto covariance = r->covariance();
+  LOG_IMG_ID("Image", format("{}_{}", from->t(), level), to->intensity(level));
+  LOG_IMG_ID("Template", format("{}_{}", from->t(), level), from->intensity(level));
+  LOG_MAT_ID("Depth", format("{}_{}", from->t(), level), from->depth(level));
+
+  LOG_ODOM(INFO) << format(
+    "Aligned at level [{}] with [{}] iterations: {} +- {}, Reason: [{}]. Solution is {}.", level,
+    r->iteration, twist.transpose(), covariance.diagonal().cwiseSqrt().transpose(),
+    to_string(r->convergenceCriteria), r->hasSolution() ? "valid" : "not valid");
+
+  Image IWxp = constructWarp(twist, from, to, level)->apply(from->intensity(level));
+  LOG_IMG_ID(format("WarpedImage{}", level), format("{}", from->t()), IWxp);
+  LOG_MAT_ID(
+    format("ResidualFinal{}", level), format("{}", from->t()),
+    (IWxp.cast<double>() - from->intensity(level).cast<double>()));
 }
 
 }  // namespace pd::vslam

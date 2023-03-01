@@ -18,6 +18,7 @@
 
 #include <core/core.h>
 #include <least_squares/least_squares.h>
+#include <lukas_kanade/lukas_kanade.h>
 
 #include "RgbdAlignment.h"
 namespace pd::vslam
@@ -35,7 +36,9 @@ public:
     bool includePrior = false, bool initializeOnPrediction = true, int nLevels = 4,
     const std::vector<double> & minGradient = {0, 0, 0, 0, 0}, double minDepth = 0.1,
     double maxDepth = 50, double minDepthDiff = 0.05, double maxDepthDiff = 0.1,
-    const std::vector<double> & maxPointsPart = {1.0, 1.0, 1.0, 1.0, 1.0});
+    const std::vector<double> & maxPointsPart =
+      {640 * 480, 640 * 480, 640 * 480, 640 * 480, 640 * 480},
+    int distanceToBorder = 7.0);
 
   void preprocessReference(Frame::ShPtr f) const override;
 
@@ -43,9 +46,15 @@ public:
 
   least_squares::Problem::UnPtr setupProblem(
     const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const override;
+  lukas_kanade::Warp::UnPtr constructWarp(
+    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
 
 protected:
   std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const override;
+
+  void logging(
+    Frame::ConstShPtr from, Frame::ConstShPtr to, int level,
+    least_squares::Solver::Results::ConstShPtr r) const;
 };
 
 }  // namespace pd::vslam
