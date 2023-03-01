@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <fmt/core.h>
+#include <fmt/ostream.h>
+
 #include <algorithm>
 #include <execution>
-#include <mutex>
-
+using fmt::format;
+using fmt::print;
 #include "InverseCompositional.h"
 #include "core/core.h"
 #include "utils/utils.h"
@@ -60,7 +63,7 @@ InverseCompositional::InverseCompositional(
 }
 
 InverseCompositional::InverseCompositional(
-  const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
+  const Image & templ, const MatXd & dTdx, const MatXd & dTy, const Image & image,
   std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
   least_squares::Loss::ShPtr l)
 : least_squares::Problem(w0->nParameters()),
@@ -69,13 +72,14 @@ InverseCompositional::InverseCompositional(
   _w(w0),
   _loss(l),
   _J(Eigen::MatrixXd::Zero(interestPoints.size(), w0->nParameters())),
-  _interestPoints(interestPoints.size())
+  _interestPoints(interestPoints.size()),
+  _iteration(0UL)
 {
   Eigen::MatrixXd steepestDescent = Eigen::MatrixXd::Zero(_T.rows(), _T.cols());
   size_t idx = 0U;
   std::for_each(interestPoints.begin(), interestPoints.end(), [&](auto kp) {
     const auto Jw = _w->J(kp.x(), kp.y());
-    const auto Jwi = Jw.row(0) * dTx(kp.y(), kp.x()) + Jw.row(1) * dTy(kp.y(), kp.x());
+    const auto Jwi = Jw.row(0) * dTdx(kp.y(), kp.x()) + Jw.row(1) * dTy(kp.y(), kp.x());
     const double Jwin = Jwi.norm();
     if (std::isfinite(Jwin)) {
       _J.row(idx) = Jwi;
@@ -111,18 +115,15 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   MatXd W = MatXd::Zero(_I.rows(), _I.cols());
   VecXd r = VecXd::Zero(_interestPoints.size());
   VecXd w = VecXd::Zero(_interestPoints.size());
-  VecXd J = MatXd::Zero(_interestPoints.size(), 6);
   std::for_each(
     std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
       const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
       if (std::isfinite(iw)) {
-        const double ri = iw - (double)_T(kp.pos.y(), kp.pos.x());
-        const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
-        R(kp.pos.y(), kp.pos.x()) = ri;
+        r(kp.idx) = iw - (double)_T(kp.pos.y(), kp.pos.x());
+        w(kp.idx) = _loss->computeWeight(r(kp.idx) / _scale->scale) * NORMALIZER;
+        R(kp.pos.y(), kp.pos.x()) = r(kp.idx);
         IWxp(kp.pos.y(), kp.pos.x()) = iw;
-        W(kp.pos.y(), kp.pos.x()) = wi;
-        w(kp.idx) = wi * NORMALIZER;
-        r(kp.idx) = ri;
+        W(kp.pos.y(), kp.pos.x()) = w(kp.idx);
       }
     });
   auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
@@ -130,10 +131,11 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();
-  LOG_IMG("ImageWarped") << IWxp;
-  LOG_IMG("Residual") << R;
-  LOG_IMG("Weights") << W;
 
+  LOG_IMG_ID("ImageWarped", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), IWxp);
+  LOG_MAT_ID("Residual", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), R);
+  LOG_MAT_ID("Weights", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), W);
+  _iteration++;
   return ne;
 }
 least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquationsAndScale()
@@ -143,7 +145,6 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   MatXd W = MatXd::Zero(_I.rows(), _I.cols());
   VecXd r = VecXd::Zero(_interestPoints.size());
   VecXd w = VecXd::Zero(_interestPoints.size());
-  VecXd J = MatXd::Zero(_interestPoints.size(), 6);
   std::for_each(
     std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
       const double iw = _w->apply(_I, kp.pos.x(), kp.pos.y());
@@ -161,9 +162,8 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   std::for_each(
     std::execution::par_unseq, _interestPoints.begin(), _interestPoints.end(), [&](auto kp) {
       if (w(kp.idx) > 0.0) {
-        const double & ri = r(kp.idx);
-        const double wi = _loss->computeWeight((ri - _scale->offset) / _scale->scale);
-        W(kp.pos.y(), kp.pos.x()) = wi * NORMALIZER;
+        w(kp.idx) = _loss->computeWeight(r(kp.idx) / _scale->scale) * NORMALIZER;
+        W(kp.pos.y(), kp.pos.x()) = w(kp.idx);
       }
     });
   auto ne = std::make_unique<least_squares::NormalEquations>(_J, r, w);
@@ -171,10 +171,11 @@ least_squares::NormalEquations::UnPtr InverseCompositional::computeNormalEquatio
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();
-  LOG_IMG("ImageWarped") << IWxp;
-  LOG_IMG("Residual") << R;
-  LOG_IMG("Weights") << W;
 
+  LOG_IMG_ID("ImageWarped", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), IWxp);
+  LOG_MAT_ID("Residual", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), R);
+  LOG_MAT_ID("Weights", format("{}_{}_{}", TIMESTAMP, LOG_ID, _iteration), W);
+  _iteration++;
   return ne;
 }
 

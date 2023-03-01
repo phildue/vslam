@@ -89,6 +89,7 @@ protected:
   };
   std::vector<IndexedKeyPoint> _interestPoints;
   std::unique_ptr<least_squares::Scaler::Scale> _scale;
+  uint64_t _iteration;
 };
 
 }  // namespace pd::vslam::lukas_kanade
