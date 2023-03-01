@@ -34,6 +34,9 @@ namespace pd::vslam
 std::map<std::string, std::shared_ptr<Log>> Log::_logs = {};
 std::map<std::string, std::shared_ptr<LogImage>> Log::_logsImage = {};
 std::string LogImage::_rootFolder = "/tmp/log/";
+Timestamp Log::_t = 0UL;
+std::string Log::_id = "";
+
 std::shared_ptr<Log> Log::get(const std::string & name)
 {
   auto it = _logs.find(name);
@@ -201,6 +204,27 @@ void LogImage::logMat(const cv::Mat & mat)
   if (_save) {
     std::stringstream ss;
     ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
+    cv::imwrite(ss.str(), mat);
+  }
+}
+
+void LogImage::logMat(const cv::Mat & mat, const std::string & id)
+{
+  if (_ctr++ % _rate != 0) {
+    return;
+  }
+  if (mat.cols == 0 || mat.rows == 0) {
+    throw pd::Exception("Image is empty!");
+  }
+
+  if (_show) {
+    cv::imshow(_name, mat);
+    // cv::waitKey(_blockLevel <= _blockLevelDes ? -1 : 30);
+    cv::waitKey(_block ? 0 : 30);
+  }
+  if (_save) {
+    std::stringstream ss;
+    ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, id);
     cv::imwrite(ss.str(), mat);
   }
 }

@@ -36,11 +36,28 @@
 #define IMAGE_ALIGNMENT(loglevel) CLOG(loglevel, "image_alignment")
 #define SOLVER(loglevel) CLOG(loglevel, "solver")
 
-#define LOG_IMG(name) pd::vslam::Log::getImageLog(name)
+//TODO(me) global variable? why not -.-
+#define LOG_ID pd::vslam::Log::id()
 
+#define LOG_IMG(name) pd::vslam::Log::getImageLog(name)
+#define LOG_IMG_ID(name, id, image) \
+  pd::vslam::Log::getImageLog(name)->append(ImageStamped({image, id}))
+#define LOG_MAT_ID(name, id, image) \
+  pd::vslam::Log::getImageLog(name)->append(MatdStamped({image, id}))
+
+#define TIMESTAMP pd::vslam::Log::getCurrentTimestamp()
 namespace pd::vslam
 {
 using Level = el::Level;
+
+template <typename T>
+struct MatStamped
+{
+  Eigen::Matrix<T, -1, -1> mat;
+  std::string id;
+};
+typedef MatStamped<image_value_t> ImageStamped;
+typedef MatStamped<double> MatdStamped;
 
 class LogImage
 {
@@ -52,6 +69,14 @@ public:
   void append(vis::Drawable::ConstShPtr drawable);
   void append(vis::Plot::ConstShPtr drawable);
   void append(vis::Csv::ConstShPtr csv);
+
+  template <typename T>
+  void append(const MatStamped<T> & mat)
+  {
+    if (_show || _save) {
+      logMat(vis::drawAsImage(mat.mat.template cast<double>()), mat.id);
+    }
+  }
 
   template <typename T>
   void append(const Eigen::Matrix<T, -1, -1> & mat)
@@ -83,6 +108,7 @@ protected:
   std::uint64_t _ctr;
 
   virtual void logMat(const cv::Mat & mat);
+  virtual void logMat(const cv::Mat & mat, const std::string & id);
 };
 
 class LogImageNull : public LogImage
@@ -95,11 +121,17 @@ public:
 template <typename T>
 void operator<<(LogImage::ShPtr log, const Eigen::Matrix<T, -1, -1> & mat)
 {
-  log->append(mat);
+  log->append<T>(mat);
 }
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable);
 void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot);
 void operator<<(LogImage::ShPtr log, vis::Csv::ConstShPtr plot);
+
+template <typename T>
+void operator<<(LogImage::ShPtr log, MatStamped<T> & mat)
+{
+  log->append<T>(mat);
+}
 
 class Log
 {
@@ -116,7 +148,9 @@ public:
   static const std::map<std::string, std::map<Level, std::shared_ptr<LogImage>>> & imageLoggers();
   static std::vector<std::string> registeredLogs();
   static std::vector<std::string> registeredLogsImage();
-
+  static Timestamp getCurrentTimestamp() { return Log::_t; }
+  static void setCurrentTimestamp(Timestamp t) { Log::_t = t; }
+  static std::string & id() { return _id; }
   Log(const std::string & name);
   void configure(const std::string & configFilePath);
 
@@ -124,6 +158,8 @@ private:
   const std::string _name;
   static std::map<std::string, std::shared_ptr<Log>> _logs;
   static std::map<std::string, std::shared_ptr<LogImage>> _logsImage;
+  static Timestamp _t;
+  static std::string _id;
 };
 }  // namespace pd::vslam
 
