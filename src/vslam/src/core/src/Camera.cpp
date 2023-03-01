@@ -27,17 +27,25 @@ Eigen::Vector2d Camera::camera2image(const Eigen::Vector3d & pWorld) const
   if (pWorld.z() <= 0) {
     return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
   }
-  Eigen::Vector3d pProj = _K * pWorld;
-  return {pProj.x() / pProj.z(), pProj.y() / pProj.z()};
+  const auto fxx = fx();
+  const auto fyy = fy();
+  const auto cxx = cx();
+  const auto cyy = cy();
+  const auto px = pWorld(0);
+  const auto py = pWorld(1);
+  const auto pz = pWorld(2);
+
+  return {(fxx * px / pz) + cxx, (fyy * py / pz) + cyy};
 }
 
 Eigen::Vector3d Camera::image2camera(const Eigen::Vector2d & pImage, double depth) const
 {
-  return _Kinv * (Eigen::Vector3d({pImage.x(), pImage.y(), 1}) * depth);
+  return Eigen::Vector3d(
+    (pImage.x() - cx()) / fx() * depth, (pImage.y() - cy()) / fy() * depth, depth);
 }
 Eigen::Vector3d Camera::image2ray(const Eigen::Vector2d & pImage) const
 {
-  return _Kinv * Eigen::Vector3d({pImage.x(), pImage.y(), 1});
+  return Eigen::Vector3d((pImage.x() - cx()), (pImage.y() - cy()), 1.0);
 }
 
 Camera::Camera(double f, double cx, double cy) : Camera(f, f, cx, cy) {}

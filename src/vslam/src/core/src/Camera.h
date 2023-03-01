@@ -50,6 +50,9 @@ public:
   const int & height() const { return _height; }
 
   Eigen::Vector2d principalPoint() const { return {_K(0, 2), _K(1, 2)}; }
+  const double & cx() const { return _K(0, 2); }
+  const double & cy() const { return _K(1, 2); }
+
   const Eigen::Matrix3d & K() const { return _K; }
   const Eigen::Matrix3d & Kinv() const { return _Kinv; }
   ShPtr static resize(ConstShPtr cam, double s);
