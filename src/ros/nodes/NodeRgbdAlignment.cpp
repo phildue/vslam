@@ -366,6 +366,8 @@ void NodeRgbdAlignment::imageCallback(
 
     Frame::ShPtr frame = createFrame(msgImg, msgDepth);
 
+    Log::setCurrentTimestamp(frame->t());
+
     frame->set(_motionModel->predictPose(frame->t()));
 
     Pose pose;
@@ -462,6 +464,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   if (enc::isColor(msgImg->encoding)) {
     cv_ptr = cv_bridge::cvtColor(cv_ptr, "mono8");
   }
+  
   Image img;
   cv::cv2eigen(cv_ptr->image, img);
 
