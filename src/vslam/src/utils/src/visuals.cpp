@@ -39,6 +39,16 @@ cv::Mat drawMat(const Image & matEigen)
   return mat;
 }
 
+void imshow(const std::string & name, const Image & mat, int waitKey)
+{
+  cv::Mat matcv = drawMat(mat);
+  matcv.convertTo(matcv, CV_8UC3);
+  cv::imshow(name, matcv);
+  if (waitKey > -1) {
+    cv::waitKey(waitKey);
+  }
+}
+
 cv::Mat colorMap(const cv::Mat & in /*CV_32FC1*/, int color_map)
 {
   //thx to: https://stackoverflow.com/questions/28825520/is-there-something-like-matlabs-colorbar-for-opencv

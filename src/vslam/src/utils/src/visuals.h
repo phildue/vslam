@@ -38,6 +38,8 @@ cv::Mat drawMat(const Image & mat);
 
 cv::Mat colorMap(const cv::Mat & input /*CV_32FC1*/, int color_map);
 
+void imshow(const std::string & name, const Image & mat, int waitKey = -1);
+
 class Drawable
 {
 public:
