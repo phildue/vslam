@@ -57,6 +57,8 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   _fixedFrameId = get_parameter("tf.base_link_id").as_string();
   _frameId = get_parameter("tf.frame_id").as_string();
   declare_parameter("frame_alignment.method", "rgbd");
+  declare_parameter("frame_alignment.opencv.odometry_type", "RgbdAlignment");
+
   declare_parameter("frame_alignment.trackKeyFrame", false);
   declare_parameter("frame_alignment.includeKeyFrame", false);
   declare_parameter("frame_alignment.includePrior", false);
@@ -92,8 +94,6 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("prediction.kalman.initial_uncertainty.pose.rotation", 1e-15);
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.translation", 1e-15);
   declare_parameter("prediction.kalman.initial_uncertainty.velocity.rotation", 1e-15);
-  declare_parameter(
-    "prediction.constant_motion.covariance", std::vector<double>({0.1, 0.1, 0.1, 0.1, 0.1, 0.1}));
 
   declare_parameter("map.n_keyframes", 7);
   declare_parameter("map.n_frames", 7);
@@ -167,6 +167,16 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       get_parameter("frame_alignment.features.min_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_depth_diff").as_double(),
       get_parameter("frame_alignment.features.max_points").as_double_array());
+  } else if (get_parameter("frame_alignment.method").as_string() == "opencv") {
+    _rgbdAlignment = std::make_shared<RgbdAlignmentOcv>(
+      get_parameter("frame_alignment.initOnPrior").as_bool(),
+      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
+      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
+      get_parameter("frame_alignment.features.min_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth").as_double(),
+      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
+      get_parameter("frame_alignment.features.max_points").as_double_array(),
+      get_parameter("frame_alignment.opencv.odometry_type").as_string());
   } else {
     throw pd::Exception(format(
       "Unknown frame_alignment method {} available are: [rgbd, depth, rgb]",
@@ -178,16 +188,8 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
       declare_parameter<double>("prediction.no_motion.max_translational_velocity", 0.15),
       declare_parameter<double>("prediction.no_motion.max_angular_velocity", 15) * M_PI / 180.0);
   } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
-    auto covarianceVector =
-      get_parameter("prediction.constant_motion.covariance").as_double_array();
-    Eigen::Map<Vec6d> covDiag(covarianceVector.data());
-    covDiag = covDiag.array() * covDiag.array();
-    covDiag(3) *= M_PI / 180.0;
-    covDiag(4) *= M_PI / 180.0;
-    covDiag(5) *= M_PI / 180.0;
-
     _motionModel = std::make_shared<motion_model::ConstantMotion>(
-      covDiag.asDiagonal(),
+      Mat6d::Identity() * declare_parameter<double>("prediction.constant_motion.covariance", 1.0),
       declare_parameter<double>("prediction.constant_motion.max_translational_velocity", 0.15),
       declare_parameter<double>("prediction.constant_motion.max_angular_velocity", 15) * M_PI /
         180.0);
@@ -264,6 +266,9 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("log.config_dir", "/share/cfg/log/");
   declare_parameter("log.root_dir", "/tmp/log/vslam");
   LogImage::rootFolder() = get_parameter("log.root_dir").as_string();
+  el::Loggers::reconfigureAllLoggers(
+    el::ConfigurationType::Filename, LogImage::rootFolder() + "/vslam.log");
+  //TODO move this behind interface
   for (const auto & name : Log::registeredLogs()) {
     RCLCPP_INFO(get_logger(), "Found logger: %s", name.c_str());
     Log::get(name)->configure(get_parameter("log.config_dir").as_string() + "/" + name + ".conf");
@@ -464,7 +469,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   if (enc::isColor(msgImg->encoding)) {
     cv_ptr = cv_bridge::cvtColor(cv_ptr, "mono8");
   }
-  
+
   Image img;
   cv::cv2eigen(cv_ptr->image, img);
 

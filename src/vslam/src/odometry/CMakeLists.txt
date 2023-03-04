@@ -12,7 +12,7 @@ set( sources
   src/rgbd_alignment/RgbdAlignmentIcp.cpp
   src/rgbd_alignment/PlotAlignment.cpp
   #src/rgbd_alignment/RgbdAligner.cpp
-  #src/rgbd_alignment/RgbdAlignmentOpenCv.cpp
+  src/rgbd_alignment/RgbdAlignmentOcv.cpp
   src/rgbd_alignment/MotionPrior.cpp
   src/feature_tracking/OverlayMatchCandidates.cpp
   src/feature_tracking/OverlayFeatures.cpp
@@ -35,7 +35,7 @@ set( headers
   src/rgbd_alignment/MotionPrior.h
   #src/rgbd_alignment/RgbdAligner.h
   #src/rgbd_alignment/SE3Alignment.h
-  #src/rgbd_alignment/RgbdAlignmentOpenCv.h
+  src/rgbd_alignment/RgbdAlignmentOcv.h
   src/feature_tracking/OverlayMatchCandidates.h
   src/feature_tracking/OverlayFeatures.h
   src/feature_tracking/OverlayCorrespondences.h
