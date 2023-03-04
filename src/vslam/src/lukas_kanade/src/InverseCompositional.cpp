@@ -25,7 +25,7 @@ using fmt::print;
 #include "utils/utils.h"
 namespace pd::vslam::lukas_kanade
 {
-constexpr double NORMALIZER = 1 / (255.0 * 255.0);
+constexpr double NORMALIZER = (1 / (255.0 * 255.0));
 InverseCompositional::InverseCompositional(
   const Image & templ, const MatXd & dTx, const MatXd & dTy, const Image & image,
   std::shared_ptr<Warp> w0, least_squares::Loss::ShPtr l, double minGradient)
@@ -92,14 +92,6 @@ InverseCompositional::InverseCompositional(
   _interestPoints.resize(idx);
 
   LOG_IMG("SteepestDescent") << steepestDescent;
-}
-InverseCompositional::InverseCompositional(
-  const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
-  std::shared_ptr<least_squares::Loss> l, double minGradient)
-: InverseCompositional(
-    templ, algorithm::gradX(templ).cast<double>(), algorithm::gradY(templ).cast<double>(), image,
-    w0, l, minGradient)
-{
 }
 
 void InverseCompositional::updateX(const Eigen::VectorXd & dx) { _w->updateCompositional(-dx); }

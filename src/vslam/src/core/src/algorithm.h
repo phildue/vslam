@@ -149,9 +149,6 @@ void insertionSort(std::vector<Derived> & v, Derived e)
   v.insert(it, e);
 }
 
-// https://forum.kde.org/viewtopic.php?f=74&t=96407#
-Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> conv2d(
-  const Eigen::Matrix<double, -1, -1> & mat, const Eigen::Matrix<double, -1, -1> & kernel);
 double median(const Eigen::VectorXd & d, bool isSorted = false);
 double median(const std::vector<double> & v, bool isSorted = false);
 
@@ -190,12 +187,6 @@ double sad(const Eigen::MatrixXi & patch1, const Eigen::MatrixXi & patch2);
 Image resize(const Image & mat, double scale);
 Eigen::MatrixXd resize(const Eigen::MatrixXd & mat, double scale);
 
-/// Computes pixel wise gradient magnitude:  sqrt( (dI/dx)^2 + (dI/dy)^2
-/// \param image grayscale image
-/// \return gradient image
-Image gradient(const Image & image);
-Eigen::MatrixXi gradX(const Image & image);
-Eigen::MatrixXi gradY(const Image & image);
 Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat);
 Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat, double min, double max);
 

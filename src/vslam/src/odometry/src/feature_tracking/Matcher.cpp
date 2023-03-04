@@ -174,9 +174,8 @@ MatXd Matcher::computeDistanceMat(
   std::function<double(Feature2D::ConstShPtr ref, Feature2D::ConstShPtr target)> distanceFunction)
 {
   MatXd mask = MatXd::Zero(featuresRef.size(), featuresTarget.size());
-  forEach(mask, [&](int u, int v, double UNUSED(e)) {
-    mask(v, u) = distanceFunction(featuresRef[v], featuresTarget[u]);
-  });
+  forEach(
+    mask, [&](int u, int v) { mask(v, u) = distanceFunction(featuresRef[v], featuresTarget[u]); });
   return mask;
 }
 

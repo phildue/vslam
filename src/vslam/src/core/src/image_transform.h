@@ -16,6 +16,12 @@
 #ifndef VSLAM_CORE_IMAGE_TRANSFORM_H__
 #define VSLAM_CORE_IMAGE_TRANSFORM_H__
 #include <Eigen/Dense>
+#include <map>
+#include <opencv4/opencv2/calib3d.hpp>
+#include <opencv4/opencv2/core/eigen.hpp>
+#include <opencv4/opencv2/core/utility.hpp>
+#include <opencv4/opencv2/imgproc.hpp>
+#include <opencv4/opencv2/rgbd.hpp>
 
 #include "types.h"
 namespace pd::vslam
@@ -30,16 +36,31 @@ void forEachPixel(const Eigen::Matrix<Derived, -1, -1> & image, Operation op)
     }
   }
 }
+
 template <typename Derived, typename Operation>
 void forEach(const Eigen::Matrix<Derived, -1, -1> & mat, Operation op)
 {
   //give option to parallelize?
   for (int v = 0; v < mat.rows(); v++) {
     for (int u = 0; u < mat.cols(); u++) {
-      op(u, v, mat(v, u));
+      op(u, v);
     }
   }
 }
+
+template <typename Derived>
+Mat<Derived, -1, -1> sobel(
+  const Mat<Derived, -1, -1> & mat, int dx, int dy, int kernelSize, double scale = 1.0)
+{
+  cv::Mat mat_(mat.rows(), mat.cols(), CV_32F);
+  cv::eigen2cv(mat, mat_);
+  cv::Mat dId_;
+  cv::Sobel(mat_, dId_, CV_32F, dx, dy, kernelSize, scale);
+  Mat<Derived, -1, -1> dId;
+  cv::cv2eigen(dId_, dId);
+  return dId;
+}
+
 }  // namespace pd::vslam
 
 #endif

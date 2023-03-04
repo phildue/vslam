@@ -30,6 +30,7 @@ using fmt::format;
 #include "Frame.h"
 #include "Point3D.h"
 #include "algorithm.h"
+#include "image_transform.h"
 
 namespace pd::vslam
 {
@@ -246,37 +247,15 @@ bool Frame::withinImage(const Vec2d & pImage, double border, size_t level) const
 
 void Frame::computeIntensityDerivatives()
 {
+  if (_dIdx.size() == nLevels()) return;
+
   _dIdx.resize(nLevels());
   _dIdy.resize(nLevels());
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
-#if true
-    cv::Mat mat;
-    cv::eigen2cv(intensity(i), mat);
-    cv::Mat dIdx, dIdy;
-    cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
-    cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
-    cv::cv2eigen(dIdx, _dIdx[i]);
-    cv::cv2eigen(dIdy, _dIdy[i]);
-#else
-    _dIdx[i].resize(intensity(i).rows(), intensity(i).cols());
-    for (int y = 0; y < intensity(i).rows(); ++y) {
-      for (int x = 0; x < intensity(i).cols(); ++x) {
-        int prev = std::max(x - 1, 0);
-        int next = std::min<int>(x + 1, intensity(i).cols() - 1);
-        _dIdx[i](y, x) = (double)(intensity(i)(y, next) - intensity(i)(y, prev)) * 0.5f;
-      }
-    }
-    _dIdy[i].resize(intensity(i).rows(), intensity(i).cols());
-    for (int y = 0; y < intensity(i).rows(); ++y) {
-      for (int x = 0; x < intensity(i).cols(); ++x) {
-        int prev = std::max(y - 1, 0);
-        int next = std::min<int>(y + 1, intensity(i).rows() - 1);
-        _dIdy[i](y, x) = (double)(intensity(i)(next, x) - intensity(i)(prev, x)) * 0.5f;
-      }
-    }
-#endif
+    _dIdx[i] = sobel(intensity(i), 1, 0, 3, 1. / 8.).cast<double>();
+    _dIdy[i] = sobel(intensity(i), 0, 1, 3, 1. / 8.).cast<double>();
   }
 }
 void Frame::computeDepthDerivatives()
@@ -288,13 +267,8 @@ void Frame::computeDepthDerivatives()
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
-    cv::Mat mat;
-    cv::eigen2cv(depth(i), mat);
-    cv::Mat dIdx, dIdy;
-    cv::Sobel(mat, dIdx, CV_16S, 1, 0, 3);
-    cv::Sobel(mat, dIdy, CV_16S, 0, 1, 3);
-    cv::cv2eigen(dIdx, _dZdx[i]);
-    cv::cv2eigen(dIdy, _dZdy[i]);
+    _dZdx[i] = sobel(depth(i), 1, 0, 3, 1. / 8.);
+    _dZdy[i] = sobel(depth(i), 0, 1, 3, 1. / 8.);
   }
 }
 void Frame::computeDerivatives()
@@ -332,15 +306,8 @@ void Frame::computeNormals()
   _normals.resize(nLevels());
   auto depth2normal = [](const DepthMap & depth) {
     std::vector<Vec3d> normals(depth.rows() * depth.cols());
-    // TODO(unknown): replace using custom implementation
-    cv::Mat mat;
-    cv::eigen2cv(depth, mat);
-    cv::Mat dZdxm, dZdym;
-    cv::Sobel(mat, dZdxm, CV_16S, 1, 0, 3);
-    cv::Sobel(mat, dZdym, CV_16S, 0, 1, 3);
-    MatXd dZdx, dZdy;
-    cv::cv2eigen(dZdxm, dZdx);
-    cv::cv2eigen(dZdym, dZdy);
+    MatXd dZdx = sobel(depth, 1, 0, 3, 1. / 8.);
+    MatXd dZdy = sobel(depth, 0, 1, 3, 1. / 8.);
     for (int x = 1; x < depth.cols() - 1; ++x) {
       for (int y = 1; y < depth.rows() - 1; ++y) {
         Vec3d n(-dZdx(y, x), -dZdy(y, x), 1);
@@ -349,7 +316,7 @@ void Frame::computeNormals()
     }
     return normals;
   };
-  cv::Mat K;
+  cv::Mat K(3, 3, CV_32F);
   cv::eigen2cv(camera(0)->K(), K);
   cv::rgbd::RgbdNormals normalComputer(depth(0).rows(), depth(0).cols(), CV_64F, K);
   cv::Mat normals_cv;
@@ -395,9 +362,10 @@ void Frame::computePyramid(size_t nLevels, double s)
   _intensity.resize(nLevels);
   _cam.resize(nLevels);
 
-  // TODO(unknown): replace using custom implementation
+// TODO(unknown): replace using custom implementation
+#if true
   {
-    cv::Mat mat;
+    cv::Mat mat(height(0), width(0), CV_32F);
     cv::eigen2cv(_intensity[0], mat);
     std::vector<cv::Mat> mats;
     cv::buildPyramid(mat, mats, nLevels - 1);
@@ -406,13 +374,35 @@ void Frame::computePyramid(size_t nLevels, double s)
       _cam[i] = Camera::resize(_cam[0], std::pow(s, i));
     }
   }
+#else
+  for (size_t i = 1; i < nLevels; i++) {
+    //TODO(me): dont we need some smoothing ?
+    _intensity[i] = algorithm::resize(_intensity[i - 1], s);
+    _intensity[i] = Image::Zero(_intensity[i - 1].rows() * s, _intensity[i - 1].cols() * s);
+
+    forEach(_intensity[i], [&](int u, int v) {
+      int x0 = std::min<int>(_intensity[i - 1].cols() - 1, u * 1.0 / s);
+      int x1 = x0 + 1;
+      int y0 = std::min<int>(_intensity[i - 1].rows() - 1, v * 1.0 / s);
+      int y1 = y0 + 1;
+
+      _intensity[i](v, u) = (image_value_t)(
+        (_intensity[i - 1](y0, x0) + _intensity[i - 1](y0, x1) + _intensity[i - 1](y1, x0) +
+         _intensity[i - 1](y1, x1)) /
+        4.0);
+    });
+    _cam[i] = Camera::resize(_cam[0], std::pow(s, i));
+  }
+#endif
   _depth.resize(nLevels);
 
+  //_depth[0] = _depth[0].array().unaryExpr(
+  //  [](double v) { return v == 0.0 ? std::numeric_limits<double>::quiet_NaN() : v; });
   for (size_t i = 1; i < nLevels; i++) {
     //DepthMap depthBlur =
     //  algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
     // TODO(unknown): replace using custom implementation
-    cv::Mat mat;
+    cv::Mat mat(height(i - 1), width(i - 1), CV_32F);
     cv::eigen2cv(depth(i - 1), mat);
     mat.convertTo(mat, CV_32F);
     cv::medianBlur(mat, mat, 3);
@@ -421,6 +411,9 @@ void Frame::computePyramid(size_t nLevels, double s)
 
     _depth[i] = algorithm::resize(depthBlur, s);
   }
+  //for (size_t i = 0; i < nLevels; i++) {
+  //  _depth[i] = _depth[i].array().isNaN().select(0, _depth[i]);
+  //}
 }
 
 }  // namespace pd::vslam

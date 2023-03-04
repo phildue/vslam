@@ -59,11 +59,6 @@ public:
     std::shared_ptr<Warp> w0, const std::vector<Eigen::Vector2i> & interestPoints,
     least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>());
 
-  InverseCompositional(
-    const Image & templ, const Image & image, std::shared_ptr<Warp> w0,
-    least_squares::Loss::ShPtr = std::make_shared<least_squares::QuadraticLoss>(),
-    double minGradient = 0);
-
   virtual ~InverseCompositional() = default;
   std::shared_ptr<const Warp> warp() { return _w; }
 

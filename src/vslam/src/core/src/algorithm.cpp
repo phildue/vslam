@@ -61,24 +61,6 @@ Eigen::MatrixXd resize(const Eigen::MatrixXd & mat, double scale)
   return resize<double>(mat, scale);
 }
 
-Image gradient(const Image & image)
-{
-  const auto ix = gradX(image);
-  const auto iy = gradY(image);
-  const auto grad = ix.array().pow(2) + iy.array().pow(2);
-  return grad.array().sqrt().cast<image_value_t>();
-}
-
-Eigen::MatrixXi gradX(const Image & image)
-{
-  return conv2d(image.cast<double>(), Kernel2d<double>::scharrX()).cast<int>();
-}
-
-Eigen::MatrixXi gradY(const Image & image)
-{
-  return conv2d(image.cast<double>(), Kernel2d<double>::scharrY()).cast<int>();
-}
-
 Sophus::SE3d computeRelativeTransform(const Sophus::SE3d & t0, const Sophus::SE3d & t1)
 {
   return t1 * t0.inverse();
@@ -121,34 +103,6 @@ double median(const std::vector<double> & v, bool isSorted)
   }
 }
 
-Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> conv2d(
-  const Eigen::Matrix<double, -1, -1> & mat, const Eigen::Matrix<double, -1, -1> & kernel)
-{
-  typedef int Idx;
-  // TODO(unknown): is this the most efficient way? add padding
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> res(mat.rows(), mat.cols());
-  res.setZero();
-  const Idx kX_2 = static_cast<Idx>(std::floor(static_cast<double>(kernel.cols()) / 2.0));
-  const Idx kY_2 = static_cast<Idx>(std::floor(static_cast<double>(kernel.rows()) / 2.0));
-  for (Idx i = kY_2; i < res.rows() - kY_2; i++) {
-    for (Idx j = kX_2; j < res.cols() - kX_2; j++) {
-      double sum = 0.0;
-      double norm = 0.0;
-      for (Idx ki = 0; ki < kernel.rows(); ki++) {
-        for (Idx kj = 0; kj < kernel.cols(); kj++) {
-          Idx idxY = i - kY_2 + ki;
-          Idx idxX = j - kX_2 + kj;
-          double kv = kernel(ki, kj);
-          double mv = mat(idxY, idxX);
-          sum += kv * mv;
-          norm += std::abs(kv);
-        }
-      }
-      res(i, j) = (sum / norm);
-    }
-  }
-  return res;
-}
 MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rt, const Mat3d & Kcur)
 {
   const Vec3d t = Rt.translation();

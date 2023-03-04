@@ -30,7 +30,7 @@ typedef Eigen::Matrix<double, 6, 1> Vector6d;
 
 namespace pd::vslam
 {
-typedef std::uint8_t image_value_t;
+typedef std::float_t image_value_t;
 typedef Eigen::Matrix<image_value_t, Eigen::Dynamic, Eigen::Dynamic> Image;
 typedef std::vector<Image> ImageVec;
 
@@ -40,6 +40,8 @@ typedef std::vector<DepthMap> DepthMapVec;
 
 typedef std::uint64_t Timestamp;
 typedef Sophus::SE3d SE3d;
+typedef Sophus::SE3d SE3;
+
 typedef Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic> MatXui8;
 typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic> MatXi;
 typedef std::vector<MatXi> MatXiVec;
@@ -50,6 +52,7 @@ typedef std::vector<MatXd> MatXdVec;
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> MatXf;
 typedef Eigen::Matrix<double, 3, 3> Mat3d;
 typedef Eigen::Matrix<double, 2, 2> Mat2d;
+
 template <typename Derived, int nRows, int nCols>
 using Mat = Eigen::Matrix<Derived, nRows, nCols>;
 
@@ -68,6 +71,20 @@ typedef Eigen::Vector6d Vec6d;
 typedef Eigen::Matrix<double, 6, 6> Mat6d;
 typedef Eigen::Matrix<double, 12, 1> Vec12d;
 typedef Eigen::Matrix<double, 12, 12> Mat12d;
+
+typedef double num_t;
+typedef Eigen::Matrix<num_t, Eigen::Dynamic, Eigen::Dynamic> MatX;
+typedef Mat<num_t, 3, 3> Mat3;
+typedef Mat<num_t, 2, 2> Mat2;
+typedef Mat<num_t, -1, 1> VecX;
+typedef Mat<num_t, 2, 1> Vec2;
+typedef Mat<num_t, 3, 1> Vec3;
+typedef Mat<num_t, 4, 1> Vec4;
+typedef Mat<num_t, 6, 1> Vec6;
+typedef Mat<num_t, 6, 6> Mat6;
+typedef Mat<num_t, 12, 1> Vec12;
+typedef Mat<num_t, 12, 12> Mat12;
+typedef std::vector<MatX> MatXVec;
 
 typedef std::uint64_t Timestamp;
 
