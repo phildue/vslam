@@ -11,7 +11,7 @@ import wandb
 from pathlib import Path
 from vslam_evaluation.plot.plot_logs import plot_logs
 from vslam_evaluation.plot.plot_traj import plot_trajectory
-
+from vslam_evaluation.plot.parse_performance_log import parse_performance_log
 
 script_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(script_dir)
@@ -90,7 +90,8 @@ if args.run_algo:
         -p replayMode:=True \
         -p sync_topic:={dataset.sync_topic()} \
         -p log.root_dir:={os.path.join(output_dir, 'log')} \
-        {dataset.remappings()}")
+        {dataset.remappings()} \
+        2>&1 | tee {os.path.join(output_dir,'log','log.txt')}")
 else:
     if args.upload:
         # TODO update existing run
@@ -106,6 +107,9 @@ plot_trajectory(algo_traj, gt_traj, traj_plot, None, True)
 plot_logs(args.experiment_name, args.sequence_id, args.sequence_root)
 
 dataset.run_evaluation_scripts(gt_traj, algo_traj, output_dir, script_dir)
+
+print("Parsing performance log..")
+parse_performance_log(os.path.join(output_dir, 'log', 'vslam.log'))
 
 if args.upload:
     wandb.finish()
