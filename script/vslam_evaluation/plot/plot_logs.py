@@ -6,12 +6,14 @@ import os
 
 from plot.plot_log_alignment import plot_alignment
 from plot.plot_log_kalman import plot_kalman
+from plot.plot_log_residual import plot_residual
 
-     
 plots = {
     "Alignment": plot_alignment,
-    "Kalman": plot_kalman
+    "Kalman": plot_kalman,
+    "ResidualFinal": plot_residual
 }
+
 
 def plot_logs(experiment_name, sequence_id, sequence_root):
     result_dir = os.path.join(sequence_root, sequence_id, 'algorithm_results', experiment_name)
@@ -19,11 +21,13 @@ def plot_logs(experiment_name, sequence_id, sequence_root):
     for log in os.listdir(log_dir):
         if log in plots.keys():
             try:
+                print(f"Processing: [{log}] in [{os.path.join(log_dir, log)}]")
                 plots[log](os.path.join(log_dir, log), result_dir)
             except Exception as e:
                 print(e)
         else:
             print(f"No Display for: {log}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='''

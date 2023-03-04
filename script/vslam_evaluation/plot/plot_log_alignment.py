@@ -58,7 +58,6 @@ def plot_alignment(directory, directory_out, summary_only=True):
 
         plt.savefig(csv_file.replace('csv', 'png'))
         plt.close('all')
-    print(H)
     t = np.array(t)
     t -= t[0]
     t /= 1e9

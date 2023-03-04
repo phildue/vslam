@@ -61,13 +61,9 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 
-if args.upload:
-    # os.environ["WANDB_MODE"] = "offline"
-    os.environ["WANDB_BASE_URL"] = 'http://localhost:8080'
-    os.environ["WANDB_API_KEY"] = 'local-837a2a9d75b14cf1ae7886da28a78394a9a7b053'
-    wandb.init(project="vslam", entity="phild")
-    wandb.run.name = f'{args.sequence_id}.{args.experiment_name}'
-
+os.environ["WANDB_BASE_URL"] = 'http://localhost:8080'
+os.environ["WANDB_API_KEY"] = 'local-837a2a9d75b14cf1ae7886da28a78394a9a7b053'
+        
 if args.run_algo:
     print("---------Running Algorithm-----------------")
     sha = args.commit_hash if args.commit_hash else git.Repo(args.workspace_dir).head.object.hexsha
@@ -80,7 +76,13 @@ if args.run_algo:
     
     config_file = os.path.join(args.workspace_dir, 'config', 'node_config.yaml')
     shutil.copy(config_file, os.path.join(output_dir, 'node_config.yaml'))
-    
+
+    if args.upload:
+        # os.environ["WANDB_MODE"] = "offline"
+        wandb.init(project="vslam", entity="phild", config=yaml.safe_load(Path(os.path.join(output_dir, 'node_config.yaml')).read_text()))
+        wandb.run.name = f'{args.sequence_id}.{args.experiment_name}'
+
+
     os.system(f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{args.dataset} --ros-args --params-file {config_file} \
         -p bag_file:={dataset.bag_filepath()} \
         -p gtTrajectoryFile:={dataset.gt_filepath()} \
@@ -89,6 +91,13 @@ if args.run_algo:
         -p sync_topic:={dataset.sync_topic()} \
         -p log.root_dir:={os.path.join(output_dir, 'log')} \
         {dataset.remappings()}")
+else:
+    if args.upload:
+        # TODO update existing run
+        wandb.init(project="vslam", entity="phild", config=yaml.safe_load(Path(os.path.join(output_dir, 'node_config.yaml')).read_text()))
+        wandb.run.name = f'{args.sequence_id}.{args.experiment_name}'
+
+
 
 # TODO plot, fix paths
 print("---------Creating Plots-----------------")
@@ -99,6 +108,5 @@ plot_logs(args.experiment_name, args.sequence_id, args.sequence_root)
 dataset.run_evaluation_scripts(gt_traj, algo_traj, output_dir, script_dir)
 
 if args.upload:
-    wandb.config = yaml.safe_load(Path(os.path.join(output_dir, 'node_config.yaml')).read_text())
     wandb.finish()
 
