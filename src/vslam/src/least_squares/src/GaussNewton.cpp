@@ -48,7 +48,7 @@ GaussNewton::GaussNewton(
 Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem) const
 {
   SOLVER(INFO) << "Solving Problem for " << problem->nParameters() << " parameters.";
-  TIMED_FUNC(timerF);
+  //TIMED_FUNC(timerF);
 
   auto r = std::make_unique<Solver::Results>();
 
@@ -60,7 +60,7 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
   r->convergenceCriteria = ConvergenceCriteria::MAX_ITERATIONS_EXCEEDED;
 
   for (size_t i = 0; i < _maxIterations; i++) {
-    TIMED_SCOPE(timerI, "solve ( " + std::to_string(i) + " )");
+    //TIMED_SCOPE(timerI, "solve ( " + std::to_string(i) + " )");
 
     // We want to solve dx = (JWJ)^(-1)*JWr
     // This can be solved with cholesky decomposition (Ax = b)
