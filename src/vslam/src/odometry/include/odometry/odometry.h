@@ -27,6 +27,7 @@
 #include "motion_model/MotionModel.h"
 #include "rgbd_alignment/RgbdAlignment.h"
 #include "rgbd_alignment/RgbdAlignmentIcp.h"
+#include "rgbd_alignment/RgbdAlignmentOcv.h"
 #include "rgbd_alignment/RgbdAlignmentRgb.h"
 
 #endif
