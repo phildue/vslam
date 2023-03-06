@@ -132,30 +132,45 @@ WarpSE3::WarpSE3(
   _width(width),
   _cam1(camCur),
   _cam0(camRef),
-  _pcl0(pcl),
   _minDepthDiff(minDepthDiff),
   _maxDepthDiff(maxDepthDiff)
 {
   _x = _se3.log();
+  _K = Mat<double, 4, 4>::Identity();
+  _K.block(0, 0, 3, 3) = camCur->K();
+  _P = _K * _se3.matrix() * _pose0.inverse().matrix();
+
+  _pcl0.resize(pcl.size());
+  for (size_t i = 0; i < pcl.size(); i++) {
+    _pcl0[i] = Vec4d(pcl[i].x(), pcl[i].y(), pcl[i].z(), 1.0);
+  }
 }
 
 void WarpSE3::updateAdditive(const Eigen::VectorXd & dx)
 {
   _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
+  _P = _K * _se3.matrix() * _pose0.inverse().matrix();
 }
 void WarpSE3::updateCompositional(const Eigen::VectorXd & dx)
 {
   _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
+  _P = _K * _se3.matrix() * _pose0.inverse().matrix();
 }
 Eigen::Vector2d WarpSE3::apply(int u, int v) const
 {
-  auto & p = _pcl0[v * _width + u];
-  return p.z() > 0.0
-           ? _cam1->camera2image(_se3 * _pose0.inverse() * p)
-           : Eigen::Vector2d(
-               std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
+  const Vec2d invalid(
+    std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
+  const Vec4d & p = _pcl0[v * _width + u];
+
+  if (p.z() <= 0) return invalid;
+
+  const Vec4d uv = _P * p;
+
+  if (uv.z() <= 0) return invalid;
+
+  return Vec2d(uv.x(), uv.y()) / uv.z();
 }
 Eigen::MatrixXd WarpSE3::J(int u, int v) const
 {
@@ -165,9 +180,9 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   Jw = J_K * J_T
   with respect to tx,ty,tz,rx,ry,rz the parameters of the lie algebra element of T_SE3
   */
-  Eigen::Matrix<double, 2, 6> jac;
-  jac.setConstant(std::numeric_limits<double>::quiet_NaN());
-  const Eigen::Vector3d p = _pcl0[v * _width + u];
+  Mat<double, 2, 6> jac = Mat<double, 2, 6>::Constant(std::numeric_limits<double>::quiet_NaN());
+
+  const Vec4d & p = _pcl0[v * _width + u];
   if (p.z() <= 0.0) {
     return jac;
   }
@@ -197,12 +212,16 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
 }
 double WarpSE3::apply(const Image & img, int u, int v) const
 {
-  const Vec3d & p0 = _pcl0[v * _width + u];
-  if (p0.z() > 0.0) {
-    const Vec3d pt0 = _se3 * _pose0.inverse() * p0;
-    return interpolate(img, _cam1->camera2image(pt0), pt0.z());
-  }
-  return std::numeric_limits<double>::quiet_NaN();
+  const double invalid(std::numeric_limits<double>::quiet_NaN());
+  const Vec4d & p = _pcl0[v * _width + u];
+
+  if (p.z() <= 0) return invalid;
+
+  const Vec4d uv = _P * p;
+
+  if (uv.z() <= 0) return invalid;
+
+  return interpolate(img, Vec2d(uv.x(), uv.y()) / uv.z(), uv.z());
 }
 
 double WarpSE3::interpolate(const Image & img1, const Eigen::Vector2d & uv1, double z0t) const

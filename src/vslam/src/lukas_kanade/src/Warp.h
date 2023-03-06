@@ -112,11 +112,13 @@ public:
   SE3d poseCur() const;
 
 private:
+  Mat<double, 4, 4> _P, _K;
+
   SE3d _se3, _pose0;
   DepthMap _depth1;
   const int _width;
   const std::shared_ptr<const Camera> _cam1, _cam0;
-  std::vector<Eigen::Vector3d> _pcl0;
+  std::vector<Eigen::Vector4d> _pcl0;
   const double _minDepthDiff, _maxDepthDiff;
 
   double interpolate(const Image & img, const Eigen::Vector2d & uv, double z) const;
