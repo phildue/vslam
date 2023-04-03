@@ -48,7 +48,7 @@ bool NoMotion::exceedsThresholds(const Vec6d & speed) const
 
   if (exceeds) {
     LOG_ODOM(WARNING) << format(
-      "Speed exceeded, ignoring t={{:%Y-%m-%d %H:%M:%S}} with vt = {}/{} m/s, va = {}/{} deg/s",
+      "Speed exceeded, ignoring t={:%Y-%m-%d %H:%M:%S} with vt = {}/{} m/s, va = {}/{} deg/s",
       to_time_point(_lastT), translationalVelocity, _maxTranslationalVelocity,
       angularVelocity * 180.0 / M_PI, _maxAngularVelocity * 180.0 / M_PI);
   }
