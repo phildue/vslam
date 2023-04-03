@@ -61,6 +61,19 @@ Mat<Derived, -1, -1> sobel(
   return dId;
 }
 
+template <typename Derived>
+Mat<Derived, -1, -1> scharr(
+  const Mat<Derived, -1, -1> & mat, int dx, int dy, int kernelSize, double scale = 1.0)
+{
+  cv::Mat mat_(mat.rows(), mat.cols(), CV_32F);
+  cv::eigen2cv(mat, mat_);
+  cv::Mat dId_;
+  cv::Scharr(mat_, dId_, CV_32F, dx, dy, kernelSize, scale);
+  Mat<Derived, -1, -1> dId;
+  cv::cv2eigen(dId_, dId);
+  return dId;
+}
+
 }  // namespace pd::vslam
 
 #endif
