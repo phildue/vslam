@@ -149,8 +149,23 @@ void insertionSort(std::vector<Derived> & v, Derived e)
   v.insert(it, e);
 }
 
+template <typename Derived>
+double median(const std::vector<Derived> & v, bool isSorted = false)
+{
+  const int n = v.size();
+  std::vector<Derived> vv = v;
+  //TODO use partial sort?
+  if (!isSorted) {
+    std::sort(vv.begin(), vv.end());
+  }
+  if (n % 2 == 0) {
+    return (vv[n / 2 - 1] + vv[n / 2 + 1]) / 2;
+  } else {
+    return vv[n / 2];
+  }
+}
+
 double median(const Eigen::VectorXd & d, bool isSorted = false);
-double median(const std::vector<double> & v, bool isSorted = false);
 
 template <typename Derived>
 Eigen::Matrix<Derived, Eigen::Dynamic, Eigen::Dynamic> medianBlur(
