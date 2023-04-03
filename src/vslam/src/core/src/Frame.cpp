@@ -267,8 +267,8 @@ void Frame::computeDepthDerivatives()
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
-    _dZdx[i] = sobel(depth(i), 1, 0, 3, 1. / 8.);
-    _dZdy[i] = sobel(depth(i), 0, 1, 3, 1. / 8.);
+    _dZdx[i] = sobel(MatXf(depth(i).cast<float>()), 1, 0, 3, 1. / 8.).cast<double>();
+    _dZdy[i] = sobel(MatXf(depth(i).cast<float>()), 0, 1, 3, 1. / 8.).cast<double>();
   }
 }
 void Frame::computeDerivatives()
