@@ -149,6 +149,7 @@ void LogImage::append(vis::Csv::ConstShPtr csv)
     }
   }
 }
+
 void LogImage::append(const cv::Mat & mat)
 {
   if (_show || _save) {
@@ -195,16 +196,18 @@ void LogImage::logMat(const cv::Mat & mat)
   if (mat.cols == 0 || mat.rows == 0) {
     throw pd::Exception("Image is empty!");
   }
-
+  cv::Mat mat8;
+  mat.convertTo(mat8, CV_8UC3);
   if (_show) {
-    cv::imshow(_name, mat);
+    cv::imshow(_name, mat8);
+
     // cv::waitKey(_blockLevel <= _blockLevelDes ? -1 : 30);
     cv::waitKey(_block ? 0 : 30);
   }
   if (_save) {
     std::stringstream ss;
     ss << format("{}/{}/{}_{}.jpg", rootFolder(), _folder, _name, _ctr);
-    cv::imwrite(ss.str(), mat);
+    cv::imwrite(ss.str(), mat8);
   }
 }
 
