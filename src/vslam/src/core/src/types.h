@@ -30,7 +30,7 @@ typedef Eigen::Matrix<double, 6, 1> Vector6d;
 
 namespace pd::vslam
 {
-typedef std::float_t image_value_t;
+typedef std::uint8_t image_value_t;
 typedef Eigen::Matrix<image_value_t, Eigen::Dynamic, Eigen::Dynamic> Image;
 typedef std::vector<Image> ImageVec;
 
