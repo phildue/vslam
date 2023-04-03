@@ -110,7 +110,6 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     r->iteration = i + 1;
 
     if (i > 1) {
-      SOLVER(INFO) << i << "CONVERGED.";
       if (r->stepSize(i) < _minStepSize) {
         r->convergenceCriteria = ConvergenceCriteria::PARAMETER_THRESHOLD_REACHED;
         SOLVER(INFO) << to_string(r->convergenceCriteria);
