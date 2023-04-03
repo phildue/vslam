@@ -29,7 +29,7 @@ public:
   typedef std::shared_ptr<const Warp> ConstShPtr;
   typedef std::unique_ptr<const Warp> ConstUnPtr;
 
-  virtual size_t nParameters() { return _nParameters; }
+  virtual size_t nParameters() const { return _nParameters; }
   Warp(size_t nParameters) : _nParameters(nParameters), _x(Eigen::VectorXd::Zero(nParameters)) {}
   Warp(size_t nParameters, const Eigen::VectorXd & x) : _nParameters(nParameters), _x(x) {}
   virtual ~Warp() = default;
@@ -112,7 +112,7 @@ public:
   SE3d poseCur() const;
 
 private:
-  Mat<double, 4, 4> _P, _K;
+  Mat<double, 4, 4> _P, _K, _T;
 
   SE3d _se3, _pose0;
   DepthMap _depth1;

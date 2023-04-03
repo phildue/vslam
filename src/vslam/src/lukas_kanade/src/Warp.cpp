@@ -150,13 +150,15 @@ void WarpSE3::updateAdditive(const Eigen::VectorXd & dx)
 {
   _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
-  _P = _K * _se3.matrix() * _pose0.inverse().matrix();
+  _T = _se3.matrix() * _pose0.inverse().matrix();
+  _P = _K * _T;
 }
 void WarpSE3::updateCompositional(const Eigen::VectorXd & dx)
 {
   _se3 = Sophus::SE3d::exp(dx) * _se3;
   _x = _se3.log();
-  _P = _K * _se3.matrix() * _pose0.inverse().matrix();
+  _T = _se3.matrix() * _pose0.inverse().matrix();
+  _P = _K * _T;
 }
 Eigen::Vector2d WarpSE3::apply(int u, int v) const
 {
@@ -172,20 +174,37 @@ Eigen::Vector2d WarpSE3::apply(int u, int v) const
 
   return Vec2d(uv.x(), uv.y()) / uv.z();
 }
+double WarpSE3::apply(const Image & img, int u, int v) const
+{
+  const double invalid(std::numeric_limits<double>::quiet_NaN());
+  const Vec4d & p = _pcl0[v * _width + u];
+
+  if (p.z() <= 0) return invalid;
+
+  const Vec4d uv = _P * p;
+
+  if (uv.z() <= 0) return invalid;
+
+  return interpolate(img, {uv.x() / uv.z(), uv.y() / uv.z()}, uv.z());
+}
 Eigen::MatrixXd WarpSE3::J(int u, int v) const
 {
   /*A tutorial on SE(3) transformation parameterizations and on-manifold optimization
   A.2. Projection of a point p.43
-  Jacobian of uv = K * T_SE3 * p3d
+  Jacobian of uv = K * T_se3 * p3d
   Jw = J_K * J_T
   with respect to tx,ty,tz,rx,ry,rz the parameters of the lie algebra element of T_SE3
+  with K= fx, 0, cx
+          0,  fy, cy
+          0,  0,  1 
+  
+  T_se3 = 0    -w3   w2 v1
+          -w3    0  -w1 v2
+          -w2   w1    0 v3
   */
   Mat<double, 2, 6> jac = Mat<double, 2, 6>::Constant(std::numeric_limits<double>::quiet_NaN());
 
-  const Vec4d & p = _pcl0[v * _width + u];
-  if (p.z() <= 0.0) {
-    return jac;
-  }
+  const Vec4d & p = _T * _pcl0[v * _width + u];
 
   const double & x = p.x();
   const double & y = p.y();
@@ -209,19 +228,6 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   jac.row(1) *= _cam0->fy();
 
   return jac;
-}
-double WarpSE3::apply(const Image & img, int u, int v) const
-{
-  const double invalid(std::numeric_limits<double>::quiet_NaN());
-  const Vec4d & p = _pcl0[v * _width + u];
-
-  if (p.z() <= 0) return invalid;
-
-  const Vec4d uv = _P * p;
-
-  if (uv.z() <= 0) return invalid;
-
-  return interpolate(img, Vec2d(uv.x(), uv.y()) / uv.z(), uv.z());
 }
 
 double WarpSE3::interpolate(const Image & img1, const Eigen::Vector2d & uv1, double z0t) const
