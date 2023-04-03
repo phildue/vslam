@@ -18,6 +18,8 @@
 
 #include <core/core.h>
 #include <least_squares/least_squares.h>
+#include <lukas_kanade/lukas_kanade.h>
+
 namespace pd::vslam
 {
 class RgbdAlignment
@@ -61,6 +63,9 @@ protected:
   virtual std::vector<Vec2i> selectInterestPoints(Frame::ConstShPtr frame, int level) const;
   virtual std::vector<Vec2i> uniformSubselection(
     Frame::ConstShPtr frame, const std::vector<Vec2i> & interestPoints, int level) const;
+
+  lukas_kanade::Warp::UnPtr constructWarp(
+    const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const;
 };
 
 }  // namespace pd::vslam

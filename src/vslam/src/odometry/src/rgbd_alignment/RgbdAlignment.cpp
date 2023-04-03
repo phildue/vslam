@@ -16,7 +16,7 @@
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
-#include "LukasKanadeWithDepth.h"
+#include "DirectIcp.h"
 #include "MotionPrior.h"
 #include "PlotAlignment.h"
 #include "RgbdAlignment.h"
@@ -56,19 +56,21 @@ RgbdAlignment::RgbdAlignment(
   Log::get("odometry");
   LOG_IMG("ImageWarped");
   LOG_IMG("Residual");
+  LOG_IMG("ResidualIntensity");
+  LOG_IMG("ResidualDepth");
   LOG_IMG("Weights");
   LOG_IMG("Image");
   LOG_IMG("Template");
   LOG_IMG("Depth");
+  LOG_IMG("DepthTemplate");
   LOG_IMG("Alignment");
 }
 
 void RgbdAlignment::preprocessReference(Frame::ShPtr f) const
 {
   f->computePyramid(_nLevels);
-  f->computeIntensityDerivatives();
+  f->computeDerivatives();
   f->computePcl();
-  f->computeNormals();
 }
 void RgbdAlignment::preprocessReference(Frame::VecShPtr frames) const
 {
@@ -94,9 +96,7 @@ Pose RgbdAlignment::align(const Frame::VecShPtr & from, Frame::ShPtr to) const
 Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
 {
   TIMED_SCOPE(timerF, "align");
-  Vec6d twist = _initializeOnPrediction
-                  ? algorithm::computeRelativeTransform(from->pose().SE3(), to->pose().SE3()).log()
-                  : Vec6d::Zero();
+  Vec6d twist = _initializeOnPrediction ? to->pose().SE3().log() : from->pose().SE3().log();
 
   Mat<double, 6, 6> covariance = Mat<double, 6, 6>::Identity();
   PlotAlignment::ShPtr plot = PlotAlignment::make(to->t());
@@ -106,6 +106,7 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
     LOG_IMG("Image") << to->intensity(level);
     LOG_IMG("Template") << from->intensity(level);
     LOG_IMG("Depth") << from->depth(level);
+    LOG_IMG("DepthTemplate") << to->depth(level);
 
     auto p = setupProblem(twist, from, to, level);
 
@@ -147,6 +148,7 @@ Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr t
     LOG_IMG("Image") << to->intensity(level);
     LOG_IMG("Template") << from[0]->intensity(level);
     LOG_IMG("Depth") << from[0]->depth(level);
+    LOG_IMG("DepthTemplate") << to->depth(level);
 
     std::vector<Problem::ShPtr> ps;
     for (const auto f : from) {
@@ -182,14 +184,16 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
     frame->dIdx(level).array().pow(2) + frame->dIdy(level).array().pow(2);
+  const MatXd zgradientMagnitude =
+    frame->dZdx(level).array().pow(2) + frame->dZdy(level).array().pow(2);
+
   const auto & depth = frame->depth(level);
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (
+      std::isfinite(depth(v, u)) && std::isfinite(zgradientMagnitude(v, u)) &&
       frame->withinImage({u, v}, _distanceToBorder, level) && p >= _minGradient2[level] &&
-      _minDepth < depth(v, u) && depth(v, u) < _maxDepth && depth(v - 1, u) > _minDepth &&
-      std::isfinite(frame->normal(v, u, level).x()) && depth(v - 1, u - 1) > _minDepth &&
-      depth(v + 1, u) > _minDepth && depth(v + 1, u + 1) > _minDepth &&
-      depth(v, u + 1) > _minDepth) {
+      _minDepth < depth(v, u) && depth(v, u) < _maxDepth &&
+      zgradientMagnitude(v, u) > _minGradient2[level]) {
       interestPoints.emplace_back(u, v);
     }
   });
@@ -222,13 +226,26 @@ std::vector<Vec2i> RgbdAlignment::uniformSubselection(
   return interestPoints;
 }
 
+lukas_kanade::Warp::UnPtr RgbdAlignment::constructWarp(
+  const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const
+{
+  return std::make_unique<lukas_kanade::WarpSE3>(
+    SE3d::exp(twist), to->depth(level), from->pcl(level, false), from->width(level),
+    from->camera(level), to->camera(level), from->pose().SE3(), _minDepthDiff, _maxDepthDiff);
+}
+
 least_squares::Problem::UnPtr RgbdAlignment::setupProblem(
   const Vec6d & twist, Frame::ConstShPtr from, Frame::ConstShPtr to, int level) const
 {
   auto interestPoints = selectInterestPoints(from, level);
 
-  return std::make_unique<LukasKanadeWithDepth>(
-    SE3d::exp(twist), from, to, interestPoints, level, 0.0, _maxDepthDiff, _loss);
+  lukas_kanade::Warp::ShPtr warp = constructWarp(twist, from, to, level);
+
+  least_squares::Problem::UnPtr lk =
+    std::make_unique<DirectIcp>(SE3d::exp(twist), from, to, interestPoints, level, _loss);
+
+  return std::make_unique<PriorRegularizedLeastSquares>(
+    SE3d::exp(twist), to->pose(), std::move(lk));
 }
 
 }  // namespace pd::vslam
