@@ -78,17 +78,6 @@ Eigen::MatrixXd normalize(const Eigen::MatrixXd & mat, double min, double max)
   return matImage;
 }
 
-double median(const Eigen::VectorXd & d, bool isSorted)
-{
-  // TODO(unknown): do this without copy?
-  std::vector<double> r;
-  r.reserve(d.rows());
-  for (int i = 0; i < d.rows(); i++) {
-    r.push_back(d(i));
-  }
-  return median(r, isSorted);
-}
-
 MatXd computeF(const Mat3d & Kref, const Sophus::SE3d & Rt, const Mat3d & Kcur)
 {
   const Vec3d t = Rt.translation();

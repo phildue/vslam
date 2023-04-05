@@ -150,10 +150,12 @@ void insertionSort(std::vector<Derived> & v, Derived e)
 }
 
 template <typename Derived>
-double median(const std::vector<Derived> & v, bool isSorted = false)
+Derived median(const std::vector<Derived> & v, bool isSorted = false)
 {
   const int n = v.size();
-  std::vector<Derived> vv = v;
+  std::vector<Derived> vv;
+  std::copy_if(
+    v.begin(), v.end(), std::back_inserter(vv), [&](auto & v_) { return std::isfinite(v_); });
   //TODO use partial sort?
   if (!isSorted) {
     std::sort(vv.begin(), vv.end());
@@ -164,9 +166,22 @@ double median(const std::vector<Derived> & v, bool isSorted = false)
     return vv[n / 2];
   }
 }
-
-double median(const Eigen::VectorXd & d, bool isSorted = false);
-
+template <typename Derived>
+Derived median(
+  const Eigen::Matrix<Derived, Eigen::Dynamic, Eigen::Dynamic> & d, bool isSorted = false)
+{
+  return median<Derived>(std::vector<Derived>(&d(0), d.data() + d.cols() * d.rows()), isSorted);
+}
+template <typename Derived>
+Derived median(const Eigen::Matrix<Derived, 1, Eigen::Dynamic> & d, bool isSorted = false)
+{
+  return median<Derived>(std::vector<Derived>(&d(0), d.data() + d.cols() * d.rows()), isSorted);
+}
+template <typename Derived>
+Derived median(const Eigen::Matrix<Derived, Eigen::Dynamic, 1> & d, bool isSorted = false)
+{
+  return median<Derived>(std::vector<Derived>(&d(0), d.data() + d.cols() * d.rows()), isSorted);
+}
 template <typename Derived>
 Eigen::Matrix<Derived, Eigen::Dynamic, Eigen::Dynamic> medianBlur(
   const Eigen::Matrix<Derived, -1, -1> & mat, int sizeX, int sizeY,
