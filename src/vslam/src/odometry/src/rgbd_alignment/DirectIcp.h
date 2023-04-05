@@ -46,26 +46,33 @@ protected:
   const std::shared_ptr<least_squares::Loss> _loss;
   const Image & _I1;
   const DepthMap & _Z1;
+
   struct Constraint
   {
-    size_t idx;
-    int u;
-    int v;
-    Vec3d p;
-    double I0, I1Wxp;
-    double Z0, Z1Wxp;
-    Vec6d J, J_I, J_Z;
-    double r_I, r_Z;
-    double residual;
-    double weight;
+    typedef std::shared_ptr<const Constraint> ConstShPtr;
+    typedef std::shared_ptr<Constraint> ShPtr;
+    size_t idx = std::numeric_limits<size_t>::max();
+    int u = -1;
+    int v = -1;
+    Vec3d p = Vec3d::Zero();
+    double intensity = 0.;
+    Vec6d JiJpJt = Vec6d::Zero(), JzJpJt = Vec6d::Zero();
+    double I1Wxp = 0.;
+    double Z1Wxp = 0.;
+    double ri = 0., rz = 0.;
+    Vec6d Jtz = Vec6d::Zero();
+    Vec6d J = Vec6d::Zero();
+    double residual = 0.;
+    double weight = 0.;
   };
-  std::vector<Constraint> _constraints;
+  std::vector<Constraint::ConstShPtr> _constraints;
+  double _wz;
   SE3d _se3;
 
   Vec6d J_T_x(const Vec3d & p);
   Vec6d J_T_y(const Vec3d & p);
   Vec6d J_T_z(const Vec3d & p);
-  void interpolate(double u, double v, Constraint & c) const;
+  Vec2d interpolate(double u, double v) const;
 };
 
 }  // namespace pd::vslam

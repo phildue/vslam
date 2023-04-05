@@ -180,6 +180,9 @@ Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr t
 
 std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, int level) const
 {
+  const double weightZ =
+    (double)algorithm::median(frame->intensity(level)) / algorithm::median(frame->depth(level));
+
   std::vector<Eigen::Vector2i> interestPoints;
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
@@ -191,9 +194,8 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
     if (
       std::isfinite(depth(v, u)) && std::isfinite(zgradientMagnitude(v, u)) &&
-      frame->withinImage({u, v}, _distanceToBorder, level) && p >= _minGradient2[level] &&
-      _minDepth < depth(v, u) && depth(v, u) < _maxDepth &&
-      zgradientMagnitude(v, u) > _minGradient2[level]) {
+      frame->withinImage({u, v}, _distanceToBorder, level) && _minDepth < depth(v, u) &&
+      depth(v, u) < _maxDepth && p + weightZ * zgradientMagnitude(v, u) > _minGradient2[level]) {
       interestPoints.emplace_back(u, v);
     }
   });
