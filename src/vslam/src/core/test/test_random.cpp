@@ -91,3 +91,79 @@ TEST(RandomTest, MultivariateGaussianFunction6d)
     std::cout << "Sample: " << i << ": " << s.transpose() << std::endl;
   }
 }
+
+class Student_t
+{
+public:
+  Student_t(const VecXd & mean, const MatXd & cov, int dof);
+  VecXd draw() const { return pd::vslam::random::student_t(_mean, _scale, _dof); }
+  VecXd operator()() const { return draw(); }
+  static Student_t fit(
+    const MatXd & data, int dof, const MatXd & scale0, int maxIterations = 30,
+    double convergenceThreshold = 1e-7);
+  const MatXd & scale() const { return _scale; }
+  const MatXd & scaleInv() const { return _scaleInv; }
+  const VecXd & mean() const { return _mean; }
+  const int & dof() { return _dof; }
+  const int & nDims() { return _nDims; }
+
+private:
+  VecXd _mean;
+  MatXd _scale, _scaleInv;
+  int _dof;
+  int _nDims;
+};
+
+Student_t::Student_t(const VecXd & mean, const MatXd & scale, int dof)
+: _mean(mean), _scale(scale), _scaleInv(scale.inverse()), _dof(dof), _nDims(scale.rows())
+{
+  if (mean.rows() != scale.rows()) throw pd::Exception("Unequal dimensions");
+}
+
+Student_t Student_t::fit(
+  const MatXd & data, int dof, const MatXd & scale0, int maxIterations, double convergenceThreshold)
+{
+  const int nSamples = data.rows();
+  const int nDims = data.cols();
+
+  MatXd scale = scale0;
+  VecXd mean;
+  double stepSize = std::numeric_limits<double>::max();
+  for (int i = 0; i < maxIterations && stepSize > convergenceThreshold; i++) {
+    mean = VecXd::Zero(nDims);
+    VecXd u1 = VecXd::Zero(nSamples);
+    const MatXd scaleInv = scale.inverse();
+    for (int n = 0; n < nSamples; n++) {
+      VecXd r_n(data.row(n));
+      u1[n] = (dof + nDims) / (dof + r_n.transpose() * scaleInv * r_n);
+      mean += r_n * u1[n];
+    }
+    mean /= u1.sum();
+
+    MatXd scale_i = MatXd::Zero(nDims, nDims);
+    MatXd diff = data.rowwise() - mean.transpose();
+    for (int n = 0; n < nSamples; n++) {
+      VecXd diff_n(diff.row(n));
+      scale_i += u1[n] * diff_n * diff_n.transpose();
+    }
+    scale_i /= nSamples;
+    stepSize = (scale - scale_i).norm();
+    scale = scale_i;
+  }
+  return Student_t(mean, scale, dof);
+}
+
+TEST(RandomTest, MultivariateStudent_t)
+{
+  VecXd meanGt = VecXd::Zero(2);
+  MatXd covGt = MatXd::Identity(2, 2) * 10.0;
+  int nSamples = 1000000;
+  MatXd X = MatXd::Zero(nSamples, 2);
+  for (int i = 0; i < nSamples; i++) {
+    X.row(i) = random::student_t(meanGt, covGt, 5);
+  }
+  auto distr = std::make_shared<Student_t>(Student_t::fit(X, 5, MatXd::Identity(2, 2), 100, 1e-9));
+
+  EXPECT_NEAR((distr->mean() - meanGt).norm(), 0., 1e-2) << "Mean* = " << distr->mean();
+  EXPECT_NEAR((distr->scale() - covGt).norm(), 0., 1e-1) << "Cov* = " << distr->scale();
+}

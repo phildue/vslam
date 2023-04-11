@@ -10,7 +10,7 @@ set( sources
   src/Point3D.cpp
   src/Feature2D.cpp
   src/linalg.cpp
-
+  src/random.cpp
    )
 
 set( headers
@@ -23,6 +23,8 @@ set( headers
   src/Point3D.h
   src/Feature2D.h
   src/linalg.h
+  src/random.h
+
   include/core/core.h )
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 

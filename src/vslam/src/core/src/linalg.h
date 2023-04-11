@@ -28,12 +28,21 @@
 namespace pd::vslam::linalg
 {
 template <typename Derived>
-double stddev(const Eigen::Matrix<Derived, -1, -1> & mat, double mean)
+double variance(const Eigen::Matrix<Derived, -1, -1> & mat, double mean)
 {
   double sum = 0;
-  forEach(
-    mat, [&](int UNUSED(x), int UNUSED(y), double v) { sum += std::sqrt(std::pow(v - mean, 2)); });
+  forEach(mat, [&](int UNUSED(x), int UNUSED(y), double v) { sum += std::pow(v - mean, 2); });
   return sum / (mat.rows() * mat.cols());
+}
+template <typename Derived>
+double stddev(const Eigen::Matrix<Derived, -1, -1> & mat, double mean)
+{
+  return std::sqrt(variance(mat, mean));
+}
+template <typename Derived>
+double variance(const Eigen::Matrix<Derived, -1, -1> & mat)
+{
+  return variance(mat, mat.mean());
 }
 template <typename Derived>
 double stddev(const Eigen::Matrix<Derived, -1, -1> & mat)

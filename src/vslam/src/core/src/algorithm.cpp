@@ -125,31 +125,6 @@ Eigen::Quaterniond euler2quaternion(double rx, double ry, double rz)
 
 }  // namespace transforms
 
-namespace random
-{
-static std::default_random_engine eng(0);
-
-template <typename T = double>
-T U(T min, T max)
-{
-  std::uniform_real_distribution<double> distr(min, max);
-  return static_cast<T>(distr(eng));
-}
-double U(double min, double max) { return U<double>(min, max); }
-uint64_t U(uint64_t min, uint64_t max) { return U<uint64_t>(min, max); }
-
-int sign() { return U(-1, 1) > 0 ? 1 : -1; }
-Eigen::VectorXd N(const Eigen::MatrixXd & cov)
-{
-  std::normal_distribution<> dist;
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(cov);
-  auto transform = eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal();
-
-  return transform *
-         Eigen::VectorXd{cov.cols()}.unaryExpr([&](auto UNUSED(x)) { return dist(eng); });
-}
-
-}  // namespace random
 namespace time
 {
 std::chrono::time_point<std::chrono::high_resolution_clock> to_time_point(Timestamp t)

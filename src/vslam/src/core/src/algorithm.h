@@ -238,22 +238,6 @@ Eigen::Quaterniond euler2quaternion(double rx, double ry, double rz);
 
 }  // namespace transforms
 
-namespace random
-{
-template <int dim>
-struct Gaussian
-{
-  Matd<dim, dim> cov;
-  Matd<dim, 1> mean;
-};
-
-double U(double min, double max);
-uint64_t U(uint64_t min, uint64_t max);
-
-int sign();
-Eigen::VectorXd N(const Eigen::MatrixXd & cov);
-}  // namespace random
-
 namespace time
 {
 std::chrono::time_point<std::chrono::high_resolution_clock> to_time_point(Timestamp t);

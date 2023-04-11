@@ -27,5 +27,6 @@
 #include "image_transform.h"
 #include "linalg.h"
 #include "macros.h"
+#include "random.h"
 #include "types.h"
 #endif  // VSLAM_CORE_H__
