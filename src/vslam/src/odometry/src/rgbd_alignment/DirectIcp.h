@@ -68,6 +68,7 @@ protected:
   std::vector<Constraint::ConstShPtr> _constraints;
   double _wz;
   SE3d _se3;
+  Mat2d _scale;
 
   Vec6d J_T_x(const Vec3d & p);
   Vec6d J_T_y(const Vec3d & p);

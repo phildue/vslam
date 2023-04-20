@@ -73,7 +73,8 @@ DirectIcp::DirectIcp(
   //TODO(me): avoid recomputation
   const double stdri = median(_f0->intensity(_level));
   const double stdrz = median(_f0->depth(_level));
-  _wz = std::abs(stdri / stdrz);
+  _wz = 0.;
+  _scale << 1.0, 0., 0., _wz;
 
   LOG(INFO) << format(
     "Computed wz = {}/{} = {} from #{} constraints", stdri, stdrz, _wz, _constraints.size());
@@ -114,8 +115,7 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
       if (!std::isfinite(cc->Jtz.norm())) return cc;
 
       cc->weight = 1.;
-      cc->residual = cc->ri + _wz * cc->rz;
-      cc->J = cc->JiJpJt + _wz * (cc->JzJpJt - cc->Jtz);
+      cc->residual = Vec2d(cc->ri, cc->rz).transpose() * _scale * Vec2d(cc->ri, cc->rz);
 
       r(c->idx) = cc->residual;
       J.row(c->idx) = cc->J;
@@ -124,6 +124,8 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
     });
 
   auto s = _loss->computeScale(r);
+  _scale(0, 0) = 1. / s.scale;
+
   VecXd w = VecXd::Zero(_constraints.size());
   LOG(INFO) << "Computing weights";
   transform(
@@ -131,12 +133,27 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
     [&](Constraint::ConstShPtr c) -> Constraint::ConstShPtr {
       if (c->weight < 1.) return c;
       auto cc = std::make_shared<Constraint>(*c);
-      cc->weight = _loss->computeWeight(c->residual / s.scale);
+      cc->residual = Vec2d(cc->ri, cc->rz).transpose() * _scale * Vec2d(cc->ri, cc->rz);
+      cc->weight = _loss->computeWeight(cc->residual);
       w(c->idx) = cc->weight;
       return cc;
     });
-  auto ne = std::make_unique<least_squares::NormalEquations>(J, r, w);
 
+  auto ne = std::make_unique<least_squares::NormalEquations>(6);
+  for_each(constraints.cbegin(), constraints.cend(), [&](Constraint::ConstShPtr c) {
+    auto cc = std::make_shared<Constraint>(*c);
+    Matd<6, 2> J;
+    J << cc->JiJpJt, (cc->JzJpJt - cc->Jtz);
+    ne->A().noalias() += cc->weight * J * _scale * J.transpose();
+
+    LOG_EVERY_N(1000, INFO) << format("{} * {} * {} * {}", cc->weight, J, _scale, J.transpose());
+    ne->b().noalias() += cc->weight * J * _scale * Vec2d(cc->ri, cc->rz);
+    LOG_EVERY_N(1000, INFO) << format(
+      "{} * {} * {} * {}", cc->weight, J, _scale, Vec2d(cc->ri, cc->rz));
+
+    ne->chi2() += cc->weight + cc->residual;
+    ne->nConstraints() += 1;
+  });
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();
