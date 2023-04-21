@@ -44,29 +44,22 @@ protected:
   const Frame::ConstShPtr _f0;
   const Frame::ConstShPtr _f1;
   const std::shared_ptr<least_squares::Loss> _loss;
+  const Image & _I0;
   const Image & _I1;
+  const DepthMap & _Z0;
   const DepthMap & _Z1;
+  Matd<-1, 3> _pCcs0;
+  Matd<-1, 6> _JI, _JZ, _Jtz, _J;
+  Matd<-1, 2> _rIZ;
+  VecXd _r, _w;
 
   struct Constraint
   {
-    typedef std::shared_ptr<const Constraint> ConstShPtr;
-    typedef std::shared_ptr<Constraint> ShPtr;
-    size_t idx = std::numeric_limits<size_t>::max();
-    int u = -1;
-    int v = -1;
-    Vec3d p = Vec3d::Zero();
-    double intensity = 0.;
-    Vec6d JiJpJt = Vec6d::Zero(), JzJpJt = Vec6d::Zero();
-    double I1Wxp = 0.;
-    double Z1Wxp = 0.;
-    double ri = 0., rz = 0.;
-    Vec6d Jtz = Vec6d::Zero();
-    Vec6d J = Vec6d::Zero();
-    double residual = 0.;
-    double weight = 0.;
+    size_t idx;
+    int u;
+    int v;
   };
-  std::vector<Constraint::ConstShPtr> _constraints;
-  double _wz;
+  std::vector<Constraint> _constraints;
   SE3d _se3;
   Mat2d _scale;
 
@@ -74,6 +67,8 @@ protected:
   Vec6d J_T_y(const Vec3d & p);
   Vec6d J_T_z(const Vec3d & p);
   Vec2d interpolate(double u, double v) const;
+  void estimateScaleAndWeights();
+  double computeWeight(double residual) const;
 };
 
 }  // namespace pd::vslam
