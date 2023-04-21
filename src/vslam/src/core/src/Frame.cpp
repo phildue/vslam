@@ -396,24 +396,14 @@ void Frame::computePyramid(size_t nLevels, double s)
 #endif
   _depth.resize(nLevels);
 
-  //_depth[0] = _depth[0].array().unaryExpr(
-  //  [](double v) { return v == 0.0 ? std::numeric_limits<double>::quiet_NaN() : v; });
   for (size_t i = 1; i < nLevels; i++) {
-    //DepthMap depthBlur =
-    //  algorithm::medianBlur<double>(_depth[i - 1], 3, 3, [](double v) { return v <= 0.0; });
-    // TODO(unknown): replace using custom implementation
-    cv::Mat mat(height(i - 1), width(i - 1), CV_32F);
-    cv::eigen2cv(depth(i - 1), mat);
-    mat.convertTo(mat, CV_32F);
-    cv::medianBlur(mat, mat, 3);
-    MatXd depthBlur;
-    cv::cv2eigen(mat, depthBlur);
-
-    _depth[i] = algorithm::resize(depthBlur, s);
+    _depth[i] = DepthMap::Zero(_depth[i - 1].rows() * 0.5, _depth[i - 1].cols() * 0.5);
+    for (int v = 0; v < _depth[i].rows(); v++) {
+      for (int u = 0; u < _depth[i].cols(); u++) {
+        _depth[i](v, u) = _depth[i - 1](v * 2, u * 2);
+      }
+    }
   }
-  //for (size_t i = 0; i < nLevels; i++) {
-  //  _depth[i] = _depth[i].array().isNaN().select(0, _depth[i]);
-  //}
 }
 
 }  // namespace pd::vslam
