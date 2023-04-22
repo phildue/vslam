@@ -56,6 +56,7 @@ RgbdAlignment::RgbdAlignment(
   Log::get("odometry");
   LOG_IMG("ImageWarped");
   LOG_IMG("Residual");
+  LOG_IMG("ResidualWeighted");
   LOG_IMG("ResidualIntensity");
   LOG_IMG("ResidualDepth");
   LOG_IMG("Weights");
@@ -64,6 +65,7 @@ RgbdAlignment::RgbdAlignment(
   LOG_IMG("Depth");
   LOG_IMG("DepthTemplate");
   LOG_IMG("Alignment");
+  LOG_IMG("PlotResidual");
 }
 
 void RgbdAlignment::preprocessReference(Frame::ShPtr f) const
@@ -180,9 +182,6 @@ Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr t
 
 std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, int level) const
 {
-  const double weightZ =
-    (double)algorithm::median(frame->intensity(level)) / algorithm::median(frame->depth(level));
-
   std::vector<Eigen::Vector2i> interestPoints;
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
@@ -195,7 +194,7 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
     if (
       std::isfinite(depth(v, u)) && std::isfinite(zgradientMagnitude(v, u)) &&
       frame->withinImage({u, v}, _distanceToBorder, level) && _minDepth < depth(v, u) &&
-      depth(v, u) < _maxDepth && p + weightZ * zgradientMagnitude(v, u) > _minGradient2[level]) {
+      depth(v, u) < _maxDepth && (p > _minGradient2[level] || zgradientMagnitude(v, u) > 0.0)) {
       interestPoints.emplace_back(u, v);
     }
   });

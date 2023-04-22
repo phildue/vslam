@@ -23,6 +23,7 @@ using fmt::print;
 #include <execution>
 
 #include "DirectIcp.h"
+#include "Overlays.h"
 #include "core/core.h"
 #include "utils/utils.h"
 template <typename T>
@@ -40,17 +41,18 @@ DirectIcp::DirectIcp(
   _f0(fRef),
   _f1(fTo),
   _loss(l),
-  _I0(fRef->intensity(_level)),
-  _I1(fTo->intensity(_level)),
+  _I0(fRef->intensity(_level).cast<double>()),
+  _I1(fTo->intensity(_level).cast<double>()),
   _Z0(fRef->depth(_level)),
   _Z1(fTo->depth(_level)),
   _constraints(interestPoints.size()),
   _se3(se3),
-  _scale(Mat2d::Identity())
+  _scale(Mat2d::Identity()),
+  _iteration(0)
 {
   _pCcs0 = Matd<-1, 3>::Zero(interestPoints.size(), 3);
-  _JI = Matd<-1, 6>::Zero(interestPoints.size(), 6);
-  _JZ = Matd<-1, 6>::Zero(interestPoints.size(), 6);
+  _JIJpJt = Matd<-1, 6>::Zero(interestPoints.size(), 6);
+  _JZJpJt = Matd<-1, 6>::Zero(interestPoints.size(), 6);
 
   LOG(INFO) << "Precomputing..";
   size_t nConstraints = 0U;
@@ -66,63 +68,21 @@ DirectIcp::DirectIcp(
 
     _constraints[nConstraints] = {nConstraints, kp.x(), kp.y()};
     _pCcs0.row(nConstraints) = p3d;
-    _JZ.row(nConstraints) = JZ;
-    _JI.row(nConstraints) = JI;
+    _JZJpJt.row(nConstraints) = JZ;
+    _JIJpJt.row(nConstraints) = JI;
     nConstraints++;
   });
   _constraints.resize(nConstraints);
   _pCcs0.conservativeResize(nConstraints, Eigen::NoChange);
-  _JI.conservativeResize(nConstraints, Eigen::NoChange);
-  _JZ.conservativeResize(nConstraints, Eigen::NoChange);
+  _JIJpJt.conservativeResize(nConstraints, Eigen::NoChange);
+  _JZJpJt.conservativeResize(nConstraints, Eigen::NoChange);
   LOG(INFO) << format("Precomputed: {}", nConstraints);
 }
 
 void DirectIcp::updateX(const Eigen::VectorXd & dx) { _se3 = SE3d::exp(-dx) * _se3; }
 least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
 {
-  _Jtz = Matd<-1, 6>::Zero(_constraints.size(), 6);
-  _J = Matd<-1, 6>::Zero(_constraints.size(), 6);
-  _rIZ = Matd<-1, 2>::Zero(_constraints.size(), 2);
-  _r = VecXd::Zero(_constraints.size());
-  _w = VecXd::Zero(_constraints.size());
-
-  const SE3d T = _se3 * _f0->pose().SE3().inverse();
-  const SE3d Tinv = T.inverse();
-  // const Matd<-1, 3> p0t =
-  //   (T.matrix() * _pCcs0.transpose()).block(0, 0, 3, _constraints.size()).transpose();
-  const double wi = 0.0;
-  const double wz = 1.0 - wi;
-  _scale(0, 0) = wi;
-  _scale(1, 1) = wz;
-
-  LOG(INFO) << "Computing Residuals..";
-  std::for_each(
-    std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](const Constraint & c) {
-      Vec2d uv0t = _f1->camera2image(T * Vec3d(_pCcs0.row(c.idx)), _level);
-
-      if (!std::isfinite(uv0t.x()) || !_f1->withinImage(uv0t, 7, _level)) return;
-
-      Vec2d iz = interpolate(uv0t.x(), uv0t.y());
-
-      if (!std::isfinite(iz.norm())) return;
-
-      Vec3d p1 = _f1->image2camera(uv0t, iz(1), _level);
-      Vec3d p1t = Tinv * p1;
-      double Z1Wxp = p1t.z();
-      double rI = iz(0) - _I0(c.v, c.u);
-      double rZ = Z1Wxp - _Z0(c.v, c.u);
-
-      Vec6d Jz_ = J_T_z(p1t);
-
-      if (!std::isfinite(Jz_.norm())) return;
-
-      _Jtz.row(c.idx) = Jz_;
-      _rIZ(c.idx, 0) = rI;
-      _rIZ(c.idx, 1) = rZ;
-
-      _w(c.idx) = 1.0;
-    });
-
+  computeResidualsAndJacobians();
   /*
   LOG(INFO) << format(
     "Computing Weights from r {} -> {} |r| = {}", _r.minCoeff(), _r.maxCoeff(), _r.norm());
@@ -134,28 +94,8 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
   */
   estimateScaleAndWeights();
 
-  LOG(INFO) << "Computing Normal Equations..";
-  auto ne = std::make_unique<least_squares::NormalEquations>(6);
-  for_each(_constraints.cbegin(), _constraints.cend(), [&](const Constraint & c) {
-    if (_w(c.idx) > 0.) {
-      Matd<6, 2> J;
-      J << Vec6d(_JI.row(c.idx)), (Vec6d(_JZ.row(c.idx)) - Vec6d(_Jtz.row(c.idx)));
-      ne->A().noalias() += _w(c.idx) * J * _scale * J.transpose();
-
-      //LOG_EVERY_N(1000, INFO) << format("{} * {} * {} * {}", _w(c.idx), J, _scale, J.transpose());
-      ne->b().noalias() += _w(c.idx) * J * _scale * Vec2d(_rIZ.row(c.idx));
-      //LOG_EVERY_N(1000, INFO) << format(
-      //  "{} * {} * {} * {}", _w(c.idx), J, _scale, Vec2d(_rIZ.row(c.idx)));
-      _r(c.idx) = Vec2d(_rIZ.row(c.idx)).transpose() * _scale * Vec2d(_rIZ.row(c.idx));
-
-      ne->chi2() += _w(c.idx) * _r(c.idx);
-      ne->nConstraints() += 1;
-    }
-  });
-  ne->A() /= ne->nConstraints();
-  ne->b() /= ne->nConstraints();
-  ne->chi2() /= ne->nConstraints();
-
+  auto ne = _computeNormalEquations();
+  _iteration++;
   //TODO move this to a Drawable
   MatXd ZWxp = MatXd::Zero(_f0->height(_level), _f0->width(_level));
   Image IWxp = Image::Zero(_f0->height(_level), _f0->width(_level));
@@ -169,8 +109,6 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
       Rz(c.v, c.u) = _rIZ(c.idx, 1);
       Ri(c.v, c.u) = _rIZ(c.idx, 0);
       W(c.v, c.u) = _w(c.idx);
-      //ZWxp(c.v, c.u) = c.Z1Wxp;
-      //IWxp(c.v, c.u) = static_cast<image_value_t>(c.I1Wxp);
     });
   LOG(INFO) << format(
     "Residual Depth Total: {} Residual Intensity Total: {}", Rz.norm(), Ri.norm());
@@ -178,8 +116,13 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
   LOG_IMG("ResidualDepth") << Rz;
   LOG_IMG("Residual") << R;
   LOG_IMG("Weights") << W;
-  LOG_IMG("DepthWarped") << ZWxp;
-  LOG_IMG("ImageWarped") << IWxp;
+  LOG_IMG("DepthWarped") << _Z1Wxp;
+  LOG_IMG("ImageWarped") << _I1Wxp;
+  LOG_IMG("ResidualWeighted") << std::make_shared<OverlayWeightedResidual>(
+    _f0->height(_level), _f0->width(_level), _constraints, _r, _w);
+  LOG_IMG("PlotResidual") << std::make_shared<PlotResiduals>(
+    _f0->t(), _iteration, _constraints, _r, _w);
+
   return ne;
 }  // namespace pd::vslam
 
@@ -282,7 +225,8 @@ void DirectIcp::estimateScaleAndWeights()
 {
   LOG(INFO) << "Estimating scale and weights..";
   double l2scale = std::numeric_limits<double>::max();
-  for (int i = 0; i < 50 && l2scale > 1e-4; i++) {
+  int i = 0;
+  for (; i < 50 && l2scale > 1e-4; i++) {
     MatXd scale_i = MatXd::Zero(2, 2);
     int nValid = 0;
     for (int n = 0; n < _rIZ.rows(); n++) {
@@ -293,7 +237,6 @@ void DirectIcp::estimateScaleAndWeights()
         nValid++;
       }
     }
-
     scale_i /= nValid;
     scale_i = scale_i.inverse();
     l2scale = (_scale - scale_i).norm();
@@ -301,7 +244,69 @@ void DirectIcp::estimateScaleAndWeights()
 
     //LOG(INFO) << format("Iteration = {}, scale = \n{}, \nl2 = {}", i, _scale, l2scale);
   }
-  LOG(INFO) << format("scale = \n{}, \nl2 = {}", _scale, l2scale);
+  LOG(INFO) << format("Iterations: {}, scale = \n{}, \nl2 = {}", i, _scale, l2scale);
 }
 double DirectIcp::computeWeight(double residual) const { return (5. + 2.) / (5. + residual); }
+
+void DirectIcp::computeResidualsAndJacobians()
+{
+  LOG(INFO) << "Computing Residuals..";
+  _JZJpJt_Jtz = Matd<-1, 6>::Zero(_constraints.size(), 6);
+  _rIZ = Matd<-1, 2>::Zero(_constraints.size(), 2);
+  _r = VecXd::Zero(_constraints.size());
+  _w = VecXd::Zero(_constraints.size());
+  _I1Wxp = MatXd::Zero(_I1.rows(), _I1.cols());
+  _Z1Wxp = MatXd::Zero(_Z1.rows(), _Z1.cols());
+  const SE3d T = _se3 * _f0->pose().SE3().inverse();
+  const SE3d Tinv = T.inverse();
+  std::for_each(
+    std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](const Constraint & c) {
+      Vec2d uv0t = _f1->camera2image(T * Vec3d(_pCcs0.row(c.idx)), _level);
+
+      if (!std::isfinite(uv0t.x()) || !_f1->withinImage(uv0t, 7, _level)) return;
+
+      Vec2d iz = interpolate(uv0t.x(), uv0t.y());
+
+      if (!std::isfinite(iz.norm())) return;
+      _I1Wxp(c.v, c.u) = iz(0);
+      Vec3d p1 = _f1->image2camera(uv0t, iz(1), _level);
+      Vec3d p1t = Tinv * p1;
+      _Z1Wxp(c.v, c.u) = p1t.z();
+
+      Vec6d J_t_z = J_T_z(p1t);
+
+      if (!std::isfinite(J_t_z.norm())) return;
+
+      _JZJpJt_Jtz.row(c.idx) = VecXd(_JZJpJt.row(c.idx)) - J_t_z;
+      _rIZ(c.idx, 0) = _I1Wxp(c.v, c.u) - _I0(c.v, c.u);
+      _rIZ(c.idx, 1) = _Z1Wxp(c.v, c.u) - _Z0(c.v, c.u);
+
+      _w(c.idx) = 1.0;
+    });
+}
+least_squares::NormalEquations::UnPtr DirectIcp::_computeNormalEquations()
+{
+  LOG(INFO) << "Computing Normal Equations..";
+  auto ne = std::make_unique<least_squares::NormalEquations>(6);
+  for_each(_constraints.cbegin(), _constraints.cend(), [&](const Constraint & c) {
+    if (_w(c.idx) > 0.) {
+      Matd<6, 2> J;
+      J << Vec6d(_JIJpJt.row(c.idx)), Vec6d(_JZJpJt_Jtz.row(c.idx));
+      ne->A().noalias() += _w(c.idx) * J * _scale * J.transpose();
+
+      //LOG_EVERY_N(1000, INFO) << format("{} * {} * {} * {}", _w(c.idx), J, _scale, J.transpose());
+      ne->b().noalias() += _w(c.idx) * J * _scale * Vec2d(_rIZ.row(c.idx));
+      //LOG_EVERY_N(1000, INFO) << format(
+      //  "{} * {} * {} * {}", _w(c.idx), J, _scale, Vec2d(_rIZ.row(c.idx)));
+      _r(c.idx) = Vec2d(_rIZ.row(c.idx)).transpose() * _scale * Vec2d(_rIZ.row(c.idx));
+
+      ne->chi2() += _w(c.idx) * _r(c.idx);
+      ne->nConstraints() += 1;
+    }
+  });
+  ne->A() /= ne->nConstraints();
+  ne->b() /= ne->nConstraints();
+  ne->chi2() /= ne->nConstraints();
+  return ne;
+}
 }  // namespace pd::vslam

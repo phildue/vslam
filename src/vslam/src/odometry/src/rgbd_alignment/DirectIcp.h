@@ -25,6 +25,12 @@ namespace pd::vslam
 class DirectIcp : public least_squares::Problem
 {
 public:
+  struct Constraint
+  {
+    size_t idx;
+    int u;
+    int v;
+  };
   DirectIcp(
     const SE3d & se3, Frame::ConstShPtr fRef, Frame::ConstShPtr fTo,
     const std::vector<Eigen::Vector2i> & interestPoints, int level,
@@ -44,24 +50,20 @@ protected:
   const Frame::ConstShPtr _f0;
   const Frame::ConstShPtr _f1;
   const std::shared_ptr<least_squares::Loss> _loss;
-  const Image & _I0;
-  const Image & _I1;
+  const MatXd _I0;
+  const MatXd _I1;
   const DepthMap & _Z0;
   const DepthMap & _Z1;
   Matd<-1, 3> _pCcs0;
-  Matd<-1, 6> _JI, _JZ, _Jtz, _J;
+  Matd<-1, 6> _JIJpJt, _JZJpJt, _JZJpJt_Jtz;
   Matd<-1, 2> _rIZ;
   VecXd _r, _w;
+  MatXd _I1Wxp, _Z1Wxp;
 
-  struct Constraint
-  {
-    size_t idx;
-    int u;
-    int v;
-  };
   std::vector<Constraint> _constraints;
   SE3d _se3;
   Mat2d _scale;
+  int _iteration;
 
   Vec6d J_T_x(const Vec3d & p);
   Vec6d J_T_y(const Vec3d & p);
@@ -69,6 +71,8 @@ protected:
   Vec2d interpolate(double u, double v) const;
   void estimateScaleAndWeights();
   double computeWeight(double residual) const;
+  void computeResidualsAndJacobians();
+  least_squares::NormalEquations::UnPtr _computeNormalEquations();
 };
 
 }  // namespace pd::vslam
