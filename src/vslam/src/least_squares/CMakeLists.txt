@@ -7,8 +7,6 @@ set( sources
   src/NormalEquations.cpp
   src/Solver.cpp
   src/GaussNewton.cpp 
-  src/PlotSolver.cpp
-  
   )
 
 set( headers
@@ -18,7 +16,6 @@ set( headers
   src/Prior.h
   src/Loss.h
   src/Solver.h
-  src/PlotSolver.h
   include/least_squares/least_squares.h )
 
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)

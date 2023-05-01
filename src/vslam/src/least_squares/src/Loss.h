@@ -85,7 +85,7 @@ public:
 class HuberLoss : public Loss
 {
 public:
-  HuberLoss(Scaler::ShPtr scaler = std::make_shared<MedianScaler>(), double c = 1.345f)
+  HuberLoss(Scaler::ShPtr scaler = std::make_shared<MeanScaler>(), double c = 1.345f)
   : Loss(scaler), _c(c)
   {
   }
@@ -101,7 +101,7 @@ public:
 class LossTDistribution : public Loss
 {
 public:
-  LossTDistribution(Scaler::ShPtr scaler = std::make_shared<MedianScaler>(), double v = 5.0)
+  LossTDistribution(Scaler::ShPtr scaler = std::make_shared<ScalerTDistribution>(), double v = 5.0)
   : Loss(scaler), _v(v)
   {
   }

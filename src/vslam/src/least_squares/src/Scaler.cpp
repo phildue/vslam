@@ -28,8 +28,8 @@ Scaler::Scale MedianScaler::compute(const VecXd & r) const
       algorithm::insertionSort(rs,r(i));
   }*/
 
-  auto median = algorithm::median(r, false);
-  auto std = std::sqrt((r.array() - median).array().abs().sum() / (r.rows() - 1));
+  double median = algorithm::median(r, false);
+  double std = std::sqrt((r.array() - median).array().abs().sum() / (r.rows() - 1));
   LOG_IMG("MedianScaler") << std::make_shared<vis::Histogram>(r, "ErrorDistribution", 30);
   return {median, std};
 }
@@ -58,7 +58,7 @@ Scaler::Scale ScalerTDistribution::compute(const VecXd & r) const
     }
     const double sigma_i = std::sqrt(sum / static_cast<double>(r.rows()));
     stepSize = std::abs(sigma - sigma_i);
-    SOLVER(DEBUG) << "Sigma_i: " << iter << " with: " << sigma_i << " stepSize: " << stepSize;
+    SOLVER(DEBUG) << "Sigma_i: " << iter << " with sigma =" << sigma_i << " stepSize: " << stepSize;
 
     sigma = sigma_i;
   }

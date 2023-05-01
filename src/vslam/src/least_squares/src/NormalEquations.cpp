@@ -62,11 +62,10 @@ NormalEquations::NormalEquations(const std::vector<NormalEquations::ConstShPtr> 
 NormalEquations::NormalEquations(
   const Eigen::MatrixXd & J, const Eigen::VectorXd & r, const Eigen::VectorXd & w)
 {
-  auto Jtw = J.transpose() * w.asDiagonal();
-  _A = Jtw * J;
-  _b = Jtw * r;
+  _A = J.transpose() * w.asDiagonal() * J;
+  _b = J.transpose() * w.asDiagonal() * r;
   _nParameters = _A.cols();
-     _chi2 = (w.asDiagonal() * r).transpose() * r;
+  _chi2 = (w.asDiagonal() * r).transpose() * r;
   _nConstraints = r.rows();
 }
 
