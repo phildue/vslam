@@ -13,12 +13,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <fmt/core.h>
+#include <fmt/ostream.h>
+
 #include <memory>
 
 #include "GaussNewton.h"
-#include "PlotSolver.h"
 #include "core/core.h"
 #include "utils/utils.h"
+
+using fmt::format;
+using fmt::print;
+
+template <typename T>
+struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>, T>, char>>
+: ostream_formatter
+{
+};
 namespace pd::vslam::least_squares
 {
 GaussNewton::GaussNewton(double minStepSize, size_t maxIterations)
@@ -29,7 +40,6 @@ GaussNewton::GaussNewton(double minStepSize, size_t maxIterations)
   _maxIncrease(minStepSize)
 {
   Log::get("solver");
-  LOG_IMG("Solver");
 }
 
 GaussNewton::GaussNewton(
@@ -42,7 +52,6 @@ GaussNewton::GaussNewton(
   _maxIncrease(std::max(1.0, maxIncrease))
 {
   Log::get("solver");
-  LOG_IMG("Solver");
 }
 
 Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem) const
@@ -100,9 +109,10 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
     const auto gradient = std::abs(ne->b().maxCoeff());
     problem->updateX(dx);
 
-    SOLVER(INFO) << "Iteration: " << i << " chi2: " << r->chi2(i) << " dChi2: " << dChi2
-                 << " stepSize: " << r->stepSize(i) << " Points: " << ne->nConstraints()
-                 << "\nx: " << problem->x().transpose() << "\ndx: " << dx.transpose();
+    SOLVER(INFO) << format(
+      "i: {} chi2: {:0.6f}, dChi2: {:.2f}, |dx|: {:.6f}, #:{}", i, r->chi2(i), dChi2, dx.norm(),
+      ne->nConstraints());
+    SOLVER(DEBUG) << format("x: {},\ndx: {}", problem->x().transpose(), dx.transpose());
 
     r->x.row(i) = problem->x();
     r->stepSize(i) = dx.norm();
@@ -135,7 +145,6 @@ Solver::Results::ConstUnPtr GaussNewton::solve(std::shared_ptr<Problem> problem)
       break;
     }
   }
-  LOG_IMG("Solver") << std::make_shared<PlotGaussNewton>(r->iteration - 1, r->chi2, r->stepSize);
   return r;
 }
 
