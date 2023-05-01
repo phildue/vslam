@@ -186,15 +186,14 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
   interestPoints.reserve(frame->width(level) * frame->height(level));
   const MatXd gradientMagnitude =
     frame->dIdx(level).array().pow(2) + frame->dIdy(level).array().pow(2);
-  const MatXd zgradientMagnitude =
-    frame->dZdx(level).array().pow(2) + frame->dZdy(level).array().pow(2);
+  const MatXd zdmag = frame->dZdx(level).array().pow(2) + frame->dZdy(level).array().pow(2);
 
   const auto & depth = frame->depth(level);
-  forEachPixel(gradientMagnitude, [&](int u, int v, double p) {
+  forEachPixel(gradientMagnitude, [&](int u, int v, double idmag) {
     if (
-      std::isfinite(depth(v, u)) && std::isfinite(zgradientMagnitude(v, u)) &&
+      std::isfinite(depth(v, u)) && std::isfinite(zdmag(v, u)) &&
       frame->withinImage({u, v}, _distanceToBorder, level) && _minDepth < depth(v, u) &&
-      depth(v, u) < _maxDepth && (p > _minGradient2[level] || zgradientMagnitude(v, u) > 0.0)) {
+      depth(v, u) < _maxDepth && (idmag > _minGradient2[level] || zdmag(v, u) > 0.01)) {
       interestPoints.emplace_back(u, v);
     }
   });

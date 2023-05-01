@@ -267,8 +267,21 @@ void Frame::computeDepthDerivatives()
 
   // TODO(unknown): replace using custom implementation
   for (size_t i = 0; i < nLevels(); i++) {
+#ifdef SOBEL
     _dZdx[i] = sobel(MatXf(depth(i).cast<float>()), 1, 0, 3, 1. / 8.).cast<double>();
     _dZdy[i] = sobel(MatXf(depth(i).cast<float>()), 0, 1, 3, 1. / 8.).cast<double>();
+#else
+    DepthMap dZdu = DepthMap::Zero(_depth[i].rows(), _depth[i].cols()),
+             dZdv = DepthMap::Zero(_depth[i].rows(), _depth[i].cols());
+    for (int v = 1; v < dZdu.rows() - 1; v++) {
+      for (int u = 1; u < dZdu.cols() - 1; u++) {
+        dZdu(v, u) = 0.5 * (_depth[i](v, u + 1) - _depth[i](v, u - 1));
+        dZdv(v, u) = 0.5 * (_depth[i](v + 1, u) - _depth[i](v - 1, u));
+      }
+    }
+    _dZdx[i] = dZdu;
+    _dZdy[i] = dZdv;
+#endif
   }
 }
 void Frame::computeDerivatives()
@@ -395,7 +408,6 @@ void Frame::computePyramid(size_t nLevels, double s)
   }
 #endif
   _depth.resize(nLevels);
-
   for (size_t i = 1; i < nLevels; i++) {
     _depth[i] = DepthMap::Zero(_depth[i - 1].rows() * 0.5, _depth[i - 1].cols() * 0.5);
     for (int v = 0; v < _depth[i].rows(); v++) {

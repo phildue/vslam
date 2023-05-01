@@ -73,6 +73,9 @@ protected:
   double computeWeight(double residual) const;
   void computeResidualsAndJacobians();
   least_squares::NormalEquations::UnPtr _computeNormalEquations();
+  least_squares::NormalEquations::UnPtr _computeNormalEquationsIndependent();
+
+  void logImages();
 };
 
 }  // namespace pd::vslam
