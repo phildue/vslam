@@ -6,13 +6,15 @@ set( sources
   src/motion_model/EKFConstantVelocitySE3.cpp
   src/motion_model/PlotKalman.cpp
   src/rgbd_alignment/IterativeClosestPoint.cpp
+  src/rgbd_alignment/DepthMapAlignment.cpp
   src/rgbd_alignment/DirectIcp.cpp
+  src/rgbd_alignment/Overlays.cpp
+
   src/rgbd_alignment/LukasKanadeWithDepth.cpp
   src/rgbd_alignment/RgbdAlignment.cpp
   src/rgbd_alignment/RgbdAlignmentRgb.cpp
   src/rgbd_alignment/RgbdAlignmentIcp.cpp
   src/rgbd_alignment/PlotAlignment.cpp
-  #src/rgbd_alignment/RgbdAligner.cpp
   src/rgbd_alignment/RgbdAlignmentOcv.cpp
   src/rgbd_alignment/MotionPrior.cpp
   src/feature_tracking/OverlayMatchCandidates.cpp
@@ -27,7 +29,9 @@ set( headers
   src/motion_model/KalmanFilter.h
   src/motion_model/EKFConstantVelocitySE3.h
   src/motion_model/PlotKalman.h
+  src/rgbd_alignment/DepthMapAlignment.h
   src/rgbd_alignment/DirectIcp.h
+  src/rgbd_alignment/Overlays.h
   src/rgbd_alignment/IterativeClosestPoint.h
   src/rgbd_alignment/LukasKanadeWithDepth.h
   src/rgbd_alignment/RgbdAlignment.h
