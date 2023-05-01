@@ -20,8 +20,7 @@
 #ifndef VSLAM_VISUALS_H
 #define VSLAM_VISUALS_H
 
-#define WITHOUT_NUMPY
-#include <matplotlibcpp.h>
+#include <matplot/matplot.h>
 
 #include <memory>
 #include <opencv2/core/mat.hpp>
@@ -30,7 +29,7 @@
 
 namespace pd::vslam::vis
 {
-namespace plt = matplotlibcpp;
+namespace plt = matplot;
 
 cv::Mat drawAsImage(const Eigen::MatrixXd & mat);
 
@@ -71,9 +70,10 @@ public:
   typedef std::shared_ptr<Plot> ShPtr;
   typedef std::shared_ptr<const Plot> ConstShPtr;
   virtual ~Plot() = default;
-  virtual void plot() const = 0;
+  virtual void plot(matplot::figure_handle f) = 0;
   virtual std::string csv() const = 0;
   virtual std::string id() const { return ""; }
+  static void show(matplot::figure_handle f) { f->show(); }
 };
 class Csv
 {
@@ -95,7 +95,7 @@ public:
   const Eigen::VectorXd _h;
   const std::string _title;
   const int _nBins;
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
   std::string csv() const override { return ""; }
 };
 

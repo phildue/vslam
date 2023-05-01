@@ -67,7 +67,7 @@ public:
   LogImage(const std::string & name, bool block = false, bool show = false, bool save = false);
   void append(const cv::Mat & mat);
   void append(vis::Drawable::ConstShPtr drawable);
-  void append(vis::Plot::ConstShPtr drawable);
+  void append(vis::Plot::ShPtr drawable);
   void append(vis::Csv::ConstShPtr csv);
 
   template <typename T>
@@ -106,6 +106,7 @@ protected:
   const std::string _folder;
 
   std::uint64_t _ctr;
+  matplot::figure_handle _f;
 
   virtual void logMat(const cv::Mat & mat);
   virtual void logMat(const cv::Mat & mat, const std::string & id);
@@ -124,7 +125,7 @@ void operator<<(LogImage::ShPtr log, const Eigen::Matrix<T, -1, -1> & mat)
   log->append<T>(mat);
 }
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable);
-void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot);
+void operator<<(LogImage::ShPtr log, vis::Plot::ShPtr plot);
 void operator<<(LogImage::ShPtr log, vis::Csv::ConstShPtr plot);
 
 template <typename T>

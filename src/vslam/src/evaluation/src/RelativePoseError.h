@@ -47,7 +47,7 @@ class PlotRPE : public vis::Plot
 {
 public:
   PlotRPE(const std::map<std::string, RelativePoseError::ConstShPtr> & errors);
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
   std::string csv() const override { return ""; }
 
 private:

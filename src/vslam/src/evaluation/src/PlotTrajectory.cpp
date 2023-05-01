@@ -11,24 +11,25 @@ PlotTrajectory::PlotTrajectory(const std::map<std::string, Trajectory::ShPtr> & 
     _trajectories[n_t.first] = n_t.second;
   }
 }
-void PlotTrajectory::plot() const
+void PlotTrajectory::plot(matplot::figure_handle f)
 {
-  vis::plt::figure();
+  vis::plt::figure(f);
   vis::plt::subplot(1, 3, 1);
   vis::plt::ylabel("$t_y   [m]$");
   vis::plt::xlabel("$t_x   [m]$");
   vis::plt::grid(true);
-
+  std::vector<std::string> names;
   for (auto traj : _trajectories) {
     std::vector<double> x, y;
     for (auto p : traj.second->poses()) {
       x.push_back(p.second->SE3().translation().x());
       y.push_back(p.second->SE3().translation().y());
     }
-    vis::plt::named_plot(traj.first, x, y);
+    vis::plt::plot(x, y);
+    names.push_back(traj.first);
   }
   vis::plt::axis("equal");
-  vis::plt::legend();
+  vis::plt::legend(vis::plt::gca(), names);
 
   vis::plt::subplot(1, 3, 2);
   vis::plt::ylabel("$t_z   [m]$");
@@ -41,9 +42,9 @@ void PlotTrajectory::plot() const
       t.push_back((p.first - t0) / 1e9);
       tz.push_back(p.second->SE3().translation().z());
     }
-    vis::plt::named_plot(n_traj.first, t, tz);
+    vis::plt::plot(t, tz);
   }
-  vis::plt::legend();
+  vis::plt::legend(vis::plt::gca(), names);
 
   vis::plt::subplot(1, 3, 3);
   vis::plt::ylabel("$v [m/s]$");
@@ -61,9 +62,9 @@ void PlotTrajectory::plot() const
                     .norm());
       tRef = p.first;
     }
-    vis::plt::named_plot(n_traj.first, t, v);
+    vis::plt::plot(t, v);
   }
-  vis::plt::legend();
+  vis::plt::legend(vis::plt::gca(), names);
 }
 PlotTrajectoryCovariance::PlotTrajectoryCovariance(
   const std::map<std::string, Trajectory::ConstShPtr> & trajectories)
@@ -77,13 +78,14 @@ PlotTrajectoryCovariance::PlotTrajectoryCovariance(
     _trajectories[n_t.first] = n_t.second;
   }
 }
-void PlotTrajectoryCovariance::plot() const
+void PlotTrajectoryCovariance::plot(matplot::figure_handle f)
 {
-  vis::plt::figure();
+  vis::plt::figure(f);
   vis::plt::title("Covariance");
   vis::plt::ylabel("$| \\Sigma |$");
   vis::plt::xlabel("$t-t_0 [s]$");
   vis::plt::grid(true);
+  std::vector<std::string> names;
   for (auto n_traj : _trajectories) {
     std::vector<double> t, tz;
     Timestamp t0 = n_traj.second->tStart();
@@ -91,9 +93,10 @@ void PlotTrajectoryCovariance::plot() const
       t.push_back((p.first - t0) / 1e9);
       tz.push_back(p.second->twistCov().norm());
     }
-    vis::plt::named_plot(n_traj.first, t, tz);
+    vis::plt::plot(t, tz);
+    names.push_back(n_traj.first);
   }
-  vis::plt::legend();
+  vis::plt::legend(vis::plt::gca(), names);
 }
 
 PlotTrajectoryMotion::PlotTrajectoryMotion(
@@ -108,14 +111,15 @@ PlotTrajectoryMotion::PlotTrajectoryMotion(
     _trajectories[n_t.first] = n_t.second;
   }
 }
-void PlotTrajectoryMotion::plot() const
+void PlotTrajectoryMotion::plot(matplot::figure_handle f)
 {
-  vis::plt::figure();
+  vis::plt::figure(f);
 
   vis::plt::subplot(3, 2, 1);
   vis::plt::ylabel("$\\Delta t_x   [m]$");
   vis::plt::xlabel("$t-t_0 [s]$");
   vis::plt::grid(true);
+  std::vector<std::string> names;
   for (auto n_traj : _trajectories) {
     std::vector<double> t, tx;
     Timestamp t0 = n_traj.second->tStart();
@@ -125,9 +129,10 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       tx.push_back(motion.translation().x());
     }
-    vis::plt::named_plot(n_traj.first, t, tx);
+    vis::plt::plot(t, tx);
+    names.push_back(n_traj.first);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
   vis::plt::subplot(3, 2, 3);
   vis::plt::ylabel("$\\Delta t_y   [m]$");
   vis::plt::xlabel("$t-t_0 [s]$");
@@ -141,9 +146,9 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       ty.push_back(motion.translation().y());
     }
-    vis::plt::named_plot(n_traj.first, t, ty);
+    vis::plt::plot(t, ty);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 
   vis::plt::subplot(3, 2, 5);
   vis::plt::ylabel("$\\Delta t_z   [m]$");
@@ -158,9 +163,9 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       tz.push_back(motion.translation().z());
     }
-    vis::plt::named_plot(n_traj.first, t, tz);
+    vis::plt::plot(t, tz);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 
   vis::plt::subplot(3, 2, 2);
   vis::plt::ylabel("$\\Delta r_x   [\\circ]$");
@@ -175,9 +180,9 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       rx.push_back(motion.angleX() / M_PI * 180.0);
     }
-    vis::plt::named_plot(n_traj.first, t, rx);
+    vis::plt::plot(t, rx);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 
   vis::plt::subplot(3, 2, 4);
   vis::plt::ylabel("$\\Delta r_y   [\\circ]$");
@@ -192,9 +197,9 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       ry.push_back(motion.angleY() / M_PI * 180.0);
     }
-    vis::plt::named_plot(n_traj.first, t, ry);
+    vis::plt::plot(t, ry);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 
   vis::plt::subplot(3, 2, 6);
   vis::plt::ylabel("$\\Delta r_z   [\\circ]$");
@@ -209,8 +214,8 @@ void PlotTrajectoryMotion::plot() const
       auto motion = p.second->SE3() * posePrev.inverse();
       rz.push_back(motion.angleZ() / M_PI * 180.0);
     }
-    vis::plt::named_plot(n_traj.first, t, rz);
+    vis::plt::plot(t, rz);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 }
 }  // namespace pd::vslam::evaluation

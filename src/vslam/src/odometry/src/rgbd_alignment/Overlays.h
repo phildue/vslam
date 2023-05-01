@@ -27,16 +27,16 @@ public:
   PlotResiduals(
     Timestamp t, size_t iteration, const std::vector<DirectIcp::Constraint> & constraints,
     const MatXd & r, const VecXd & w);
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
   std::string csv() const override;
   std::string id() const;
 
 private:
   const Timestamp _t;
   const size_t _iteration;
-  const std::vector<DirectIcp::Constraint> & _constraints;
-  const MatXd & _r;
-  const VecXd & _w;
+  const std::vector<DirectIcp::Constraint> _constraints;
+  const MatXd _r;
+  const VecXd _w;
 };
 }  // namespace pd::vslam
 #endif

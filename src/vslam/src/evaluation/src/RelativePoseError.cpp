@@ -112,25 +112,27 @@ PlotRPE::PlotRPE(const std::map<std::string, RelativePoseError::ConstShPtr> & er
 : _errors(errors)
 {
 }
-void PlotRPE::plot() const
+void PlotRPE::plot(matplot::figure_handle f)
 {
   const Timestamp t0 = _errors.begin()->second->timestamps()[0];
 
-  vis::plt::figure();
+  vis::plt::figure(f);
   vis::plt::subplot(2, 1, 1);
   vis::plt::title("$Translational Error$");
   vis::plt::ylabel("$|t|_2 [m]$");
   vis::plt::xlabel("$t-t_0 [s]$");
   vis::plt::grid(true);
 
+  std::vector<std::string> names;
   for (const auto n_e : _errors) {
     std::vector<double> tAx;
     std::transform(
       n_e.second->timestamps().begin(), n_e.second->timestamps().end(), std::back_inserter(tAx),
       [&](auto t) { return (t - t0) / 1e9; });
-    vis::plt::named_plot(n_e.first, tAx, n_e.second->errorsTranslation(), ".--");
+    vis::plt::plot(tAx, n_e.second->errorsTranslation(), ".--");
+    names.push_back(n_e.first);
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
   vis::plt::subplot(2, 1, 2);
   vis::plt::title("$Rotational Error$");
   vis::plt::ylabel("$|\\theta|_2   [°]$");
@@ -141,28 +143,28 @@ void PlotRPE::plot() const
     std::transform(
       n_e.second->timestamps().begin(), n_e.second->timestamps().end(), std::back_inserter(tAx),
       [&](auto t) { return (t - t0) / 1e9; });
-    vis::plt::named_plot(n_e.first, tAx, n_e.second->errorsAngles(), ".--");
+    vis::plt::plot(tAx, n_e.second->errorsAngles(), ".--");
   }
-  vis::plt::legend();
+  vis::plt::legend(matplot::gca(), names);
 
-  std::vector<std::string> names;
   std::vector<std::vector<double>> errT;
   std::vector<std::vector<double>> errR;
   for (const auto n_e : _errors) {
     errT.push_back(n_e.second->errorsTranslation());
     errR.push_back(n_e.second->errorsAngles());
-    names.push_back(n_e.first);
   }
 
   vis::plt::figure();
   vis::plt::subplot(1, 2, 1);
   vis::plt::grid(true);
   vis::plt::title("Translation");
-  vis::plt::boxplot(errT, names);
+  auto het = vis::plt::boxplot(errT);
+  vis::plt::legend(matplot::gca(), names);
 
   vis::plt::subplot(1, 2, 2);
   vis::plt::grid(true);
   vis::plt::title("Rotation");
-  vis::plt::boxplot(errT, names);
+  auto her = vis::plt::boxplot(errT);
+  vis::plt::legend(matplot::gca(), names);
 }
 }  // namespace pd::vslam::evaluation

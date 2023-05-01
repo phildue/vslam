@@ -40,10 +40,11 @@ TEST(LossTest, TukeyLoss)
   if (TEST_VISUALIZE) {
     vis::plt::figure();
     vis::plt::title("TukeyLoss");
-    vis::plt::named_plot("l(r)", r, l);
-    vis::plt::named_plot("l'(r)", r, l_);
-    vis::plt::named_plot("$w(r)r^2$'", r, w);
-    vis::plt::legend();
+    vis::plt::hold("on");
+    vis::plt::plot(r, l);
+    vis::plt::plot(r, l_);
+    vis::plt::plot(r, w);
+    vis::plt::legend(vis::plt::gca(), {"l(r)", "l'(r)", "$w(r)r^2$'"});
     vis::plt::xlabel("r");
     vis::plt::show();
   }

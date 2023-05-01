@@ -100,7 +100,7 @@ cv::Mat colorMap(const cv::Mat & in /*CV_32FC1*/, int color_map)
   cb.copyTo(win_mat(cv::Rect(input.cols + vline, 0, color_bar_w, input.rows)));
   return win_mat;
 }
-void Histogram::plot() const
+void Histogram::plot(matplot::figure_handle f)
 {
   const double minH = _h.minCoeff();
   const double maxH = _h.maxCoeff();

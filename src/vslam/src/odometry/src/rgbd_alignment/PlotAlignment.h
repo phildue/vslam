@@ -1,6 +1,8 @@
 #ifndef VSLAM_PLOT_ALIGNMENT_H__
 #define VSLAM_PLOT_ALIGNMENT_H__
 
+#include <matplot/matplot.h>
+
 #include "core/core.h"
 #include "least_squares/least_squares.h"
 #include "utils/utils.h"
@@ -20,7 +22,7 @@ public:
     least_squares::Solver::Results::ConstShPtr results;
   };
   PlotAlignment(Timestamp t) : _t(t) {}
-  void plot() const {};
+  void plot(matplot::figure_handle f) override;
   virtual void append(const Entry & e);
 
   std::string csv() const override;

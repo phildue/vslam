@@ -48,6 +48,9 @@ find_package(PythonLibs 3.0 REQUIRED)
 target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON3_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES} ${PYTHON3_LIBRARIES})
 
+find_package(Matplot++ REQUIRED)
+target_link_libraries(${PROJECT_NAME} Matplot++::matplot)
+
 target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_FEATURE_PERFORMANCE_TRACKING)
 option(VSLAM_LOG_PERFORMANCE_TRACKING ON)
 if(NOT VSLAM_LOG_PERFORMANCE_TRACKING)

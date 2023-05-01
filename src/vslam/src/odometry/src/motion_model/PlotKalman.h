@@ -35,7 +35,7 @@ public:
   class Plot : public vis::Plot
   {
   public:
-    void plot() const override;
+    void plot(matplot::figure_handle f) override;
     std::string csv() const override;
     void append(const Entry & e);
     const std::vector<Timestamp> & timestamps() { return _timestamps; }
@@ -45,6 +45,7 @@ public:
     std::vector<Entry> _entries;
     std::vector<Timestamp> _timestamps;
     Timestamp _t;
+    vis::plt::figure_handle _f;
     void createExpMeasPlot(
       const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
       const std::string & name) const;

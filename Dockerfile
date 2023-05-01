@@ -20,12 +20,14 @@ RUN apt update && apt install -y --no-install-recommends libgtk2.0-dev libva-dev
     ros-galactic-ament-cmake-clang-format \
     ros-galactic-ament-cmake-clang-tidy \
     libfmt-dev
-RUN pip3 install opencv-python GitPython sophuspy scipy pandas wandb
+RUN pip3 install opencv-python GitPython sophuspy scipy pandas wandb sympy symforce
 
 # Matplotlib
 WORKDIR /opt
 RUN git clone https://github.com/lava/matplotlib-cpp.git && cd matplotlib-cpp && mkdir build && cd build && cmake .. && make -j && make install
 #RUN git clone https://github.com/artivis/manif.git && cd manif && python3 -m pip install .
+
+RUN https://github.com/alandefreitas/matplotplusplus.git && mkdir build && cd build && cmake .. -DMATPLOTPP_BUILD_EXAMPLES=OFF -DMATPLOTPP_BUILD_TESTS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON && make -j4 && make install && cd /opt/ rm matplotplusplus/build -r
 
 # GTest
 RUN git clone https://github.com/google/googletest.git && cd googletest && mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=ON -DINSTALL_GTEST=ON -DCMAKE_INSTALL_PREFIX:PATH=/usr &&\

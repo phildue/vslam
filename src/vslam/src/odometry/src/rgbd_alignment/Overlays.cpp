@@ -21,7 +21,7 @@ cv::Mat OverlayWeightedResidual::draw() const
   std::for_each(std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](auto c) {
     R(c.v, c.u) = _w(c.idx) * _r(c.idx);
   });
-  R.noalias() = MatXd((R.array() - R.minCoeff()) / (R.maxCoeff() - R.minCoeff()));
+  R.noalias() = 255.0 * MatXd((R.array() - R.minCoeff()) / (R.maxCoeff() - R.minCoeff()));
   return vis::drawMat(R.cast<image_value_t>());
 }
 
@@ -31,19 +31,25 @@ PlotResiduals::PlotResiduals(
 : _t(t), _iteration(iteration), _constraints(constraints), _r(r), _w(w)
 {
 }
-void PlotResiduals::plot() const
+void PlotResiduals::plot(matplot::figure_handle f)
 {
   using namespace matplot;
   if (_r.cols() == 2) {
     VecXd rI_ = _r.col(0);
     VecXd rZ_ = _r.col(1);
 
-    std::vector<double> weights(_w.data(), _w.data() + _w.size()),
-      rI(rI_.data(), rI_.data() + rI_.size()), rZ(rZ_.data(), rZ_.data() + rZ_.size());
-    scatter3(rI, rZ, weights);
-    xlabel("Residual Intensity");
-    ylabel("Residual Depth");
-    zlabel("Weight");
+    std::vector<double> weights(_w.data(), _w.data() + _w.rows()),
+      rI(rI_.data(), rI_.data() + rI_.rows()), rZ(rZ_.data(), rZ_.data() + rZ_.rows());
+
+    auto ax0 = f->add_subplot(1, 2, 1, true);
+    ax0->scatter(rI, weights);
+    ax0->xlabel("Residual Intensity");
+    ax0->ylabel("Weight");
+    figure();
+    auto ax1 = f->add_subplot(1, 2, 2, true);
+    ax1->scatter(rZ, weights);
+    ax1->xlabel("Residual Depth");
+    ax1->ylabel("Weight");
   } else {
     throw pd::Exception("Not implemented for case r.cols() != 2");
   }

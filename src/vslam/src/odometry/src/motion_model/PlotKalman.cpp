@@ -36,8 +36,10 @@ void PlotKalman::Plot::append(const Entry & e)
   _timestamps.push_back(e.t);
   _t = e.t;
 }
-void PlotKalman::Plot::plot() const
+void PlotKalman::Plot::plot(matplot::figure_handle f)
 {
+  _f = f;
+
   if (_timestamps.empty()) {
     vis::plt::figure();
     return;  //TODO warn? except?
@@ -99,22 +101,13 @@ void PlotKalman::Plot::plot() const
     }
   }
   for (auto n : names) {
-    vis::plt::figure();
-    vis::plt::subplot(4, 2, 1);
     createVelocityPlot(t, x[n], n);
-    vis::plt::subplot(4, 2, 3);
     createExpMeasPlot(t, ex[n], m[n], n);
-    vis::plt::subplot(4, 2, 5);
     createCorrectionPlot(t, c[n], n);
-    vis::plt::subplot(4, 2, 7);
     createUpdatePlot(t, u[n], n);
-    vis::plt::subplot(4, 2, 2);
     plotStateCov(t, cx[n], n);
-    vis::plt::subplot(4, 2, 4);
     plotExpectationCov(t, cex[n], n);
-    vis::plt::subplot(4, 2, 6);
     plotMeasurementCov(t, cm[n], n);
-    vis::plt::subplot(4, 2, 8);
     plotKalmanGain(t, k[n], n);
   }
 }
@@ -122,74 +115,83 @@ void PlotKalman::Plot::createExpMeasPlot(
   const std::vector<double> & t, const std::vector<double> & e, const std::vector<double> & m,
   const std::string & name) const
 {
-  vis::plt::title("Expectation / Measurement");
-  vis::plt::ylabel(format("${}$", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::named_plot("Expectation", t, e);
-  vis::plt::named_plot("Measurement", t, m);
-  vis::plt::legend();
-  vis::plt::grid(true);
+  auto ax = _f->add_subplot(4, 2, 3, true);
+  ax->title("Expectation / Measurement");
+  ax->ylabel(format("${}$", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->hold(true);
+  ax->plot(t, e);
+  ax->plot(t, m);
+  ax->legend(std::vector<std::string>({"Expectation", "Measurement"}));
+  ax->grid(true);
 }
 void PlotKalman::Plot::createVelocityPlot(
   const std::vector<double> & t, const std::vector<double> & x, const std::string & name) const
 {
-  vis::plt::title("State");
-  vis::plt::ylabel(format("${}$", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::named_plot("State", t, x);
-  vis::plt::legend();
-  vis::plt::grid(true);
+  auto ax = _f->add_subplot(4, 2, 1, true);
+  ax->title("State");
+  ax->ylabel(format("${}$", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->plot(t, x);
+  ax->grid(true);
 }
 void PlotKalman::Plot::createCorrectionPlot(
   const std::vector<double> & t, const std::vector<double> & c, const std::string & name) const
 {
-  vis::plt::title("Innovation");
-  vis::plt::ylabel(format("{}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, c);
+  auto ax = _f->add_subplot(4, 2, 5, true);
+  ax->title("Innovation");
+  ax->ylabel(format("{}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, c);
 }
 void PlotKalman::Plot::createUpdatePlot(
   const std::vector<double> & t, const std::vector<double> & u, const std::string & name) const
 {
-  vis::plt::title("Update");
-  vis::plt::ylabel(format("{}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, u);
+  auto ax = _f->add_subplot(4, 2, 7, true);
+  ax->title("Update");
+  ax->ylabel(format("{}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, u);
 }
 
 void PlotKalman::Plot::plotStateCov(
   const std::vector<double> & t, const std::vector<double> & cx, const std::string & name) const
 {
-  vis::plt::ylabel(format("$| \\Sigma_x |$ {}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, cx);
+  auto ax = _f->add_subplot(4, 2, 2, true);
+  ax->ylabel(format("$| \\Sigma_x |$ {}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, cx);
 }
 void PlotKalman::Plot::plotExpectationCov(
   const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const
 {
-  vis::plt::ylabel(format("$| \\Sigma_e |$ {}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, ce);
+  auto ax = _f->add_subplot(4, 2, 4, true);
+  ax->ylabel(format("$| \\Sigma_e |$ {}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, ce);
 }
 void PlotKalman::Plot::plotMeasurementCov(
   const std::vector<double> & t, const std::vector<double> & ce, const std::string & name) const
 {
-  vis::plt::ylabel(format("$| \\Sigma_m |$ {}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, ce);
+  auto ax = _f->add_subplot(4, 2, 6, true);
+
+  ax->ylabel(format("$| \\Sigma_m |$ {}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, ce);
 }
 void PlotKalman::Plot::plotKalmanGain(
   const std::vector<double> & t, const std::vector<double> & k, const std::string & name) const
 {
-  vis::plt::ylabel(format("$| K |$ {}", name));
-  vis::plt::xlabel("$t-t_0 [s]$");
-  vis::plt::grid(true);
-  vis::plt::plot(t, k);
+  auto ax = _f->add_subplot(4, 2, 8, true);
+  ax->ylabel(format("$| K |$ {}", name));
+  ax->xlabel("$t-t_0 [s]$");
+  ax->grid(true);
+  ax->plot(t, k);
 }
 void operator<<(PlotKalman::ShPtr log, const PlotKalman::Entry & e) { log->append(e); }
 

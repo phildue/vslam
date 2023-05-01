@@ -25,6 +25,9 @@ using fmt::format;
 #include <opencv4/opencv2/core/eigen.hpp>
 #include <opencv4/opencv2/highgui.hpp>
 namespace fs = std::experimental::filesystem;
+
+#include <matplot/matplot.h>
+
 #include "Log.h"
 
 INITIALIZE_EASYLOGGINGPP
@@ -102,14 +105,15 @@ std::vector<std::string> Log::registeredLogsImage()
   return keys;
 }
 
-void LogImage::append(vis::Plot::ConstShPtr plot)
+void LogImage::append(vis::Plot::ShPtr plot)
 {
   if (_ctr++ % _rate != 0) {
     return;
   }
   if (_show) {
-    plot->plot();
-    vis::plt::show(_block);
+    _f = _f ? _f : matplot::figure();
+    plot->plot(_f);
+    _f->show();
   }
   if (_save) {
     std::stringstream ss;
@@ -233,7 +237,7 @@ void LogImage::logMat(const cv::Mat & mat, const std::string & id)
 }
 
 void operator<<(LogImage::ShPtr log, vis::Drawable::ConstShPtr drawable) { log->append(drawable); }
-void operator<<(LogImage::ShPtr log, vis::Plot::ConstShPtr plot) { log->append(plot); }
+void operator<<(LogImage::ShPtr log, vis::Plot::ShPtr plot) { log->append(plot); }
 void operator<<(LogImage::ShPtr log, vis::Csv::ConstShPtr plot) { log->append(plot); }
 
 }  // namespace pd::vslam

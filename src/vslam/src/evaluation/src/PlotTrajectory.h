@@ -9,7 +9,8 @@ class PlotTrajectory : public vis::Plot
 public:
   PlotTrajectory(const std::map<std::string, Trajectory::ConstShPtr> & trajectories);
   PlotTrajectory(const std::map<std::string, Trajectory::ShPtr> & trajectories);
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
+
   std::string csv() const override { return ""; }
 
 private:
@@ -20,7 +21,8 @@ class PlotTrajectoryCovariance : public vis::Plot
 public:
   PlotTrajectoryCovariance(const std::map<std::string, Trajectory::ConstShPtr> & trajectories);
   PlotTrajectoryCovariance(const std::map<std::string, Trajectory::ShPtr> & trajectories);
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
+
   std::string csv() const override { return ""; }
 
 private:
@@ -31,7 +33,7 @@ class PlotTrajectoryMotion : public vis::Plot
 public:
   PlotTrajectoryMotion(const std::map<std::string, Trajectory::ConstShPtr> & trajectories);
   PlotTrajectoryMotion(const std::map<std::string, Trajectory::ShPtr> & trajectories);
-  void plot() const override;
+  void plot(matplot::figure_handle f) override;
   std::string csv() const override { return ""; }
 
 private:

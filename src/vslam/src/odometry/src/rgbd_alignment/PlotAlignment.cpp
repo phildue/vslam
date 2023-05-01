@@ -1,5 +1,9 @@
 #include <fmt/core.h>
 using fmt::format;
+#include <matplot/matplot.h>
+
+#include <algorithm>
+
 #include "PlotAlignment.h"
 #include "utils/utils.h"
 namespace pd::vslam
@@ -41,6 +45,31 @@ std::string PlotAlignment::csv() const
 
   return ss.str();
 }
+void PlotAlignment::plot(matplot::figure_handle f)
+{
+  int plotId = 0;
+  f->title(format("Alignment"));
+  for (auto level_r = _results.rbegin(); level_r != _results.rend(); ++level_r) {
+    std::vector<double> err, dx;
+    std::vector<int> iterations;
+    for (size_t i = 1; i < level_r->second->iteration - 1; i++) {
+      iterations.push_back(i);
+      dx.push_back(level_r->second->stepSize(i));
+      err.push_back(level_r->second->chi2(i));
+    }
+    auto ax0 = f->add_subplot(_results.size(), 2, plotId++, true);
+    ax0->plot(iterations, err, "-o");
+    ax0->xlabel("Iteration");
+    ax0->ylabel("Chi2");
+
+    auto ax1 = f->add_subplot(_results.size(), 2, plotId++, true);
+    ax1->plot(iterations, dx, "-o");
+    ax1->xlabel("Iteration");
+    ax1->ylabel("|dx|");
+  }
+  f->size(640 * 2, 480 * 2);
+}
+
 std::string PlotAlignment::id() const { return format("{}", _t); }
 void operator<<(PlotAlignment::ShPtr log, const PlotAlignment::Entry & e) { log->append(e); }
 }  // namespace pd::vslam
