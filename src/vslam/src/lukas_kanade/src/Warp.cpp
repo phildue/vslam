@@ -138,6 +138,8 @@ WarpSE3::WarpSE3(
   _x = _se3.log();
   _K = Mat<double, 4, 4>::Identity();
   _K.block(0, 0, 3, 3) = camCur->K();
+  _T = _se3.matrix() * _pose0.inverse().matrix();
+
   _P = _K * _se3.matrix() * _pose0.inverse().matrix();
 
   _pcl0.resize(pcl.size());
@@ -204,7 +206,9 @@ Eigen::MatrixXd WarpSE3::J(int u, int v) const
   */
   Mat<double, 2, 6> jac = Mat<double, 2, 6>::Constant(std::numeric_limits<double>::quiet_NaN());
 
-  const Vec4d & p = _T * _pcl0[v * _width + u];
+  const Vec4d p = _T * _pcl0[v * _width + u];
+
+  if (p.z() <= 0.) return jac;
 
   const double & x = p.x();
   const double & y = p.y();
