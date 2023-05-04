@@ -21,6 +21,42 @@ private:
   const std::vector<DirectIcp::Constraint> & _constraints;
 };
 
+class OverlaySteepestDescent : public vis::Drawable
+{
+public:
+  OverlaySteepestDescent(
+    int height, int width, const std::vector<DirectIcp::Constraint> & constraints, const VecXd & w,
+    const Matd<-1, 6> & JIJpJt, const Matd<-1, 6> & JZJpJt_Jtz, double wRi, double wRz);
+  cv::Mat draw() const override;
+
+private:
+  const int _height, _width;
+  const VecXd & _w;
+  const Matd<-1, 6> & _JIJpJt;
+  const Matd<-1, 6> & _JZJpJt_Jtz;
+  const std::vector<DirectIcp::Constraint> & _constraints;
+  const double _wRi, _wRz;
+};
+
+class OverlayResidualGradient : public vis::Drawable
+{
+public:
+  OverlayResidualGradient(
+    int height, int width, const std::vector<DirectIcp::Constraint> & constraints, const VecXd & w,
+    const VecXd & r, const Matd<-1, 6> & JIJpJt, const Matd<-1, 6> & JZJpJt_Jtz, double wRi,
+    double wRz);
+  cv::Mat draw() const override;
+
+private:
+  const int _height, _width;
+  const VecXd & _w;
+  const VecXd & _r;
+  const Matd<-1, 6> & _JIJpJt;
+  const Matd<-1, 6> & _JZJpJt_Jtz;
+  const std::vector<DirectIcp::Constraint> & _constraints;
+  const double _wRi, _wRz;
+};
+
 class PlotResiduals : public vis::Plot
 {
 public:

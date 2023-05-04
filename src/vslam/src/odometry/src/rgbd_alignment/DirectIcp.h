@@ -64,10 +64,10 @@ protected:
   SE3d _se3;
   Mat2d _scale;
   int _iteration;
-
-  Vec6d J_T_x(const Vec3d & p);
-  Vec6d J_T_y(const Vec3d & p);
-  Vec6d J_T_z(const Vec3d & p);
+  double _wRi, _wRz, _sqrt_wRi, _sqrt_wRz;
+  Vec6d JpJtx(const Vec3d & p);
+  Vec6d JpJty(const Vec3d & p);
+  Vec6d Jtz(const Vec3d & p);
   Vec2d interpolate(double u, double v) const;
   void estimateScaleAndWeights();
   double computeWeight(double residual) const;

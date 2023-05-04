@@ -19,10 +19,59 @@ cv::Mat OverlayWeightedResidual::draw() const
 {
   MatXd R = MatXd::Zero(_height, _width);
   std::for_each(std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](auto c) {
-    R(c.v, c.u) = _w(c.idx) * _r(c.idx);
+    R(c.v, c.u) = _w(c.idx) * std::abs(_r(c.idx));
   });
-  R.noalias() = 255.0 * MatXd((R.array() - R.minCoeff()) / (R.maxCoeff() - R.minCoeff()));
+  R.noalias() = 255.0 * (R / R.maxCoeff());
   return vis::drawMat(R.cast<image_value_t>());
+}
+
+OverlaySteepestDescent::OverlaySteepestDescent(
+  int height, int width, const std::vector<DirectIcp::Constraint> & constraints, const VecXd & w,
+  const Matd<-1, 6> & JIJpJt, const Matd<-1, 6> & JZJpJt_Jtz, double wRi, double wRz)
+: _height(height),
+  _width(width),
+  _w(w),
+  _JIJpJt(JIJpJt),
+  _JZJpJt_Jtz(JZJpJt_Jtz),
+  _constraints(constraints),
+  _wRi(wRi),
+  _wRz(wRz)
+{
+}
+cv::Mat OverlaySteepestDescent::draw() const
+{
+  MatXd J = MatXd::Zero(_height, _width);
+  std::for_each(std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](auto c) {
+    J(c.v, c.u) = _w(c.idx) * (_wRi * _JIJpJt.row(c.idx) + _wRz * _JZJpJt_Jtz.row(c.idx)).norm();
+  });
+  J.noalias() = 255.0 * (J / J.maxCoeff());
+  return vis::drawMat(J.cast<image_value_t>());
+}
+
+OverlayResidualGradient::OverlayResidualGradient(
+  int height, int width, const std::vector<DirectIcp::Constraint> & constraints, const VecXd & w,
+  const VecXd & r, const Matd<-1, 6> & JIJpJt, const Matd<-1, 6> & JZJpJt_Jtz, double wRi,
+  double wRz)
+: _height(height),
+  _width(width),
+  _w(w),
+  _r(r),
+  _JIJpJt(JIJpJt),
+  _JZJpJt_Jtz(JZJpJt_Jtz),
+  _constraints(constraints),
+  _wRi(wRi),
+  _wRz(wRz)
+{
+}
+cv::Mat OverlayResidualGradient::draw() const
+{
+  MatXd O = MatXd::Zero(_height, _width);
+  std::for_each(std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](auto c) {
+    O(c.v, c.u) =
+      (_r(c.idx) * _w(c.idx) * _wRi * _JIJpJt.row(c.idx) + _wRz * _JZJpJt_Jtz.row(c.idx)).norm();
+  });
+  O.noalias() = 255.0 * (O / O.maxCoeff());
+  return vis::drawMat(O.cast<image_value_t>());
 }
 
 PlotResiduals::PlotResiduals(

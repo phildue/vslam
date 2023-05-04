@@ -55,29 +55,41 @@ DirectIcp::DirectIcp(
   _pCcs0 = Matd<-1, 3>::Zero(interestPoints.size(), 3);
   _JIJpJt = Matd<-1, 6>::Zero(interestPoints.size(), 6);
   _JZJpJt = Matd<-1, 6>::Zero(interestPoints.size(), 6);
+  const SE3d T = _se3 * _f0->pose().SE3().inverse();
+  _wRi = 0.0;
+  _sqrt_wRi = std::sqrt(_wRi);
 
+  _wRz = (1.0 - _wRi);
+  _sqrt_wRz = std::sqrt(_wRz);
   size_t nConstraints = 0U;
   std::for_each(interestPoints.begin(), interestPoints.end(), [&](auto kp) {
-    const Vec3d & p3d = _f0->p3d(kp.y(), kp.x(), _level);
-    const Vec6d Jx_ = J_T_x(p3d);
-    const Vec6d Jy_ = J_T_y(p3d);
-    Vec6d JI = fRef->dIdx(_level)(kp.y(), kp.x()) * Jx_ + fRef->dIdy(_level)(kp.y(), kp.x()) * Jy_;
-    Vec6d JZ = fRef->dZdx(_level)(kp.y(), kp.x()) * Jx_ + fRef->dZdy(_level)(kp.y(), kp.x()) * Jy_;
+    const Vec3d & pCcs0 = _f0->p3d(kp.y(), kp.x(), _level);
+    const Vec3d pCcs1 = T * pCcs0;
+    const Vec6d JpJtx_ = JpJtx(pCcs1);
+    const Vec6d JpJty_ = JpJty(pCcs1);
+    const Vec6d JIJpJt =
+      fRef->dIdx(_level)(kp.y(), kp.x()) * JpJtx_ + fRef->dIdy(_level)(kp.y(), kp.x()) * JpJty_;
+    const Vec6d JZJpJt =
+      fRef->dZdx(_level)(kp.y(), kp.x()) * JpJtx_ + fRef->dZdy(_level)(kp.y(), kp.x()) * JpJty_;
 
-    if (!std::isfinite(p3d.norm()) || !std::isfinite(JI.norm()) || !std::isfinite(JZ.norm()))
+    if (
+      _wRi * JIJpJt.norm() + _wRz * JZJpJt.norm() < 0.001 || !std::isfinite(pCcs0.norm()) ||
+      !std::isfinite(JIJpJt.norm()) || !std::isfinite(JZJpJt.norm()))
       return;
 
     _constraints[nConstraints] = {nConstraints, kp.x(), kp.y()};
-    _pCcs0.row(nConstraints) = p3d;
-    _JZJpJt.row(nConstraints) = JZ;
-    _JIJpJt.row(nConstraints) = JI / 255.0;
+    _pCcs0.row(nConstraints) = pCcs0;
+    _JZJpJt.row(nConstraints) = JZJpJt;
+    _JIJpJt.row(nConstraints) = JIJpJt / 255.0;
     nConstraints++;
   });
   _constraints.resize(nConstraints);
   _pCcs0.conservativeResize(nConstraints, Eigen::NoChange);
   _JIJpJt.conservativeResize(nConstraints, Eigen::NoChange);
   _JZJpJt.conservativeResize(nConstraints, Eigen::NoChange);
-  LOG(INFO) << format("Precomputed: {}", nConstraints);
+  LOG_ODOM(INFO) << format(
+    "Precomputed: [{}] valid constraints out of [{}] interest points.", nConstraints,
+    interestPoints.size());
 }
 
 void DirectIcp::updateX(const Eigen::VectorXd & dx) { _se3 = SE3d::exp(-dx) * _se3; }
@@ -88,9 +100,6 @@ least_squares::NormalEquations::UnPtr DirectIcp::computeNormalEquations()
 
   //if (_iteration == 0) {
   //estimateScaleAndWeights();
-  _scale(0, 0) = 0.99;
-  _scale(1, 1) = 1.0 - _scale(0, 0);
-
   //}
 
   auto ne = _computeNormalEquationsIndependent();
@@ -127,11 +136,11 @@ void DirectIcp::computeResidualsAndJacobians()
       const Vec3d p1t = Tinv * _f1->image2camera(uv0t, iz(1), _level);
       _Z1Wxp(c.v, c.u) = p1t.z();
 
-      const Vec6d J_t_z = J_T_z(p1t);
+      const Vec6d JTz_ = Jtz(p1t);
 
-      if (!std::isfinite(J_t_z.norm())) return;
+      if (!std::isfinite(JTz_.norm())) return;
 
-      _JZJpJt_Jtz.row(c.idx) = VecXd(_JZJpJt.row(c.idx)) - J_t_z;
+      _JZJpJt_Jtz.row(c.idx) = VecXd(_JZJpJt.row(c.idx)) - JTz_;
       _rIZ(c.idx, 0) = (_I1Wxp(c.v, c.u) - _I0(c.v, c.u)) / 255.0;
       _rIZ(c.idx, 1) = _Z1Wxp(c.v, c.u) - _Z0(c.v, c.u);
       const Vec2d ri = Vec2d(_rIZ.row(c.idx));
@@ -178,29 +187,31 @@ double DirectIcp::computeWeight(double residual) const { return (5. + 2.) / (5. 
 
 least_squares::NormalEquations::UnPtr DirectIcp::_computeNormalEquationsIndependent()
 {
-  auto scaleI = _loss->computeScale(VecXd(_rIZ.col(0)));
-  auto scaleZ = _loss->computeScale(VecXd(_rIZ.col(1)));
+  const double sI = _loss->computeScale(VecXd(_rIZ.col(0))).scale;
+  const double sZ = _loss->computeScale(VecXd(_rIZ.col(1))).scale;
   VecXd wI = VecXd::Zero(_constraints.size());
   VecXd wZ = VecXd::Zero(_constraints.size());
   std::for_each(
     std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](const Constraint & c) {
       if (_w(c.idx) > 0) {
-        wI(c.idx) = _loss->computeWeight(_rIZ(c.idx, 0) / scaleI.scale);
-        wZ(c.idx) = _loss->computeWeight(_rIZ(c.idx, 1) / scaleZ.scale);
+        wI(c.idx) = _loss->computeWeight(_rIZ(c.idx, 0) / sI);
+        wZ(c.idx) = _loss->computeWeight(_rIZ(c.idx, 1) / sZ);
       }
     });
   auto neI = std::make_unique<least_squares::NormalEquations>(_JIJpJt, _rIZ.col(0), wI);
 
   auto neZ = std::make_unique<least_squares::NormalEquations>(_JZJpJt_Jtz, _rIZ.col(1), wZ);
-  const double wRz = 0.05;
-  const double sqrt_wRz = std::sqrt(wRz);
 
   auto ne = std::make_unique<least_squares::NormalEquations>(
-    neI->A() + wRz * neZ->A(), neI->b() + sqrt_wRz * neZ->b(), neI->chi2() + wRz * neZ->chi2(),
-    neI->nConstraints());
+    _wRi * neI->A() + _wRz * neZ->A(), _sqrt_wRi * neI->b() + _sqrt_wRz * neZ->b(),
+    _wRi * neI->chi2() + _wRz * neZ->chi2(), neI->nConstraints());
   ne->A() /= ne->nConstraints();
   ne->b() /= ne->nConstraints();
   ne->chi2() /= ne->nConstraints();
+
+  _r = _wRi * _rIZ.col(0) + _wRz * _rIZ.col(1);
+  _w = _wRi * wI + _wRz * wZ;
+
   return ne;
 }
 
@@ -248,7 +259,7 @@ least_squares::NormalEquations::UnPtr DirectIcp::_computeNormalEquations()
   return ne;
 }
 
-Vec6d DirectIcp::J_T_x(const Vec3d & p)
+Vec6d DirectIcp::JpJtx(const Vec3d & p)
 {
   const double & x = p.x();
   const double & y = p.y();
@@ -265,7 +276,7 @@ Vec6d DirectIcp::J_T_x(const Vec3d & p)
   J *= _f0->camera(_level)->fx();
   return J;
 }
-Vec6d DirectIcp::J_T_y(const Vec3d & p)
+Vec6d DirectIcp::JpJty(const Vec3d & p)
 {
   const double & x = p.x();
   const double & y = p.y();
@@ -283,7 +294,7 @@ Vec6d DirectIcp::J_T_y(const Vec3d & p)
 
   return J;
 }
-Vec6d DirectIcp::J_T_z(const Vec3d & p)
+Vec6d DirectIcp::Jtz(const Vec3d & p)
 {
   Vec6d J;
   J(0) = 0.0;
@@ -354,20 +365,25 @@ void DirectIcp::logImages()
   MatXd W = MatXd::Zero(_f0->height(_level), _f0->width(_level));
   std::for_each(
     std::execution::par_unseq, _constraints.begin(), _constraints.end(), [&](const Constraint & c) {
-      R(c.v, c.u) = _r(c.idx);
-      Rz(c.v, c.u) = _rIZ(c.idx, 1);
-      Ri(c.v, c.u) = _rIZ(c.idx, 0);
+      R(c.v, c.u) = std::abs(_r(c.idx));
+      Rz(c.v, c.u) = std::abs(_rIZ(c.idx, 1));
+      Ri(c.v, c.u) = std::abs(_rIZ(c.idx, 0));
       W(c.v, c.u) = _w(c.idx);
     });
   LOG_IMG("ResidualIntensity") << Ri;
   LOG_IMG("ResidualDepth") << Rz;
   LOG_IMG("Residual") << R;
-  LOG_IMG("Weights") << W;
   LOG_IMG("DepthWarped") << _Z1Wxp;
   LOG_IMG("ImageWarped") << _I1Wxp;
+  LOG_IMG("ResidualGradient") << std::make_shared<OverlayResidualGradient>(
+    _f0->height(_level), _f0->width(_level), _constraints, _w, _r, _JIJpJt, _JZJpJt_Jtz, _wRi,
+    _wRz);
+  LOG_IMG("SteepestDescent") << std::make_shared<OverlaySteepestDescent>(
+    _f0->height(_level), _f0->width(_level), _constraints, _w, _JIJpJt, _JZJpJt_Jtz, _wRi, _wRz);
   LOG_IMG("ResidualWeighted") << std::make_shared<OverlayWeightedResidual>(
     _f0->height(_level), _f0->width(_level), _constraints, _r, _w);
   LOG_IMG("PlotResidual") << std::make_shared<PlotResiduals>(
     _f0->t(), _iteration, _constraints, _rIZ, _w);
+  LOG_IMG("Weights") << W;
 }
 }  // namespace pd::vslam
