@@ -476,7 +476,7 @@ Frame::UnPtr NodeRgbdAlignment::createFrame(
   Eigen::MatrixXd depth;
   cv::cv2eigen(cv_bridge::toCvShare(msgDepth)->image, depth);
 
-  depth = depth.array().isNaN().select(0, depth);
+  //depth = depth.array().isNaN().select(0, depth);
   const Timestamp t =
     rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
 
