@@ -28,8 +28,9 @@ namespace pd::vslam::vis
 {
 cv::Mat drawAsImage(const Eigen::MatrixXd & mat)
 {
-  return drawMat(
-    (algorithm::normalize(mat) * std::numeric_limits<image_value_t>::max()).cast<image_value_t>());
+  return drawMat((algorithm::normalize(MatXd(mat.array().isNaN().select(0, mat))) *
+                  std::numeric_limits<image_value_t>::max())
+                   .cast<image_value_t>());
 }
 cv::Mat drawMat(const Image & matEigen)
 {
