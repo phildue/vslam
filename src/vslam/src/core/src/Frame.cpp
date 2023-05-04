@@ -410,7 +410,7 @@ void Frame::computePyramid(size_t nLevels, double s)
 #endif
   _depth.resize(nLevels);
   for (size_t i = 1; i < nLevels; i++) {
-//#define INTERPOLATE
+#define INTERPOLATE
 #ifdef INTERPOLATE
     _depth[i] = algorithm::resize(_depth[i - 1], 0.5);
 #else
