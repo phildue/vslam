@@ -66,6 +66,8 @@ RgbdAlignment::RgbdAlignment(
   LOG_IMG("DepthTemplate");
   LOG_IMG("Alignment");
   LOG_IMG("PlotResidual");
+  LOG_IMG("SteepestDescent");
+  LOG_IMG("ResidualGradient");
 }
 
 void RgbdAlignment::preprocessReference(Frame::ShPtr f) const
@@ -122,11 +124,13 @@ Pose RgbdAlignment::align(Frame::ConstShPtr from, Frame::ConstShPtr to) const
       twist = r->solution();
       covariance = r->covariance();
     }
-
     LOG_ODOM(INFO) << format(
-      "Aligned at level [{}] with [{}] iterations: {} +- {}, Reason: [{}]. Solution is {}.", level,
-      r->iteration, twist.transpose(), covariance.diagonal().cwiseSqrt().transpose(),
-      to_string(r->convergenceCriteria), r->hasSolution() ? "valid" : "not valid");
+      "Aligned with [{}] iterations: [{:.4f} +- {:.4f}]m, [{:.4f} +- {:.4f}]° Reason: [{}] [{}]",
+      r->iteration, twist.block(0, 0, 3, 1).norm(),
+      covariance.diagonal().block(0, 0, 3, 1).cwiseSqrt().norm(),
+      twist.block(3, 0, 3, 1).norm() * 180.0 / M_PI,
+      covariance.diagonal().block(3, 0, 3, 1).cwiseSqrt().norm() * 180.0 / M_PI,
+      to_string(r->convergenceCriteria), r->hasSolution() ? "Valid" : "Not Valid");
 
     plot << PlotAlignment::Entry({level, r});
   }
@@ -170,8 +174,12 @@ Pose RgbdAlignment::align(const Frame::VecConstShPtr & from, Frame::ConstShPtr t
     }
 
     LOG_ODOM(INFO) << format(
-      "Aligned with [{}] iterations: {} +- {}, Reason: [{}]", r->iteration, twist.transpose(),
-      covariance.diagonal().cwiseSqrt().transpose(), to_string(r->convergenceCriteria));
+      "Aligned with [{}] iterations: [{:.4f} +- {:.4f}]m, [{:.4f} +- {:.4f}]° Reason: [{}] [{}]",
+      r->iteration, twist.block(0, 0, 3, 1).norm(),
+      covariance.diagonal().block(0, 0, 3, 1).cwiseSqrt().norm(),
+      twist.block(3, 0, 3, 1).norm() * 180.0 / M_PI,
+      covariance.diagonal().block(3, 0, 3, 1).cwiseSqrt().norm() * 180.0 / M_PI,
+      to_string(r->convergenceCriteria), r->hasSolution() ? "Valid" : "Not Valid");
 
     plot << PlotAlignment::Entry({level, r});
   }
@@ -193,7 +201,8 @@ std::vector<Vec2i> RgbdAlignment::selectInterestPoints(Frame::ConstShPtr frame, 
     if (
       std::isfinite(depth(v, u)) && std::isfinite(zdmag(v, u)) &&
       frame->withinImage({u, v}, _distanceToBorder, level) && _minDepth < depth(v, u) &&
-      depth(v, u) < _maxDepth && (idmag > _minGradient2[level] || zdmag(v, u) > 0.01)) {
+      depth(v, u) < _maxDepth && zdmag(v, u) < 0.25 * 0.25 &&
+      (idmag > _minGradient2[level] || 0.01 < zdmag(v, u))) {
       interestPoints.emplace_back(u, v);
     }
   });
