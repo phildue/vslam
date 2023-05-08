@@ -89,7 +89,7 @@ FROM developer as runtime
 USER ros
 COPY --from=builder --chown=ros:ros /home/ros/vslam_ros/install /app/vslam
 COPY --from=builder --chown=ros:ros /home/ros/vslam_ros/script /script
-RUN pip3 install /script/vslam_evaluation
+RUN pip3 install /src/vslam/script/
 COPY --from=builder --chown=ros:ros /home/ros/vslam_ros/script/entrypoint.sh /app/vslam/entrypoint.sh
 WORKDIR /app/vslam
 
