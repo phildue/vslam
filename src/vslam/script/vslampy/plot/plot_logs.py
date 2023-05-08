@@ -7,11 +7,14 @@ import os
 from plot.plot_log_alignment import plot_alignment
 from plot.plot_log_kalman import plot_kalman
 from plot.plot_log_residual import plot_residual
+from plot.plot_log_weights import plot_weights
 
 plots = {
     "Alignment": plot_alignment,
     "Kalman": plot_kalman,
-    "ResidualFinal": plot_residual
+    "ResidualFinal": plot_residual,
+    "PlotResidual": plot_weights
+
 }
 
 
