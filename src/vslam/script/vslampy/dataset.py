@@ -37,6 +37,9 @@ class TumRgbd(Dataset):
     def gt_filepath(self) -> str:
         return f"/mnt/dataset/tum_rgbd/{self._sequence_id}/{self._sequence_id}-groundtruth.txt"
 
+    def gt_trajectory(self):
+        return read_trajectory(self.gt_filepath())
+
     def sync_topic(self) -> str:
         return "/camera/depth/image"
 
@@ -54,8 +57,7 @@ class TumRgbd(Dataset):
         print(f"Found {len(timestamps)} frames")
         return timestamps, filenames_intensity, filenames_depth
 
-    def evaluate_rpe(self, algo_traj, output_dir="./", upload=True):
-        gt_traj = read_trajectory(self.gt_filepath)
+    def evaluate_rpe(self, traj_est, output_dir="./", upload=True):
         rpe_plot = os.path.join(output_dir, "rpe.png")
         rpe_txt = os.path.join(output_dir, "rpe.txt")
         max_pairs = 10000
@@ -73,8 +75,7 @@ class TumRgbd(Dataset):
         #    --verbose --plot {rpe_plot} --fixed_delta --delta_unit s --save {rpe_txt} \
         #        > {output_dir}/rpe_summary.txt && cat {output_dir}/rpe_summary.txt")
 
-        traj_gt = read_trajectory(gt_traj)
-        traj_est = read_trajectory(algo_traj)
+        traj_gt = read_trajectory(self.gt_filepath())
 
         result = evaluate_trajectory(
             traj_gt,
@@ -193,8 +194,9 @@ class TumRgbd(Dataset):
     def run_evaluation_scripts(self, gt_traj, algo_traj, output_dir, script_dir):
         ate_plot = os.path.join(output_dir, "ate.png")
         ate_txt = os.path.join(output_dir, "ate.txt")
+        traj_est = read_trajectory(algo_traj)
 
-        self.evaluate_rpe(algo_traj, output_dir)
+        self.evaluate_rpe(traj_est, output_dir)
 
         print("---------Evaluating Average Trajectory Error------------")
         os.system(
