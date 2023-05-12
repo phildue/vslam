@@ -6,13 +6,16 @@ import os
 from vslampy.dataset import TumRgbd
 
 nLevels = 4
-max_iterations = 100
-min_update = 1e-6
-min_reduction = 1.0
+max_iterations = 80
+min_update = 1e-4
+min_reduction = 1.1
 w_I = 1.0
 w_Z = 1.0 - w_I
-min_gradient_I = 0
-min_gradient_Z = np.inf
+w_prior = 0.0
+min_dI = 10
+min_dZ = np.inf
+max_z = 5
+max_z_diff = 0.2
 fx = 525.0
 fy = 525.0
 cx = 319.5
@@ -38,7 +41,7 @@ class Camera:
             [[1.0 / fx, 0.0, -cx / fx], [0, 1.0 / fy, -cy / fy], [0, 0, 1]]
         )
 
-    def scale(self, s: float):
+    def resize(self, s: float):
         return Camera(
             self.fx * s, self.fy * s, self.cx * s, self.cy * s, self.h * s, self.w * s
         )
@@ -47,13 +50,13 @@ class Camera:
         uv = np.dstack(np.meshgrid(np.arange(self.w), np.arange(self.h)))
         return np.reshape(uv, (-1, 2))
 
-    def backproject(self, uv: np.array, z: np.array):
+    def reconstruct(self, uv: np.array, z: np.array):
         uv1 = np.ones((uv.shape[0], 3))
         uv1[:, :2] = uv
-        return z * (self.Kinv @ uv1.T).T
+        return z.reshape((-1, 1)) * (self.Kinv @ uv1.T).T
 
     def project(self, pcl, keep_invalid=False):
-        uv = (cam.K @ pcl.T).T
+        uv = (self.K @ pcl.T).T
         uv /= uv[:, 2, None]
         uv = np.reshape(uv, (-1, 3))
 
@@ -79,6 +82,7 @@ def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
     Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
     cv.imshow("I", I)
     cv.imshow("Z", Z)
+    cv.waitKey(1)
     I = [I]
     Z = [Z]
     for l in range(1, nLevels):
@@ -92,7 +96,7 @@ def write_result_file(trajectory, filename):
         f.writelines([f"{t} {pose.log()}" for t, pose in trajectory])
 
 
-def computeJw(pcl: np.array, dI: np.array, dZ: np.array, cam: Camera) -> np.array:
+def compute_jacobian_warp(pcl: np.array, cam: Camera) -> np.array:
     x = pcl[:, 0]
     y = pcl[:, 1]
     z_inv = 1.0 / pcl[:, 2]
@@ -114,13 +118,10 @@ def computeJw(pcl: np.array, dI: np.array, dZ: np.array, cam: Camera) -> np.arra
     Jy[:, 5] = x * z_inv
     Jy *= cam.fy
 
-    return (
-        dI[:, :1] * Jx + dI[:, 1:] * Jy,
-        dZ[:, :1] * Jx + dZ[:, 1:] * Jy,
-    )
+    return Jx, Jy
 
 
-def computeJtz(pcl: np.array) -> np.array:
+def compute_jacobian_se3_z(pcl: np.array) -> np.array:
     J = np.zeros((pcl.shape[0], 6))
     J[:, 2] = 1.0
     J[:, 3] = pcl[:, 1]
@@ -128,38 +129,42 @@ def computeJtz(pcl: np.array) -> np.array:
     return J
 
 
-def interpolate(mat: np.array, uv: np.array) -> np.array:
+def interpolate(I: np.array, Z, uv: np.array, zt: np.array) -> np.array:
     u = uv[:, 0]
     v = uv[:, 1]
-    d = 1
-    u1 = np.floor(u).astype(int)
-    u2 = np.ceil(u).astype(int)
-    v1 = np.floor(v).astype(int)
-    v2 = np.ceil(v).astype(int)
+    u0 = np.floor(u).astype(int)
+    u1 = np.ceil(u).astype(int)
+    v0 = np.floor(v).astype(int)
+    v1 = np.ceil(v).astype(int)
 
-    Q11 = mat[v1, u1]
-    Q12 = mat[v1, u2]
-    Q21 = mat[v2, u1]
-    Q22 = mat[v2, u2]
-    R1 = np.zeros((uv.shape[0], d))
-    R2 = np.zeros((uv.shape[0], d))
-    m1 = (u2 - u) / (u2 - u1)
-    m1[m1 == np.inf] = 1.0
-    m2 = (u - u1) / (u2 - u1)
-    m2[m2 == np.inf] = 0.0
-    R1 = m1 * Q11 + m2 * Q21
-    R2 = m1 * Q12 + m2 * Q22
+    w_u1 = u - u0
+    w_u0 = 1.0 - w_u1
+    w_v1 = v - v0
+    w_v0 = 1.0 - w_v1
 
-    P = np.zeros((uv.shape[0], d))
+    w00 = np.reshape(w_u0 * w_v0, (-1,))
+    w00[np.abs(Z[v0, u0].reshape((-1,)) - zt) > max_z_diff] = 0
+    w00[~np.isfinite(Z[v0, u0].reshape((-1,)))] = 0
 
-    m1 = (v2 - v) / (v2 - v1)
-    m1[m1 == np.inf] = 1.0
-    m2 = (v - v1) / (v2 - v1)
-    m2[m2 == np.inf] = 0.0
+    w10 = np.reshape(w_u0 * w_v1, (-1,))
+    w10[np.abs(Z[v1, u0].reshape((-1,)) - zt) > max_z_diff] = 0
+    w10[~np.isfinite(Z[v1, u0].reshape((-1,)))] = 0
 
-    P = m1 * R1 + m2 * R2
+    w01 = np.reshape(w_u1 * w_v0, (-1,))
+    w01[np.abs(Z[v0, u1].reshape((-1,)) - zt) > max_z_diff] = 0
+    w01[~np.isfinite(Z[v0, u1].reshape((-1,)))] = 0
 
-    return P.reshape((-1, d))
+    w11 = np.reshape(w_u1 * w_v1, (-1,))
+    w11[np.abs(Z[v1, u1].reshape((-1,)) - zt) > max_z_diff] = 0
+    w11[~np.isfinite(Z[v1, u1].reshape((-1,)))] = 0
+    w_sum = np.reshape(w00 + w01 + w10 + w11, (-1,))
+
+    Ivu = w00 * I[v0, u0] + w01 * I[v0, u1] + w10 * I[v1, u0] + w11 * I[v1, u1]
+    Ivu /= w_sum
+
+    Zvu = w00 * Z[v0, u0] + w01 * Z[v0, u1] + w10 * Z[v1, u0] + w11 * Z[v1, u1]
+    Zvu /= w_sum
+    return Ivu.reshape((-1,)), Zvu.reshape((-1,))
 
 
 def compute_weights(r: np.array, sigma: float) -> np.array:
@@ -197,12 +202,12 @@ def statsstr(x) -> str:
     return f"{np.linalg.norm(x):.4f}, {x.min():.4f} < {x.mean():.4f} +- {x.std():.4f} < {x.max():.4f} n={x.shape[0]}, d={x.shape}"
 
 
-def compute_gradients(I, Z):
-    dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0, scale=1 / 8)
-    dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1, scale=1 / 8)
+def compute_jacobian_image(I, Z):
+    dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0)
+    dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1)
     # print(f"dIdx: {statsstr(dIdx.reshape((-1,1)))}")
     # print(f"dIdy: {statsstr(dIdy.reshape((-1,1)))}")
-    cv.imshow("dI", np.vstack([dIdx, dIdy]))
+    # cv.imshow("dI", np.vstack([dIdx, dIdy]))
 
     dI = np.dstack([dIdx, dIdy])
 
@@ -210,7 +215,7 @@ def compute_gradients(I, Z):
     dZdy = cv.Sobel(Z, cv.CV_64F, dx=0, dy=1, scale=1 / 8)
     # print(f"dZdx: {statsstr(dZdx.reshape((-1,1)))}")
     # print(f"dZdx: {statsstr(dZdx.reshape((-1,1)))}")
-    cv.imshow("dZ", np.vstack([dZdx, dZdy]))
+    # cv.imshow("dZ", np.vstack([dZdx, dZdy]))
 
     dZ = np.dstack((dZdx, dZdy))
 
@@ -219,13 +224,14 @@ def compute_gradients(I, Z):
 
 def selection_mask(Z, dI, dZ):
     return (
-        (Z[:, 0] > 0)
-        & (np.isfinite(Z[:, 0]))
+        (np.isfinite(Z[:, 0]))
+        & (Z[:, 0] > 0)
+        & (Z[:, 0] < max_z)
         & (
-            (np.abs(dI[:, 0]) > min_gradient_I)
-            | (np.abs(dI[:, 1]) > min_gradient_I)
-            | (np.abs(dZ[:, 0]) > min_gradient_Z)
-            | (np.abs(dZ[:, 1]) > min_gradient_Z)
+            (np.abs(dI[:, 0]) > min_dI)
+            | (np.abs(dI[:, 1]) > min_dI)
+            | (np.abs(dZ[:, 0]) > min_dZ)
+            | (np.abs(dZ[:, 1]) > min_dZ)
         )
     )
 
@@ -260,64 +266,62 @@ I0, Z0 = load_frame(files_I[f_start], files_Z[f_start])
 h, w = I0[0].shape[:2]
 cam0 = Camera(fx, fy, cx, cy, h, w)
 f_end = min([n_frames, len(timestamps)])
+motion = sp.SE3()
 for f_no in range(f_start + 1, f_end):
     t1 = timestamps[f_no]
     I1, Z1 = load_frame(files_I[f_no], files_Z[f_no])
-    motion = sp.SE3()  # interpolate_pose_between(trajectory_gt, t0, t1)
+    prior = motion  # sp.SE3()  # interpolate_pose_between(trajectory_gt, t0, t1)
+    motion = prior
     print(
         f"_________Aligning: {f_no0} -> {f_no} / {f_end}, {t0}->{t1}, dt={t1-t0:.3f}___________"
     )
     for l_ in range(nLevels):
         level = nLevels - (l_ + 1)
         print(f"_________Level={level}___________")
-        cam = cam0.scale(1 / (2**level))
+        cam = cam0.resize(1 / (2**level))
 
-        dI0, dZ0 = compute_gradients(I0[level], Z0[level])
+        dI0, dZ0 = compute_jacobian_image(I0[level], Z0[level])
 
         mask_selected = selection_mask(Z0[level].reshape(-1, 1), dI0, dZ0)
 
-        pcl0 = cam.backproject(
+        pcl0 = cam.reconstruct(
             cam.image_coordinates()[mask_selected],
             Z0[level].reshape(-1, 1)[mask_selected],
         )
 
-        JwI, JwZ = computeJw(pcl0, dI0[mask_selected], dZ0[mask_selected], cam)
+        Jwx, Jwy = compute_jacobian_warp(motion * pcl0, cam)
+
+        JIJw = dI0[:, :1][mask_selected] * Jwx + dI0[:, 1:][mask_selected] * Jwy
+        JZJw = dZ0[:, :1][mask_selected] * Jwx + dZ0[:, 1:][mask_selected] * Jwy
 
         chi2 = np.zeros((max_iterations,))
+        dx = np.zeros((6,))
         for i in range(max_iterations):
-            print(f"_________Iteration={i}___________")
+            # print(f"_________Iteration={i}___________")
             pcl0t = motion * pcl0
             uv0t, mask_valid = cam.project(pcl0t)
 
-            i1wxp = interpolate(I1[level], uv0t)
-            z1wxp = interpolate(Z1[level], uv0t)
-
-            # z1wxp = Z1[level][
-            #    uv0t[:, 1].round().astype(int), uv0t[:, 0].round().astype(int)
-            # ].reshape((-1, 1))
-
-            mask_occluded = np.reshape(
-                np.abs(pcl0t[mask_valid][:, 2:3] - z1wxp) < 0.2, (-1,)
+            i1wxp, z1wxp = interpolate(
+                I1[level], Z1[level], uv0t, pcl0t[:, 2].reshape((-1,))[mask_valid]
             )
+
+            mask_occluded = np.logical_not(np.isnan(i1wxp))
             uv0t = uv0t[mask_occluded]
             z1wxp = z1wxp[mask_occluded]
             i1wxp = i1wxp[mask_occluded]
             N = uv0t.shape[0]
             norm = N * 255
 
-            # i1wxp = I1[level][
-            #    uv0t[:, 1].round().astype(int), uv0t[:, 0].round().astype(int)
-            # ].reshape((-1, 1))
-
-            # pcl1t = motion.inverse() * (cam.backproject(uv0t, z1wxp))
+            pcl1t = motion.inverse() * (cam.reconstruct(uv0t, z1wxp))
 
             r_I = (
                 i1wxp
-                - I0[level].reshape(-1, 1)[mask_selected][mask_valid][mask_occluded]
+                - I0[level].reshape((-1,))[mask_selected][mask_valid][mask_occluded]
             ) / norm
-            # r_Z = pcl1t[:, 2] - Z0[level].reshape(-1, 1)[mask_selected][mask_valid]
-            print(f"r_I: {statsstr(r_I)}")
-
+            r_Z = (
+                pcl1t[:, 2]
+                - Z0[level].reshape((-1,))[mask_selected][mask_valid][mask_occluded]
+            )
             # if i == 0:
             #    sigma_I, W_I = estimate_weights(r_I)
             # else:
@@ -327,16 +331,22 @@ for f_no in range(f_start + 1, f_end):
             chi2[i] = w_I * (r_I.T @ r_I)
 
             if i > 0:
-                print(
-                    f"chi2={chi2[i]:0.6f}, dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
-                )
+                # print(
+                #    f"r_I: {statsstr(r_I)}\n"
+                #    f"r_Z: {statsstr(r_Z)}\n"
+                #    f"chi2={chi2[i]:0.6f}, dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
+                # )
+                if chi2[i] / chi2[i - 1] > min_reduction:
+                    motion = sp.SE3.exp(dx) * motion
+                    print(f"Stop. Error Increased.")
+                    break
             else:
-                print(f"chi2={chi2[i]:0.6f}")
-
-            if i > 0 and chi2[i] / chi2[i - 1] > min_reduction:
-                motion = sp.SE3.exp(dx) * motion
-                print(f"Stop. Error Increased.")
-                break
+                pass
+                # print(
+                #    f"r_I: {statsstr(r_I)}\n"
+                #    f"r_Z: {statsstr(r_Z)}\n"
+                #    f"chi2={chi2[i]:0.6f}"
+                # )
 
             if wait_time >= 0:
                 I1Wxp = np.zeros_like(I0[level])
@@ -352,7 +362,7 @@ for f_no in range(f_start + 1, f_end):
                 ].astype(int)
 
                 I1Wxp[uv0[:, 1], uv0[:, 0]] = i1wxp.reshape((-1,))
-                Z1Wxp[uv0[:, 1], uv0[:, 0]] = z1wxp.reshape((-1,))
+                Z1Wxp[uv0[:, 1], uv0[:, 0]] = pcl1t[:, 2].reshape((-1,))
                 R_I[uv0[:, 1], uv0[:, 0]] = np.abs(r_I.reshape((-1,))) * norm
                 M[uv0[:, 1], uv0[:, 0]] = 255
                 # R_Z[uv0[:, 1], uv0[:, 0]] = np.abs(r_Z.reshape((-1,)))
@@ -363,7 +373,7 @@ for f_no in range(f_start + 1, f_end):
                 intensity_vis = cv.resize(intensity_vis, (640 * 4, 480))
                 intensity_vis = cv.putText(
                     intensity_vis,
-                    f"#:{f_no}/{f_end} l={level} i={i} chi2/N={255*chi2[i]:.6f}",
+                    f"#:{f_no}/{f_end} l={level} i={i} chi2/N={255*chi2[i]:.6f} |dx|={np.linalg.norm(dx):0.5f}",
                     (10, 20),
                     cv.FONT_HERSHEY_TRIPLEX,
                     0.5,
@@ -375,34 +385,37 @@ for f_no in range(f_start + 1, f_end):
                 # cv.imshow("r_Z", R_Z)
                 # cv.imshow("WI", WI)
                 # cv.imshow("WZ", WZ)
-
                 cv.waitKey(wait_time)
 
-            JwI_ = JwI[mask_valid][mask_occluded] / norm
-            # JZJpJt_Jtz = JwZ[mask_valid] - computeJtz(pcl1t)
+            JIJw_ = JIJw[mask_valid][mask_occluded] / norm
+            JZJpJt_Jtz = JZJw[mask_valid][mask_occluded] - compute_jacobian_se3_z(pcl1t)
 
             # Az = JZJpJt_Jtz.T @ W_Z @ JZJpJt_Jtz
             # bz = JZJpJt_Jtz.T @ W_Z @ r_Z
 
-            Ai = JwI_.T @ JwI_
-            bi = JwI_.T @ r_I
+            Ai = JIJw_.T @ JIJw_
+            bi = JIJw_.T @ r_I
 
             # A = (w_I * Ai + w_Z * Az) / N
             # b = (np.sqrt(w_I) * bi + np.sqrt(w_Z) * bz) / N
 
-            dx = np.linalg.solve(Ai, bi)
-            motion = sp.SE3.exp(-dx) * motion
-            print(f"dx={np.linalg.norm(dx):.6f}")
-
-            print(
-                f"t={motion.log()[:3]}m r={np.linalg.norm(motion.log()[3:])*180.0/np.pi:.3f}°"
+            dx = np.linalg.solve(
+                Ai + w_prior * np.identity(6),
+                bi + w_prior * (motion.inverse() * prior).log(),
             )
+            motion = sp.SE3.exp(-dx) * motion
+            # print(f"dx={np.linalg.norm(dx):.6f}")
+
+            # print(
+            #    f"t={motion.log()[:3]}m r={np.linalg.norm(motion.log()[3:])*180.0/np.pi:.3f}°"
+            # )
 
             if np.linalg.norm(dx) < min_update:
                 print(
                     f"Converged. Min Step Size reached: {np.linalg.norm(dx):.6f}/{min_update:.6f}"
                 )
                 break
+
     pose = motion * pose
     trajectory[timestamps[f_no]] = pose.inverse().matrix()
     f_no0 = f_no
