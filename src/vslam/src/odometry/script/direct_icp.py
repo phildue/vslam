@@ -2,44 +2,11 @@ import cv2 as cv
 import numpy as np
 from typing import List, Tuple
 from sophus.sophuspy import SE3
-import os
-from vslampy.dataset import TumRgbd
+import logging
 
 
 def statsstr(x) -> str:
     return f"{np.linalg.norm(x):.4f}, {x.min():.4f} < {x.mean():.4f} +- {x.std():.4f} < {x.max():.4f} n={x.shape[0]}, d={x.shape}"
-
-
-def interpolate_pose_between(trajectory, t0, t1):
-    trajectory_t0 = [(t, p) for t, p in trajectory.items() if t >= t0]
-    tp0 = trajectory_t0[0]
-    tp1 = [(t, p) for t, p in dict(trajectory_t0).items() if t >= t1][0]
-    dt = t1 - t0
-    dt_traj = tp1[0] - tp0[0]
-    s = dt / dt_traj if dt_traj != 0 else 1
-
-    dp = SE3.exp(s * (tp1[1] * tp0[1].inverse()).log())
-
-    print(f"Interpolate Pose at t0={tp0[0]} and t1={tp1[0]}, dt={dt} dp={dp.log()}")
-    return dp
-
-
-def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
-    if not os.path.exists(path_img):
-        raise ValueError(f"Path does not exist: {path_img}")
-    if not os.path.exists(path_depth):
-        raise ValueError(f"Path does not exist: {path_depth}")
-
-    I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
-    Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
-    cv.imshow("Frame", np.hstack([I, Z / Z.max() * 255]))
-    cv.waitKey(1)
-    return I, Z
-
-
-def write_result_file(trajectory, filename):
-    with open(filename, "w") as f:
-        f.writelines([f"{t} {pose.log()}" for t, pose in trajectory])
 
 
 class Camera:
@@ -87,6 +54,100 @@ class Camera:
         return uv[:, :2], mask_valid
 
 
+class TDistributionWeights:
+    def __init__(self, dof=5.0, sigma=1.0):
+        self.dof = dof
+        self.sigma = sigma
+
+    def compute_weights(self, r: np.array) -> np.array:
+        w = (self.dof + 1) / (self.dof + (r / self.sigma) ** 2)
+        return w
+
+    def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
+        step_size = np.inf
+        log = logging.getLogger("WeightEstimation")
+        for iter in range(max_iterations):
+            w = self.compute_weights(r)
+            sigma_i = np.sqrt(float((w * r).T @ r) / r.shape[0])
+            step_size = np.abs(self.sigma - sigma_i)
+            self.sigma = sigma_i
+            log.debug(
+                f"\titer = {iter}, sigma = {self.sigma:4f}, step_size = {step_size:4f} \n\tW={statsstr(w)})"
+            )
+            if step_size < precision:
+                break
+
+        log.info(
+            f"\tEM: {iter}, precision: {step_size:.4f}, scale: {self.sigma:.4f}, \nW={statsstr(w)}"
+        )
+        return self.sigma, w
+
+
+class ImageLog:
+    def __init__(self, nFrames: int, wait_time=1):
+        self.nFrames = nFrames
+        self.f_no = 0
+        self.wait_time = wait_time
+
+    def create_overlay(self, level, uv0, I0, i1wxp, residuals, weights, text):
+        Warped = np.zeros_like(I0[level])
+        Residual = np.zeros_like(I0[level])
+        Weights = np.zeros_like(I0[level])
+        Valid = np.zeros_like(I0[level], dtype=np.uint8)
+
+        Warped[uv0[:, 1], uv0[:, 0]] = i1wxp.reshape((-1,)).astype(np.uint8)
+        Residual[uv0[:, 1], uv0[:, 0]] = np.abs(residuals.reshape((-1,))).astype(
+            np.uint8
+        )
+        Valid[uv0[:, 1], uv0[:, 0]] = 255
+
+        Weights[uv0[:, 1], uv0[:, 0]] = weights.reshape((-1,))
+        Weights = (255.0 * Weights / Weights.max()).astype(np.uint8)
+        stack = np.hstack([I0[level], Warped, Residual, Weights, Valid])
+        stack = cv.resize(stack, (int(640 * 5 / 2), int(480 / 2)))
+        stack = cv.putText(
+            stack,
+            text,
+            (int(stack.shape[0] - 10), int(stack.shape[1] / 2 - len(text) / 2)),
+            cv.FONT_HERSHEY_TRIPLEX,
+            0.5,
+            (255, 255, 255),
+            1,
+        )
+        return stack
+
+    def log(
+        self,
+        level: int,
+        i,
+        uv0: np.array,
+        I0,
+        Z0,
+        i1wxp: np.array,
+        z1wxp: np.array,
+        r_I,
+        r_Z,
+        w_I,
+        w_Z,
+        chi2,
+        dx,
+    ):
+        if self.wait_time >= 0:
+            overlay_I = self.create_overlay(
+                level,
+                uv0,
+                I0,
+                i1wxp,
+                r_I,
+                w_I,
+                f"#:{self.f_no}/{self.nFrames} l={level} i={i} chi2={chi2[i]:.6f} |dx|={np.linalg.norm(dx):0.5f}",
+            )
+            overlay_Z = self.create_overlay(level, uv0, Z0, z1wxp, r_Z, w_Z, "")
+
+            cv.imshow("DirectIcp", np.vstack([overlay_I, overlay_Z]))
+            cv.waitKey(self.wait_time)
+
+
 class DirectIcp:
     def __init__(
         self,
@@ -101,6 +162,8 @@ class DirectIcp:
         max_iterations=100,
         min_parameter_update=1e-4,
         max_delta_chi2=1.1,
+        weight_function=TDistributionWeights(5, 1),
+        image_log=ImageLog(np.inf, -1),
     ):
         self.nLevels = nLevels
         self.cam = [cam.resize(1 / (2**l)) for l in range(nLevels)]
@@ -118,6 +181,9 @@ class DirectIcp:
         self.max_iterations = max_iterations
         self.min_parameter_update = min_parameter_update
         self.max_delta_chi2 = max_delta_chi2
+        self.weight_function = weight_function
+        self.image_log = image_log
+        self.log = logging.getLogger("DirectIcp")
 
     def compute_pyramid(self, I, Z):
         I = [I]
@@ -200,35 +266,6 @@ class DirectIcp:
             mask_occluded,
         )
 
-    def compute_weights(self, r: np.array, sigma: float) -> np.array:
-        v = 5.0
-        w = (v + 1) / (v + (r / sigma) ** 2)
-        W = np.zeros((r.shape[0], r.shape[0]))
-        W[range(r.shape[0]), range(r.shape[0])] = w.reshape((-1,))
-        return W
-
-    def estimate_weights(self, r: np.array) -> np.array:
-        step_size = np.inf
-        sigma = 1.0
-        for iter in range(50):
-            W = self.compute_weights(r, sigma)
-            sigma_i = np.sqrt(float(r.T @ W @ r) / r.shape[0])
-            step_size = np.abs(sigma - sigma_i)
-            sigma = sigma_i
-            # print(
-            #    f"iter = {iter}, sigma = {sigma:4f}, step_size = {step_size:4f} \nW={statsstr(W.diagonal())}"
-            # )
-            if step_size < 1e-5:
-                break
-
-            if sigma <= 1e-9:
-                return 1e-9, np.identity(r.shape[0])
-
-        print(
-            f"EM: {iter}, precision: {step_size:.4f}, scale: {sigma:.4f}, \nW={statsstr(W.diagonal())}"
-        )
-        return sigma, self.compute_weights(r, sigma)
-
     def compute_jacobian_image(self, I):
         dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0)
         dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1)
@@ -248,39 +285,33 @@ class DirectIcp:
             )
         )
 
-    def error_increased(self, chi2, i):
+    def log_errors(self, chi2, i, r_I, r_Z):
         if i > 0:
-            # print(
-            #    f"r_I: {statsstr(r_I)}\n"
-            #    f"r_Z: {statsstr(r_Z)}\n"
-            #    f"chi2={chi2[i]:0.6f}, dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
-            # )
-            if chi2[i] / chi2[i - 1] > self.max_delta_chi2:
-                print(f"Iteration= {i}: Stop. Error Increased.")
-                return True
+            self.log.debug(
+                f"r_I: {statsstr(r_I)}\n"
+                f"r_Z: {statsstr(r_Z)}\n"
+                f"chi2={chi2[i]:0.6f}, dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
+            )
         else:
-            pass
-            # print(
-            #    f"r_I: {statsstr(r_I)}\n"
-            #    f"r_Z: {statsstr(r_Z)}\n"
-            #    f"chi2={chi2[i]:0.6f}"
-            # )
-        return False
+            self.log.debug(
+                f"r_I: {statsstr(r_I)}\n"
+                f"r_Z: {statsstr(r_Z)}\n"
+                f"chi2={chi2[i]:0.6f}"
+            )
 
-    def compute_pose_update(self, JIJw, r_I, JZJw, r_Z, prior):
+    def compute_pose_update(self, JIJw, r_I, w_I, JZJw, r_Z, prior, W_Z):
+        norm_I = r_I.shape[0] * 255
         # Az = JZJpJt_Jtz.T @ W_Z @ JZJpJt_Jtz
         # bz = JZJpJt_Jtz.T @ W_Z @ r_Z
 
-        Ai = JIJw.T @ JIJw
-        bi = JIJw.T @ r_I
+        JIJww = w_I.reshape((-1, 1)) * JIJw
+        Ai = (JIJww.T @ JIJw) / norm_I
+        bi = (JIJww.T @ r_I) / norm_I
 
         # A = (w_I * Ai + w_Z * Az) / N
         # b = (np.sqrt(w_I) * bi + np.sqrt(w_Z) * bz) / N
 
-        return np.linalg.solve(
-            Ai + self.weight_prior * np.identity(6),
-            bi + self.weight_prior * (motion.inverse() * prior).log(),
-        )
+        return np.linalg.solve(Ai, bi)
 
     def compute_egomotion(
         self, t1: float, I1: np.array, Z1: np.array, guess=SE3()
@@ -299,7 +330,7 @@ class DirectIcp:
 
         for l_ in range(self.nLevels):
             level = self.nLevels - (l_ + 1)
-            print(f"_________Level={level}___________")
+            self.log.info(f"_________Level={level}___________")
 
             dI0 = self.compute_jacobian_image(self.I0[level])
             dZ0 = self.compute_jacobian_image(self.Z0[level])
@@ -320,6 +351,7 @@ class DirectIcp:
 
             chi2 = np.zeros((self.max_iterations,))
             dx = np.zeros((6,))
+            sigma_I = 1.0
             for i in range(self.max_iterations):
                 # print(f"_________Iteration={i}___________")
                 pcl0t = motion * pcl0
@@ -331,8 +363,7 @@ class DirectIcp:
                     uv0t,
                     pcl0t[:, 2].reshape((-1, 1))[mask_valid],
                 )
-                N = i1wxp.shape[0]
-                norm_I = N * 255
+                norm_I = i1wxp.shape[0] * 255
 
                 i0x = self.I0[level].reshape((-1,))[mask_selected][mask_valid][
                     mask_occluded
@@ -344,137 +375,64 @@ class DirectIcp:
                 z0x = self.Z0[level].reshape((-1,))[mask_selected][mask_valid][
                     mask_occluded
                 ]
-                r_I = (i1wxp - i0x) / norm_I
+                r_I = i1wxp - i0x
                 r_Z = pcl1t[:, 2] - z0x
-                # if i == 0:
-                #    sigma_I, W_I = estimate_weights(r_I)
-                # else:
-                #    W_I = compute_weights(r_I, sigma_I)
 
+                sigma_I, w_I = self.weight_function.fit(r_I)
+                w_Z = w_I
                 # s_Z, W_Z = compute_scale(r_Z)
-                chi2[i] = self.weight_intensity * (r_I.T @ r_I) + self.weight_depth * (
-                    r_Z.T @ r_Z
-                )
+                chi2[i] = self.weight_intensity * (
+                    (r_I.T * w_I) @ r_I
+                ) / norm_I + self.weight_depth * (r_Z.T @ r_Z)
 
-                if self.error_increased(chi2, i):
+                self.log_errors(chi2, i, r_I, r_Z)
+
+                if i > 0 and chi2[i] / chi2[i - 1] > self.max_delta_chi2:
+                    reason = f"Error Increased. dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
                     motion = SE3.exp(dx) * motion
                     break
 
-                if wait_time >= 0:
-                    I1Wxp = np.zeros_like(self.I0[level])
-                    Z1Wxp = np.zeros_like(self.Z0[level])
-                    R_I = np.zeros_like(self.I0[level])
-                    R_Z = np.zeros_like(self.Z0[level])
-                    WI = np.zeros_like(self.I0[level])
-                    WZ = np.zeros_like(self.Z0[level])
-                    M = np.zeros_like(self.I0[level])
-
-                    uv0 = (
-                        self.cam[level]
-                        .image_coordinates()[mask_selected][mask_valid][mask_occluded]
-                        .astype(int)
-                    )
-
-                    I1Wxp[uv0[:, 1], uv0[:, 0]] = i1wxp.reshape((-1,))
-                    Z1Wxp[uv0[:, 1], uv0[:, 0]] = pcl1t[:, 2].reshape((-1,))
-                    R_I[uv0[:, 1], uv0[:, 0]] = np.abs(r_I.reshape((-1,))) * norm_I
-                    M[uv0[:, 1], uv0[:, 0]] = 255
-                    # R_Z[uv0[:, 1], uv0[:, 0]] = np.abs(r_Z.reshape((-1,)))
-                    # WI[uv0[:, 1], uv0[:, 0]] = W_I.diagonal().reshape((-1,))
-                    # WI = (255.0 * WI / WI.max()).astype(np.uint8)
-                    # WZ[uv0[:, 1], uv0[:, 0]] = W_Z.diagonal().reshape((-1,))
-                    intensity_vis = np.hstack([self.I0[level], I1Wxp, R_I, M])
-                    intensity_vis = cv.resize(intensity_vis, (640 * 4, 480))
-                    intensity_vis = cv.putText(
-                        intensity_vis,
-                        f"#:{self.f_no} l={level} i={i} chi2/N={255*chi2[i]:.6f} |dx|={np.linalg.norm(dx):0.5f}",
-                        (10, 20),
-                        cv.FONT_HERSHEY_TRIPLEX,
-                        0.5,
-                        (255, 255, 255),
-                        1,
-                    )
-                    cv.imshow("Intensity", intensity_vis)
-                    # cv.imshow("Z1Wxp", Z1Wxp)
-                    # cv.imshow("r_Z", R_Z)
-                    # cv.imshow("WI", WI)
-                    # cv.imshow("WZ", WZ)
-                    cv.waitKey(wait_time)
+                uv0 = (
+                    self.cam[level]
+                    .image_coordinates()[mask_selected][mask_valid][mask_occluded]
+                    .astype(int)
+                )
+                self.image_log.log(
+                    level,
+                    i,
+                    uv0,
+                    self.I0,
+                    self.Z0,
+                    i1wxp,
+                    z1wxp,
+                    r_I,
+                    r_Z,
+                    w_I,
+                    w_Z,
+                    chi2,
+                    dx,
+                )
 
                 dx = self.compute_pose_update(
-                    JIJw[mask_valid][mask_occluded] / norm_I,
+                    JIJw[mask_valid][mask_occluded],
                     r_I,
+                    w_I,
                     JZJw[mask_valid][mask_occluded]
                     - self.compute_jacobian_se3_z(pcl1t),
                     r_Z,
+                    w_Z,
                     prior,
                 )
 
                 motion = SE3.exp(-dx) * motion
-                # print(f"dx={np.linalg.norm(dx):.6f}")
-
-                # print(
-                #    f"t={motion.log()[:3]}m r={np.linalg.norm(motion.log()[3:])*180.0/np.pi:.3f}°"
-                # )
 
                 if np.linalg.norm(dx) < self.min_parameter_update:
-                    print(
-                        f"Iteration= {i}: Converged. Min Step Size reached: {np.linalg.norm(dx):.6f}/{self.min_parameter_update:.6f}"
-                    )
+                    reason = f"Min Step Size reached: {np.linalg.norm(dx):.6f}/{self.min_parameter_update:.6f}"
                     break
-
+            self.log.info(
+                f"Aligned after {i} iterations because [{reason}]\nt={motion.log()[:3]}m r={np.linalg.norm(motion.log()[3:])*180.0/np.pi:.3f}°"
+            )
         self.I0 = I1
         self.Z0 = Z1
         self.t0 = t1
         return motion
-
-
-if __name__ == "__main__":
-    f_start = 0
-    n_frames = 250  # np.inf
-
-    wait_time = 1
-    np.set_printoptions(precision=4)
-
-    sequence = TumRgbd("rgbd_dataset_freiburg2_desk")
-    direct_icp = DirectIcp(
-        Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
-        nLevels=4,
-        weight_intensity=1.0,
-        weight_prior=0.0,
-        min_gradient_intensity=1 * 8,
-        min_gradient_depth=np.inf,
-        max_z=5.0,
-        max_z_diff=0.2,
-        max_iterations=100,
-        min_parameter_update=1e-4,
-        max_delta_chi2=1.1,
-    )
-    timestamps, files_I, files_Z = sequence.image_depth_filepaths()
-
-    trajectory = {}
-    trajectory_gt = dict(
-        (t, SE3(p).inverse()) for t, p in sequence.gt_trajectory().items()
-    )
-
-    pose = SE3()
-    f_no0 = f_start
-    t0 = timestamps[f_start]
-    f_end = min([n_frames, len(timestamps)])
-    motion = SE3()
-    for f_no in range(f_start, f_end):
-        t1 = timestamps[f_no]
-        I1, Z1 = load_frame(files_I[f_no], files_Z[f_no])
-        print(
-            f"_________Aligning: {f_no0} -> {f_no} / {f_end}, {t0}->{t1}, dt={t1-t0:.3f}___________"
-        )
-        motion = direct_icp.compute_egomotion(t1, I1, Z1, motion)
-
-        pose = motion * pose
-        trajectory[timestamps[f_no]] = pose.inverse().matrix()
-        f_no0 = f_no
-        t0 = t1
-        I0 = I1
-        Z0 = Z1
-
-    sequence.evaluate_rpe(trajectory, output_dir="./", upload=False)
