@@ -4,10 +4,9 @@ from typing import List, Tuple
 from sophus.sophuspy import SE3
 import os
 from vslampy.dataset import TumRgbd
-from direct_icp import DirectIcp, TDistributionWeights, Camera, ImageLog
+from direct_icp import DirectIcp, TDistributionWeights, Camera, ImageLog, ImageLogNull
 import logging
 import logging.config
-import yaml
 
 
 def interpolate_pose_between(trajectory, t0, t1):
@@ -32,8 +31,6 @@ def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
 
     I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
     Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
-    cv.imshow("Frame", np.hstack([I, Z / Z.max() * 255]))
-    cv.waitKey(1)
     return I, Z
 
 
@@ -59,6 +56,9 @@ if __name__ == "__main__":
         }
     )
     sequence = TumRgbd("rgbd_dataset_freiburg2_desk")
+    timestamps, files_I, files_Z = sequence.image_depth_filepaths()
+    f_end = min([n_frames, len(timestamps)])
+    image_log = ImageLog(f_end, wait_time) if wait_time > 0 else ImageLogNull()
     direct_icp = DirectIcp(
         Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
         nLevels=4,
@@ -72,9 +72,8 @@ if __name__ == "__main__":
         min_parameter_update=1e-4,
         max_delta_chi2=1.1,
         weight_function=TDistributionWeights(5.0, 1),
-        image_log=ImageLog(n_frames, wait_time),
+        image_log=image_log,
     )
-    timestamps, files_I, files_Z = sequence.image_depth_filepaths()
 
     trajectory = {}
     trajectory_gt = dict(
@@ -84,7 +83,6 @@ if __name__ == "__main__":
     pose = SE3()
     f_no0 = f_start
     t0 = timestamps[f_start]
-    f_end = min([n_frames, len(timestamps)])
     motion = SE3()
     for f_no in range(f_start, f_end):
         t1 = timestamps[f_no]
@@ -92,6 +90,7 @@ if __name__ == "__main__":
         logging.info(
             f"_________Aligning: {f_no0} -> {f_no} / {f_end}, {t0}->{t1}, dt={t1-t0:.3f}___________"
         )
+        image_log.f_no = f_no
         motion = direct_icp.compute_egomotion(t1, I1, Z1, motion)
 
         pose = motion * pose
@@ -102,6 +101,9 @@ if __name__ == "__main__":
         Z0 = Z1
 
         if f_no > 0 and f_no % 100 == 0:
-            sequence.evaluate_rpe(trajectory, output_dir="./", upload=False)
+            image_log.rmse_t, image_log.rmse_r = sequence.evaluate_rpe(
+                trajectory, output_dir="./", upload=False
+            )
 
     sequence.evaluate_rpe(trajectory, output_dir="./", upload=False)
+    write_result_file(trajectory, f"{sequence._sequence_id}-algo.txt")
