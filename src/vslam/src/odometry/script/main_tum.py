@@ -62,10 +62,11 @@ if __name__ == "__main__":
     direct_icp = DirectIcp(
         Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
         nLevels=4,
-        weight_intensity=1.0,
+        weight_intensity=0.0,
         weight_prior=0.0,
-        min_gradient_intensity=5 * 8,
-        min_gradient_depth=np.inf,
+        min_gradient_intensity=np.inf,  # 5*8
+        min_gradient_depth=0.05,  # np.inf
+        max_gradient_depth=0.3,
         max_z=5.0,
         max_z_diff=0.2,
         max_iterations=100,

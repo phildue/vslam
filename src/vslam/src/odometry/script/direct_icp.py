@@ -41,13 +41,13 @@ class Camera:
         uv = (self.K @ pcl.T).T
         uv /= uv[:, 2, None]
         uv = np.reshape(uv, (-1, 3))
-
+        border = int(0.1 * self.w)
         mask_valid = (
             (pcl[:, 2] > 0)
-            & (self.w - 1 > uv[:, 0])
-            & (uv[:, 0] > 1)
-            & (self.h - 1 > uv[:, 1])
-            & (uv[:, 1] > 1)
+            & (self.w - border > uv[:, 0])
+            & (uv[:, 0] > border)
+            & (self.h - border > uv[:, 1])
+            & (uv[:, 1] > border)
         )
         if not keep_invalid:
             uv = uv[mask_valid]
@@ -267,6 +267,7 @@ class DirectIcp:
         weight_prior=0.0,
         min_gradient_intensity=10 * 8,
         min_gradient_depth=np.inf,
+        max_gradient_depth=0.5,
         max_z=5.0,
         max_z_diff=0.2,
         max_iterations=100,
@@ -286,6 +287,8 @@ class DirectIcp:
         self.weight_prior = weight_prior
         self.min_dI = min_gradient_intensity
         self.min_dZ = min_gradient_depth
+        self.max_dZ = max_gradient_depth
+
         self.max_z = max_z
         self.max_z_diff = max_z_diff
         self.max_iterations = max_iterations
@@ -300,7 +303,11 @@ class DirectIcp:
         Z = [Z]
         for l in range(1, self.nLevels):
             I += [cv.pyrDown(I[l - 1])]
-            Z += [cv.resize(Z[l - 1], (0, 0), fx=0.5, fy=0.5)]
+            Z += [
+                cv.resize(
+                    Z[l - 1], (0, 0), fx=0.5, fy=0.5, interpolation=cv.INTER_NEAREST
+                )
+            ]
         return I, Z
 
     def compute_jacobian_warp_xy(self, pcl: np.array, cam: Camera) -> np.array:
@@ -382,11 +389,18 @@ class DirectIcp:
 
         return np.reshape(np.dstack([dIdx, dIdy]), (-1, 2))
 
+    def compute_jacobian_depth(self, Z):
+        dZ = np.gradient(Z)
+
+        return np.reshape(np.dstack([dZ[1], dZ[0]]), (-1, 2))
+
     def select_constraints(self, Z, dI, dZ):
         return (
             (np.isfinite(Z[:, 0]))
             & (Z[:, 0] > 0)
             & (Z[:, 0] < self.max_z)
+            & (np.abs(dZ[:, 0]) < self.max_dZ)
+            & (np.abs(dZ[:, 1]) < self.max_dZ)
             & (
                 (np.abs(dI[:, 0]) > self.min_dI)
                 | (np.abs(dI[:, 1]) > self.min_dI)
@@ -446,7 +460,7 @@ class DirectIcp:
             self.log.info(f"_________Level={level}___________")
 
             dI0 = self.compute_jacobian_image(self.I0[level])
-            dZ0 = self.compute_jacobian_image(self.Z0[level])
+            dZ0 = self.compute_jacobian_depth(self.Z0[level])
 
             mask_selected = self.select_constraints(
                 self.Z0[level].reshape(-1, 1), dI0, dZ0
@@ -466,9 +480,14 @@ class DirectIcp:
             dx = np.zeros((6,))
             reason = "Max iterations exceeded"
             for i in range(self.max_iterations):
-                # print(f"_________Iteration={i}___________")
                 pcl0t = motion * pcl0
                 uv0t, mask_valid = self.cam[level].project(pcl0t)
+
+                if uv0t.shape[0] < 6:
+                    reason = "Not enough constraints"
+                    motion = SE3()
+                    l_ = 0
+                    break
 
                 i1wxp, z1wxp, mask_occluded = self.interpolate(
                     I1[level],
