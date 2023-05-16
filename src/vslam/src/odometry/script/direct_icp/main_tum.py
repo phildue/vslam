@@ -4,39 +4,12 @@ from typing import List, Tuple
 from sophus.sophuspy import SE3
 import os
 from vslampy.dataset import TumRgbd
-from direct_icp import DirectIcp, TDistributionWeights, Camera, ImageLog, ImageLogNull
+from direct_icp import DirectIcp, Camera
+from overlay import Overlay, OverlayNull
+from weights import TDistributionWeights
+from utils import load_frame, write_result_file
 import logging
 import logging.config
-
-
-def interpolate_pose_between(trajectory, t0, t1):
-    trajectory_t0 = [(t, p) for t, p in trajectory.items() if t >= t0]
-    tp0 = trajectory_t0[0]
-    tp1 = [(t, p) for t, p in dict(trajectory_t0).items() if t >= t1][0]
-    dt = t1 - t0
-    dt_traj = tp1[0] - tp0[0]
-    s = dt / dt_traj if dt_traj != 0 else 1
-
-    dp = SE3.exp(s * (tp1[1] * tp0[1].inverse()).log())
-
-    print(f"Interpolate Pose at t0={tp0[0]} and t1={tp1[0]}, dt={dt} dp={dp.log()}")
-    return dp
-
-
-def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
-    if not os.path.exists(path_img):
-        raise ValueError(f"Path does not exist: {path_img}")
-    if not os.path.exists(path_depth):
-        raise ValueError(f"Path does not exist: {path_depth}")
-
-    I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
-    Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
-    return I, Z
-
-
-def write_result_file(trajectory, filename):
-    with open(filename, "w") as f:
-        f.writelines([f"{t} {pose.log()}" for t, pose in trajectory])
 
 
 if __name__ == "__main__":
@@ -58,15 +31,15 @@ if __name__ == "__main__":
     sequence = TumRgbd("rgbd_dataset_freiburg2_desk")
     timestamps, files_I, files_Z = sequence.image_depth_filepaths()
     f_end = min([n_frames, len(timestamps)])
-    image_log = ImageLog(f_end, wait_time) if wait_time > 0 else ImageLogNull()
+    image_log = Overlay(f_end, wait_time) if wait_time > 0 else OverlayNull()
     direct_icp = DirectIcp(
         Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
         nLevels=4,
-        weight_intensity=0.0,
+        weight_intensity=1.0,
         weight_prior=0.0,
-        min_gradient_intensity=np.inf,  # 5*8
-        min_gradient_depth=0.05,  # np.inf
-        max_gradient_depth=0.3,
+        min_gradient_intensity=5 * 8,  #
+        min_gradient_depth=np.inf,
+        max_gradient_depth=np.inf,
         max_z=5.0,
         max_z_diff=0.2,
         max_iterations=100,
