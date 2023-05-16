@@ -128,10 +128,8 @@ class DirectIcp:
 
                 # s_Z, W_Z = compute_scale(r_Z)
                 chi2[i] = (
-                    self.weight_intensity
-                    * ((r_I.T * w_I) @ r_I)
-                    / norm_I
-                    # + self.weight_depth * ((r_Z.T * w_Z) @ r_Z) / norm_Z
+                    self.weight_intensity * ((r_I.T * w_I) @ r_I) / norm_I
+                    + self.weight_depth * ((r_Z.T * w_Z) @ r_Z) / norm_Z
                 )
 
                 self.log_errors(chi2, i, r_I, r_Z)
@@ -338,4 +336,4 @@ class DirectIcp:
         Ap = self.weight_prior * np.identity(6)
         bp = self.weight_prior * (motion * prior.inverse()).log()
 
-        return np.linalg.solve(Ai, bi)
+        return np.linalg.solve(Ai + Az, bi + bz + bp)
