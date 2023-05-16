@@ -3,7 +3,7 @@ import numpy as np
 from sophus.sophuspy import SE3
 import logging
 
-from overlay import OverlayNull
+from overlay import Overlay
 from weights import TDistributionWeights
 from utils import statsstr
 from camera import Camera
@@ -25,7 +25,7 @@ class DirectIcp:
         min_parameter_update=1e-4,
         max_delta_chi2=1.1,
         weight_function=TDistributionWeights(5, 1),
-        image_log=OverlayNull(),
+        image_log=Overlay(),
     ):
         self.nLevels = nLevels
         self.cam = [cam.resize(1 / (2**l)) for l in range(nLevels)]
@@ -336,4 +336,4 @@ class DirectIcp:
         Ap = self.weight_prior * np.identity(6)
         bp = self.weight_prior * (motion * prior.inverse()).log()
 
-        return np.linalg.solve(Ai + Az, bi + bz + bp)
+        return np.linalg.solve(Ai + Az + Ap, bi + bz + bp)

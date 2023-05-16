@@ -5,7 +5,7 @@ from sophus.sophuspy import SE3
 import os
 from vslampy.dataset import TumRgbd
 from direct_icp import DirectIcp, Camera
-from overlay import Overlay, OverlayNull
+from overlay import OverlayShow, Overlay
 from weights import TDistributionWeights
 from utils import load_frame, write_result_file
 import logging
@@ -31,11 +31,11 @@ if __name__ == "__main__":
     sequence = TumRgbd("rgbd_dataset_freiburg2_desk")
     timestamps, files_I, files_Z = sequence.image_depth_filepaths()
     f_end = min([n_frames, len(timestamps)])
-    image_log = Overlay(f_end, wait_time) if wait_time > 0 else OverlayNull()
+    image_log = OverlayShow(f_end, wait_time) if wait_time > 0 else Overlay()
     direct_icp = DirectIcp(
         Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
         nLevels=4,
-        weight_intensity=1.0,
+        weight_intensity=0.7,
         weight_prior=0.0,
         min_gradient_intensity=5 * 8,  #
         min_gradient_depth=np.inf,
