@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from utils import statsstr
+from vslampy.utils.utils import statsstr
 
 
 class TDistributionWeights:

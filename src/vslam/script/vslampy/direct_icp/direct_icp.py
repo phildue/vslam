@@ -3,10 +3,10 @@ import numpy as np
 from sophus.sophuspy import SE3
 import logging
 
-from overlay import Overlay
-from weights import TDistributionWeights
-from utils import statsstr
-from camera import Camera
+from vslampy.direct_icp.overlay import Overlay
+from vslampy.direct_icp.weights import TDistributionWeights
+from vslampy.utils.utils import statsstr
+from vslampy.direct_icp.camera import Camera
 
 
 class DirectIcp:
@@ -350,3 +350,8 @@ class DirectIcp:
         bp = self.weight_prior * (motion * prior.inverse()).log()
 
         return np.linalg.solve(Ai + Az + Ap, bi + bz + bp)
+
+    def compute_pose_update_joint(
+        self, JIJw, r_I, JZJw_Jtz, r_Z, w_IZ, scale, prior, motion
+    ):
+        pass

@@ -48,3 +48,24 @@ def write_result_file(trajectory, filename):
                 for t, pose in trajectory.items()
             ]
         )
+
+
+import time
+
+
+class Timer:
+    stack = []
+    timers = {}
+
+    def tick(name: str):
+        Timer.timers[name] = time.perf_counter()
+        Timer.stack.append(name)
+
+    def tock(name: str = "", verbose=True):
+        if not name:
+            name = Timer.stack.pop()
+        dt = time.perf_counter() - Timer.timers[name]
+        Timer.timers.pop(name)
+        if verbose:
+            print(f"[{name}] ran for [{dt}:.4f]s")
+        return dt
