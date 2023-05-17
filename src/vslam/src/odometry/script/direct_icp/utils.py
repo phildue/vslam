@@ -2,6 +2,7 @@ import os
 from typing import Tuple, List
 import numpy as np
 import cv2 as cv
+from sophus.sophuspy import SE3
 
 
 def statsstr(x) -> str:
@@ -35,9 +36,15 @@ def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
 
     I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
     Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
+    # Z[Z <= 0] = np.nan
     return I, Z
 
 
 def write_result_file(trajectory, filename):
     with open(filename, "w") as f:
-        f.writelines([f"{t} {pose.log()}" for t, pose in trajectory])
+        f.writelines(
+            [
+                f"{t} {SE3(pose).log()[0]} {SE3(pose).log()[1]} {SE3(pose).log()[2]} {SE3(pose).log()[3]} {SE3(pose).log()[4]} {SE3(pose).log()[5]}\n"
+                for t, pose in trajectory.items()
+            ]
+        )

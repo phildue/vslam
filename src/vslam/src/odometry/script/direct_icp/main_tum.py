@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Tuple
 from sophus.sophuspy import SE3
 import os
-from vslampy.dataset import TumRgbd
+from vslampy.dataset.tum import TumRgbd
 from direct_icp import DirectIcp, Camera
 from overlay import OverlayShow, Overlay
 from weights import TDistributionWeights
@@ -23,7 +23,7 @@ if __name__ == "__main__":
             "version": 1,
             "root": {"level": "INFO"},
             "loggers": {
-                "DirectIcp": {"level": "INFO"},
+                "DirectIcp": {"level": "WARNING"},
                 "WeightEstimation": {"level": "WARNING"},
             },
         }
@@ -31,19 +31,19 @@ if __name__ == "__main__":
     sequence = TumRgbd("rgbd_dataset_freiburg2_desk")
     timestamps, files_I, files_Z = sequence.image_depth_filepaths()
     f_end = min([n_frames, len(timestamps)])
-    image_log = OverlayShow(f_end, wait_time) if wait_time > 0 else Overlay()
+    image_log = OverlayShow(f_end, wait_time) if wait_time >= 0 else Overlay()
     direct_icp = DirectIcp(
         Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
         nLevels=4,
-        weight_intensity=0.7,
+        weight_intensity=0.5,
         weight_prior=0.0,
-        min_gradient_intensity=5 * 8,  #
+        min_gradient_intensity=10 * 8,  #
         min_gradient_depth=np.inf,
         max_gradient_depth=np.inf,
         max_z=5.0,
         max_z_diff=0.2,
         max_iterations=100,
-        min_parameter_update=1e-4,
+        min_parameter_update=1e-6,
         max_delta_chi2=1.1,
         weight_function=TDistributionWeights(5.0, 1),
         image_log=image_log,

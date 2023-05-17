@@ -107,6 +107,7 @@ class DirectIcp:
                     uv0t,
                     pcl0t[:, 2].reshape((-1, 1))[mask_valid],
                 )
+
                 norm_I = i1wxp.shape[0] * 255
                 norm_Z = z1wxp.shape[0]
 
@@ -120,6 +121,12 @@ class DirectIcp:
                 z0x = self.Z0[level].reshape((-1,))[mask_selected][mask_valid][
                     mask_occluded
                 ]
+                self.log.debug(
+                    f"i0x: {statsstr(i0x)}\n"
+                    f"z0x: {statsstr(z0x)}\n"
+                    f"i1wxp: {statsstr(i1wxp)}\n"
+                    f"z1wxp: {statsstr(z1wxp)}\n"
+                )
                 r_I = i1wxp - i0x
                 r_Z = pcl1t[:, 2] - z0x
 
@@ -206,13 +213,17 @@ class DirectIcp:
         return np.reshape(np.dstack([dIdx, dIdy]), (-1, 2))
 
     def compute_jacobian_depth(self, Z):
-        dZ = np.gradient(Z)
+        dZ = np.gradient(
+            Z,
+        )
 
         return np.reshape(np.dstack([dZ[1], dZ[0]]), (-1, 2))
 
     def select_constraints(self, Z, dI, dZ):
         return (
             (np.isfinite(Z[:, 0]))
+            & (np.isfinite(dZ[:, 0]))
+            & (np.isfinite(dZ[:, 1]))
             & (Z[:, 0] > 0)
             & (Z[:, 0] < self.max_z)
             & (np.abs(dZ[:, 0]) < self.max_dZ)
@@ -300,12 +311,14 @@ class DirectIcp:
         Mvu = w00 * M[v0, u0] + w01 * M[v0, u1] + w10 * M[v1, u0] + w11 * M[v1, u1]
         Mvu /= w_sum
 
-        mask_occluded = np.logical_not(np.isnan(Mvu[:, 0].reshape((-1,))))
+        mask_valid = np.isfinite(Mvu[:, 0].reshape((-1,))) & np.isfinite(
+            Mvu[:, 1].reshape((-1,))
+        )
 
         return (
-            Mvu[:, 0].reshape((-1,))[mask_occluded],
-            Mvu[:, 1].reshape((-1,))[mask_occluded],
-            mask_occluded,
+            Mvu[:, 0].reshape((-1,))[mask_valid],
+            Mvu[:, 1].reshape((-1,))[mask_valid],
+            mask_valid,
         )
 
     def log_errors(self, chi2, i, r_I, r_Z):

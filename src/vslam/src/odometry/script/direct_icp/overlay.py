@@ -3,6 +3,32 @@ import cv2 as cv
 
 
 class Overlay:
+    def __init__(self):
+        self.rmse_t = np.inf
+        self.rmse_r = np.inf
+
+    def log(
+        self,
+        level: int,
+        i,
+        uv0: np.array,
+        I0,
+        Z0,
+        i1wxp: np.array,
+        z1wxp: np.array,
+        r_I,
+        r_Z,
+        w_I,
+        w_Z,
+        chi2,
+        dx,
+        sigma_I,
+        sigma_Z,
+    ):
+        pass
+
+
+class OverlayShow(Overlay):
     def __init__(self, nFrames: int, wait_time=1):
         self.nFrames = nFrames
         self.f_no = 0
@@ -148,29 +174,3 @@ class Overlay:
         )
         cv.imshow("DirectIcp", np.vstack([overlay_I, info, overlay_Z]))
         cv.waitKey(self.wait_time)
-
-
-class OverlayNull:
-    def __init__(self):
-        self.rmse_t = np.inf
-        self.rmse_r = np.inf
-
-    def log(
-        self,
-        level: int,
-        i,
-        uv0: np.array,
-        I0,
-        Z0,
-        i1wxp: np.array,
-        z1wxp: np.array,
-        r_I,
-        r_Z,
-        w_I,
-        w_Z,
-        chi2,
-        dx,
-        sigma_I,
-        sigma_Z,
-    ):
-        pass
