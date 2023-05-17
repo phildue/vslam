@@ -1,27 +1,8 @@
 import os
 from typing import List
-from vslampy.tum.evaluate_rpe import read_trajectory, evaluate_trajectory
-import numpy
-
-
-class Dataset:
-    def __init__(self, sequence_id):
-        self._sequence_id = sequence_id
-
-    def bag_filepath(self) -> str:
-        pass
-
-    def gt_filepath(self) -> str:
-        pass
-
-    def sync_topic(self) -> str:
-        pass
-
-    def run_evaluation_scripts(self, gt_traj, algo_traj, output_dir, script_dir):
-        pass
-
-    def remappings(self) -> str:
-        pass
+from vslampy.dataset._tum.evaluate_rpe import read_trajectory, evaluate_trajectory
+from vslampy.dataset.dataset import Dataset
+import numpy as np
 
 
 class TumRgbd(Dataset):
@@ -70,11 +51,6 @@ class TumRgbd(Dataset):
         offset = 0
         scale = 1.0
         print("---------Evaluating Relative Pose Error-----------------")
-        # os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_rpe.py \
-        #    {gt_traj} {algo_traj} \
-        #    --verbose --plot {rpe_plot} --fixed_delta --delta_unit s --save {rpe_txt} \
-        #        > {output_dir}/rpe_summary.txt && cat {output_dir}/rpe_summary.txt")
-
         traj_gt = read_trajectory(self.gt_filepath())
 
         result = evaluate_trajectory(
@@ -88,10 +64,11 @@ class TumRgbd(Dataset):
             float(scale),
         )
 
-        stamps = numpy.array(result)[:, 0]
-        trans_error = numpy.array(result)[:, 4]
-        rot_error = numpy.array(result)[:, 5]
-
+        stamps = np.array(result)[:, 0]
+        trans_error = np.array(result)[:, 4]
+        rot_error = np.array(result)[:, 5]
+        rmse_t = np.sqrt(np.dot(trans_error, trans_error) / len(trans_error))
+        rmse_r = np.sqrt(np.dot(rot_error, rot_error) / len(rot_error)) * 180.0 / np.pi
         if save:
             f = open(save, "w")
             f.write("\n".join([" ".join(["%f" % v for v in line]) for line in result]))
@@ -100,46 +77,24 @@ class TumRgbd(Dataset):
         if verbose:
             print("compared_pose_pairs %d pairs" % (len(trans_error)))
 
-            print(
-                "translational_error.rmse %f m"
-                % numpy.sqrt(numpy.dot(trans_error, trans_error) / len(trans_error))
-            )
-            print("translational_error.mean %f m" % numpy.mean(trans_error))
-            print("translational_error.median %f m" % numpy.median(trans_error))
-            print("translational_error.std %f m" % numpy.std(trans_error))
-            print("translational_error.min %f m" % numpy.min(trans_error))
-            print("translational_error.max %f m" % numpy.max(trans_error))
+            print("translational_error.rmse %f m" % rmse_t)
+            print("translational_error.mean %f m" % np.mean(trans_error))
+            print("translational_error.median %f m" % np.median(trans_error))
+            print("translational_error.std %f m" % np.std(trans_error))
+            print("translational_error.min %f m" % np.min(trans_error))
+            print("translational_error.max %f m" % np.max(trans_error))
 
-            print(
-                "rotational_error.rmse %f deg"
-                % (
-                    numpy.sqrt(numpy.dot(rot_error, rot_error) / len(rot_error))
-                    * 180.0
-                    / numpy.pi
-                )
-            )
-            print(
-                "rotational_error.mean %f deg"
-                % (numpy.mean(rot_error) * 180.0 / numpy.pi)
-            )
+            print("rotational_error.rmse %f deg" % (rmse_r))
+            print("rotational_error.mean %f deg" % (np.mean(rot_error) * 180.0 / np.pi))
             print(
                 "rotational_error.median %f deg"
-                % (numpy.median(rot_error) * 180.0 / numpy.pi)
+                % (np.median(rot_error) * 180.0 / np.pi)
             )
-            print(
-                "rotational_error.std %f deg"
-                % (numpy.std(rot_error) * 180.0 / numpy.pi)
-            )
-            print(
-                "rotational_error.min %f deg"
-                % (numpy.min(rot_error) * 180.0 / numpy.pi)
-            )
-            print(
-                "rotational_error.max %f deg"
-                % (numpy.max(rot_error) * 180.0 / numpy.pi)
-            )
+            print("rotational_error.std %f deg" % (np.std(rot_error) * 180.0 / np.pi))
+            print("rotational_error.min %f deg" % (np.min(rot_error) * 180.0 / np.pi))
+            print("rotational_error.max %f deg" % (np.max(rot_error) * 180.0 / np.pi))
         else:
-            print(numpy.mean(trans_error))
+            print(np.mean(trans_error))
 
         if plot:
             print("---Plotting---")
@@ -184,12 +139,13 @@ class TumRgbd(Dataset):
                         "rotational_error": rot_error[i],
                     }
                 )
-            wandb.run.summary["translational_error.RMSE"] = numpy.sqrt(
-                numpy.dot(trans_error, trans_error) / len(trans_error)
+            wandb.run.summary["translational_error.RMSE"] = np.sqrt(
+                np.dot(trans_error, trans_error) / len(trans_error)
             )
-            wandb.run.summary["rotational_error.RMSE"] = numpy.sqrt(
-                numpy.dot(rot_error, rot_error) / len(rot_error)
+            wandb.run.summary["rotational_error.RMSE"] = np.sqrt(
+                np.dot(rot_error, rot_error) / len(rot_error)
             )
+        return rmse_t, rmse_r
 
     def run_evaluation_scripts(self, gt_traj, algo_traj, output_dir, script_dir):
         ate_plot = os.path.join(output_dir, "ate.png")
@@ -226,35 +182,3 @@ class TumRgbd(Dataset):
             "rgbd_dataset_freiburg2_pioneer_slam",
             "rgbd_dataset_freiburg3_long_office_household",
         ]
-
-
-class Kitti(Dataset):
-    def __init__(self, sequence_id):
-        if sequence_id not in Kitti.sequences():
-            raise ValueError(f"This is not a kitti sequence: {sequence_id}")
-        super(Kitti, self).__init__(sequence_id)
-
-    def bag_filepath(self) -> str:
-        return f"/mnt/dataset/kitti/data_odometry_gray/dataset/sequences/{self._sequence_id}"
-
-    def gt_filepath(self) -> str:
-        return f"/mnt/dataset/kitti/data_odometry_gray/dataset/poses/{self._sequence_id}.txt"
-
-    def sync_topic(self) -> str:
-        return "/kitti/camera_gray_left/image_rect"
-
-    def run_evaluation_scripts(self, gt_traj, algo_traj, output_dir, script_dir):
-        print("No evaluation scripts implemented")
-
-    @staticmethod
-    def sequences() -> List[str]:
-        return ["00"]
-
-    def remappings(self) -> str:
-        return "-r /left/camera_info:=/kitti/camera_gray_left/camera_info \
-        -r /left/image_rect:=/kitti/camera_gray_left/image_rect \
-        -r /right/camera_info:=/kitti/camera_gray_right/camera_info \
-        -r /right/image_rect:=/kitti/camera_gray_right/image_rect \
-        -r /camera/depth/image:=/depth \
-        -r /camera/rgb/image_color:=/kitti/camera_gray_left/image_rect \
-        -r /camera/rgb/camera_info:=/kitti/camera_gray_left/camera_info"
