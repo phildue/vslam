@@ -24,7 +24,7 @@ class DirectIcp:
         max_iterations=100,
         min_parameter_update=1e-4,
         max_delta_chi2=1.1,
-        weight_function=TDistributionWeights(5, 1),
+        weight_function=(TDistributionWeights(5, 1), TDistributionWeights(5, 1)),
         image_log=Overlay(),
     ):
         self.nLevels = nLevels
@@ -48,6 +48,7 @@ class DirectIcp:
         self.weight_function = weight_function
         self.image_log = image_log
         self.border_dist = 0.01
+
         self.log = logging.getLogger("DirectIcp")
 
     def compute_egomotion(
@@ -64,8 +65,7 @@ class DirectIcp:
 
         prior = guess
         motion = prior
-        sigma_I = 1.0
-        sigma_Z = 1.0
+
         for l_ in range(self.nLevels):
             level = self.nLevels - (l_ + 1)
             self.log.info(f"_________Level={level}___________")
@@ -108,9 +108,6 @@ class DirectIcp:
                     pcl0t[:, 2].reshape((-1, 1))[mask_valid],
                 )
 
-                norm_I = i1wxp.shape[0] * 255
-                norm_Z = z1wxp.shape[0]
-
                 i0x = self.I0[level].reshape((-1,))[mask_selected][mask_valid][
                     mask_occluded
                 ]
@@ -129,22 +126,29 @@ class DirectIcp:
                 )
                 r_I = i1wxp - i0x
                 r_Z = pcl1t[:, 2] - z0x
+                r = np.vstack((r_I, r_Z)).T
 
-                sigma_I, w_I = self.weight_function.fit(r_I, sigma_I)
-                sigma_Z, w_Z = self.weight_function.fit(r_Z, sigma_Z)
+                weights = self.compute_weights(r)
 
-                # s_Z, W_Z = compute_scale(r_Z)
-                chi2[i] = (
-                    self.weight_intensity * ((r_I.T * w_I) @ r_I) / norm_I
-                    + self.weight_depth * ((r_Z.T * w_Z) @ r_Z) / norm_Z
-                )
-
-                self.log_errors(chi2, i, r_I, r_Z)
+                chi2[i] = np.sum(r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis]))
 
                 if i > 0 and chi2[i] / chi2[i - 1] > self.max_delta_chi2:
                     reason = f"Error Increased. dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
                     motion = SE3.exp(dx) * motion
                     break
+
+                J = np.hstack(
+                    [
+                        JIJw[mask_valid][mask_occluded][:, np.newaxis],
+                        (
+                            JZJw[mask_valid][mask_occluded]
+                            - self.compute_jacobian_se3_z(pcl1t)
+                        )[:, np.newaxis],
+                    ]
+                )
+                dx = self.compute_pose_update(r, J, weights, prior, motion)
+
+                motion = SE3.exp(-dx) * motion
 
                 uv0 = (
                     self.cam[level]
@@ -161,27 +165,12 @@ class DirectIcp:
                     z1wxp,
                     r_I,
                     r_Z,
-                    w_I,
-                    w_Z,
+                    weights,
                     chi2,
                     dx,
-                    sigma_I,
-                    sigma_Z,
+                    self.weight_function[0].sigma,
+                    self.weight_function[1].sigma,
                 )
-
-                dx = self.compute_pose_update(
-                    JIJw[mask_valid][mask_occluded],
-                    r_I,
-                    w_I,
-                    JZJw[mask_valid][mask_occluded]
-                    - self.compute_jacobian_se3_z(pcl1t),
-                    r_Z,
-                    w_Z,
-                    prior,
-                    motion,
-                )
-
-                motion = SE3.exp(-dx) * motion
 
                 if np.linalg.norm(dx) < self.min_parameter_update:
                     reason = f"Min Step Size reached: {np.linalg.norm(dx):.6f}/{self.min_parameter_update:.6f}"
@@ -213,9 +202,7 @@ class DirectIcp:
         return np.reshape(np.dstack([dIdx, dIdy]), (-1, 2))
 
     def compute_jacobian_depth(self, Z):
-        dZ = np.gradient(
-            Z,
-        )
+        dZ = np.gradient(Z)
 
         return np.reshape(np.dstack([dZ[1], dZ[0]]), (-1, 2))
 
@@ -321,37 +308,22 @@ class DirectIcp:
             mask_valid,
         )
 
-    def log_errors(self, chi2, i, r_I, r_Z):
-        if i > 0:
-            self.log.debug(
-                f"r_I: {statsstr(r_I)}\n"
-                f"r_Z: {statsstr(r_Z)}\n"
-                f"chi2={chi2[i]:0.6f}, dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
-            )
-        else:
-            self.log.debug(
-                f"r_I: {statsstr(r_I)}\n"
-                f"r_Z: {statsstr(r_Z)}\n"
-                f"chi2={chi2[i]:0.6f}"
-            )
+    def compute_weights(self, r):
+        _, w_I = self.weight_function[0].fit(r[:, 0])
+        _, w_Z = self.weight_function[1].fit(r[:, 1])
+        norm_I = r.shape[0] * 255
+        norm_Z = r.shape[0]
+        weights = np.zeros((r.shape[0], 2, 2))
+        weights[:, 0, 0] = self.weight_intensity / norm_I * w_I
+        weights[:, 1, 1] = self.weight_depth / norm_Z * w_Z
+        return weights
 
-    def compute_pose_update(self, JIJw, r_I, w_I, JZJw_Jtz, r_Z, w_Z, prior, motion):
-        norm_I = r_I.shape[0] * 255
-        norm_Z = r_Z.shape[0]
-        JZJw_Jtzw = self.weight_depth * w_Z.reshape((-1, 1)) / norm_Z * JZJw_Jtz
-        Az = JZJw_Jtzw.T @ JZJw_Jtz
-        bz = JZJw_Jtzw.T @ r_Z
-
-        JIJww = self.weight_intensity * w_I.reshape((-1, 1)) / norm_I * JIJw
-        Ai = JIJww.T @ JIJw
-        bi = JIJww.T @ r_I
+    def compute_pose_update(self, r, J, weights, prior, motion):
+        JT = np.transpose(J, (0, 2, 1))
+        A = np.sum(JT @ weights @ J, axis=0).reshape((6, 6))
+        b = np.sum(JT @ weights @ r[:, :, np.newaxis], axis=0).reshape((6,))
 
         Ap = self.weight_prior * np.identity(6)
         bp = self.weight_prior * (motion * prior.inverse()).log()
 
-        return np.linalg.solve(Ai + Az + Ap, bi + bz + bp)
-
-    def compute_pose_update_joint(
-        self, JIJw, r_I, JZJw_Jtz, r_Z, w_IZ, scale, prior, motion
-    ):
-        pass
+        return np.linalg.solve(A + Ap, b + bp)

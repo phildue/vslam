@@ -18,7 +18,7 @@ if __name__ == "__main__":
     n_frames = np.inf
 
     wait_time = 1
-    upload = True
+    upload = False
     parser = argparse.ArgumentParser(
         description="""
     Run evaluation of algorithm"""
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         "max_z": 5.0,
         "max_z_diff": 0.2,
         "max_iterations": 100,
-        "min_parameter_update": 1e-6,
+        "min_parameter_update": 1e-4,
         "max_delta_chi2": 1.1,
     }
     sequence = TumRgbd(args.sequence_id)
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     image_log = OverlayShow(f_end, wait_time) if wait_time >= 0 else Overlay()
     direct_icp = DirectIcp(
         cam=Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
-        weight_function=TDistributionWeights(5.0, 1),
+        weight_function=(TDistributionWeights(5.0, 1), TDistributionWeights(5.0, 1)),
         image_log=image_log,
         **params,
     )

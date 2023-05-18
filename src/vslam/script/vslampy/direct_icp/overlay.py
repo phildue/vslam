@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv
+from vslampy.utils.utils import statsstr
 
 
 class Overlay:
@@ -18,8 +19,7 @@ class Overlay:
         z1wxp: np.array,
         r_I,
         r_Z,
-        w_I,
-        w_Z,
+        scale,
         chi2,
         dx,
         sigma_I,
@@ -102,13 +102,15 @@ class OverlayShow(Overlay):
         z1wxp: np.array,
         r_I,
         r_Z,
-        w_I,
-        w_Z,
+        scale,
         chi2,
         dx,
         sigma_I,
         sigma_Z,
     ):
+        w_I = scale[:, 0, 0] * 255 * scale.shape[0]
+        w_Z = scale[:, 1, 1] * scale.shape[0]
+
         overlay_I = self.create_overlay(uv0, I0[level], i1wxp, r_I, w_I)
         overlay_Z = self.create_overlay_depth(uv0, Z0[level], z1wxp, r_Z, w_Z)
         info = np.zeros((80, overlay_I.shape[1]), dtype=np.uint8)
