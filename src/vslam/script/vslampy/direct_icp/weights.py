@@ -13,8 +13,7 @@ class TDistributionWeights:
         w = (self.dof + 1.0) / (self.dof + (r / self.sigma) ** 2)
         return w
 
-    def fit(self, r: np.array, sigma0, precision=1e-3, max_iterations=50) -> np.array:
-        self.sigma = sigma0
+    def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
         step_size = np.inf
         for iter in range(max_iterations):
             w = self.compute_weights(r)
