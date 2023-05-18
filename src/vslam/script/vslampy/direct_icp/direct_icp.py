@@ -4,7 +4,7 @@ from sophus.sophuspy import SE3
 import logging
 
 from vslampy.direct_icp.overlay import Overlay
-from vslampy.direct_icp.weights import TDistributionWeights
+from vslampy.direct_icp.weights import TDistributionMultivariateWeights
 from vslampy.utils.utils import statsstr
 from vslampy.direct_icp.camera import Camera
 
@@ -14,7 +14,6 @@ class DirectIcp:
         self,
         cam: Camera,
         nLevels: int,
-        weight_intensity=1.0,
         weight_prior=0.0,
         min_gradient_intensity=10 * 8,
         min_gradient_depth=np.inf,
@@ -23,8 +22,7 @@ class DirectIcp:
         max_z_diff=0.2,
         max_iterations=100,
         min_parameter_update=1e-4,
-        max_delta_chi2=1.1,
-        weight_function=(TDistributionWeights(5, 1), TDistributionWeights(5, 1)),
+        weight_function=TDistributionMultivariateWeights(5, np.identity(2)),
         image_log=Overlay(),
     ):
         self.nLevels = nLevels
@@ -33,8 +31,6 @@ class DirectIcp:
         self.I0 = None
         self.Z0 = None
         self.t0 = None
-        self.weight_intensity = weight_intensity
-        self.weight_depth = 1.0 - weight_intensity
         self.weight_prior = weight_prior
         self.min_dI = min_gradient_intensity
         self.min_dZ = min_gradient_depth
@@ -44,7 +40,6 @@ class DirectIcp:
         self.max_z_diff = max_z_diff
         self.max_iterations = max_iterations
         self.min_parameter_update = min_parameter_update
-        self.max_delta_chi2 = max_delta_chi2
         self.weight_function = weight_function
         self.image_log = image_log
         self.border_dist = 0.01
@@ -118,38 +113,27 @@ class DirectIcp:
                 z0x = self.Z0[level].reshape((-1,))[mask_selected][mask_valid][
                     mask_occluded
                 ]
-                self.log.debug(
-                    f"i0x: {statsstr(i0x)}\n"
-                    f"z0x: {statsstr(z0x)}\n"
-                    f"i1wxp: {statsstr(i1wxp)}\n"
-                    f"z1wxp: {statsstr(z1wxp)}\n"
-                )
-                r_I = i1wxp - i0x
-                r_Z = pcl1t[:, 2] - z0x
-                r = np.vstack((r_I, r_Z)).T
 
-                weights = self.compute_weights(r)
+                r = np.vstack((i1wxp - i0x, pcl1t[:, 2] - z0x)).T
+
+                weights = self.weight_function.compute_weight_matrices(r)
 
                 chi2[i] = np.sum(r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis]))
 
-                if i > 0 and chi2[i] / chi2[i - 1] > self.max_delta_chi2:
-                    reason = f"Error Increased. dchi2={(chi2[i]/chi2[i-1])*100:0.2f} %, dchi2={chi2[i]-chi2[i-1]:0.6f}"
-                    motion = SE3.exp(dx) * motion
-                    break
-
+                JZJw_Jtz = JZJw[mask_valid][
+                    mask_occluded
+                ] - self.compute_jacobian_se3_z(pcl1t)
                 J = np.hstack(
                     [
                         JIJw[mask_valid][mask_occluded][:, np.newaxis],
-                        (
-                            JZJw[mask_valid][mask_occluded]
-                            - self.compute_jacobian_se3_z(pcl1t)
-                        )[:, np.newaxis],
+                        JZJw_Jtz[:, np.newaxis],
                     ]
                 )
                 dx = self.compute_pose_update(r, J, weights, prior, motion)
 
                 motion = SE3.exp(-dx) * motion
 
+                """ Logging """
                 uv0 = (
                     self.cam[level]
                     .image_coordinates()[mask_selected][mask_valid][mask_occluded]
@@ -163,13 +147,11 @@ class DirectIcp:
                     self.Z0,
                     i1wxp,
                     z1wxp,
-                    r_I,
-                    r_Z,
+                    r,
                     weights,
                     chi2,
                     dx,
-                    self.weight_function[0].sigma,
-                    self.weight_function[1].sigma,
+                    self.weight_function.scale,
                 )
 
                 if np.linalg.norm(dx) < self.min_parameter_update:
@@ -307,16 +289,6 @@ class DirectIcp:
             Mvu[:, 1].reshape((-1,))[mask_valid],
             mask_valid,
         )
-
-    def compute_weights(self, r):
-        _, w_I = self.weight_function[0].fit(r[:, 0])
-        _, w_Z = self.weight_function[1].fit(r[:, 1])
-        norm_I = r.shape[0] * 255
-        norm_Z = r.shape[0]
-        weights = np.zeros((r.shape[0], 2, 2))
-        weights[:, 0, 0] = self.weight_intensity / norm_I * w_I
-        weights[:, 1, 1] = self.weight_depth / norm_Z * w_Z
-        return weights
 
     def compute_pose_update(self, r, J, weights, prior, motion):
         JT = np.transpose(J, (0, 2, 1))

@@ -7,7 +7,11 @@ import logging.config
 from vslampy.dataset.tum import TumRgbd
 from vslampy.direct_icp.direct_icp import DirectIcp, Camera
 from vslampy.direct_icp.overlay import OverlayShow, Overlay
-from vslampy.direct_icp.weights import TDistributionWeights
+from vslampy.direct_icp.weights import (
+    TDistributionWeights,
+    TDistributionMultivariateWeights,
+    LinearCombination,
+)
 from vslampy.utils.utils import load_frame, write_result_file, Timer
 import wandb
 import os
@@ -29,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sequence_id",
         help="Id of the sequence to run on)",
-        default="rgbd_dataset_freiburg1_desk2",
+        default="rgbd_dataset_freiburg2_desk",
     )
     args = parser.parse_args()
 
@@ -47,7 +51,6 @@ if __name__ == "__main__":
 
     params = {
         "nLevels": 4,
-        "weight_intensity": 0.5,
         "weight_prior": 0.0,
         "min_gradient_intensity": 10 * 8,  #
         "min_gradient_depth": np.inf,
@@ -56,7 +59,6 @@ if __name__ == "__main__":
         "max_z_diff": 0.2,
         "max_iterations": 100,
         "min_parameter_update": 1e-4,
-        "max_delta_chi2": 1.1,
     }
     sequence = TumRgbd(args.sequence_id)
 
@@ -73,9 +75,15 @@ if __name__ == "__main__":
     timestamps, files_I, files_Z = sequence.image_depth_filepaths()
     f_end = min([n_frames, len(timestamps)])
     image_log = OverlayShow(f_end, wait_time) if wait_time >= 0 else Overlay()
+    t_multi = TDistributionMultivariateWeights(5.0, np.identity(2))
+    t_combi = LinearCombination(
+        TDistributionWeights(5, 1),
+        TDistributionWeights(5, 1),
+    )
+
     direct_icp = DirectIcp(
         cam=Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640),
-        weight_function=(TDistributionWeights(5.0, 1), TDistributionWeights(5.0, 1)),
+        weight_function=t_combi,
         image_log=image_log,
         **params,
     )

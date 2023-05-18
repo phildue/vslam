@@ -17,13 +17,11 @@ class Overlay:
         Z0,
         i1wxp: np.array,
         z1wxp: np.array,
-        r_I,
-        r_Z,
+        r,
         scale,
         chi2,
         dx,
-        sigma_I,
-        sigma_Z,
+        sigma,
     ):
         pass
 
@@ -100,16 +98,18 @@ class OverlayShow(Overlay):
         Z0,
         i1wxp: np.array,
         z1wxp: np.array,
-        r_I,
-        r_Z,
+        r,
         scale,
         chi2,
         dx,
-        sigma_I,
-        sigma_Z,
+        sigma,
     ):
         w_I = scale[:, 0, 0] * 255 * scale.shape[0]
         w_Z = scale[:, 1, 1] * scale.shape[0]
+        r_I = r[:, 0]
+        r_Z = r[:, 1]
+        sigma_I = sigma[0, 0]
+        sigma_Z = sigma[1, 1]
 
         overlay_I = self.create_overlay(uv0, I0[level], i1wxp, r_I, w_I)
         overlay_Z = self.create_overlay_depth(uv0, Z0[level], z1wxp, r_Z, w_Z)
