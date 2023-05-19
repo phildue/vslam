@@ -19,7 +19,6 @@ class DirectIcp:
         min_gradient_depth=np.inf,
         max_gradient_depth=0.5,
         max_z=5.0,
-        max_z_diff=0.2,
         max_iterations=100,
         min_parameter_update=1e-4,
         weight_function=TDistributionMultivariateWeights(5, np.identity(2)),
@@ -37,7 +36,6 @@ class DirectIcp:
         self.max_dZ = max_gradient_depth
 
         self.max_z = max_z
-        self.max_z_diff = max_z_diff
         self.max_iterations = max_iterations
         self.min_parameter_update = min_parameter_update
         self.weight_function = weight_function
@@ -88,32 +86,31 @@ class DirectIcp:
             for i in range(self.max_iterations):
                 pcl0t = motion * pcl0
                 uv0t = self.cam[level].project(pcl0t)
-                mask_valid = self.select_visible(pcl0t[:, 2], uv0t, self.cam[level])
-                uv0t = uv0t[mask_valid]
+                mask_visible = self.select_visible(pcl0t[:, 2], uv0t, self.cam[level])
+                uv0t = uv0t[mask_visible]
                 if uv0t.shape[0] < 6:
                     reason = "Not enough constraints"
                     motion = SE3()
-                    l_ = 0
                     break
 
-                i1wxp, z1wxp, mask_occluded = self.interpolate(
+                i1wxp, z1wxp, mask_valid = self.interpolate(
                     I1[level],
                     Z1[level],
                     uv0t,
-                    pcl0t[:, 2].reshape((-1, 1))[mask_valid],
+                    pcl0t[:, 2].reshape((-1, 1))[mask_visible],
                 )
 
                 pcl1t = motion.inverse() * (
-                    self.cam[level].reconstruct(uv0t[mask_occluded], z1wxp)
+                    self.cam[level].reconstruct(uv0t[mask_valid], z1wxp)
                 )
                 uv0 = (
                     self.cam[level]
-                    .image_coordinates()[mask_selected][mask_valid][mask_occluded]
+                    .image_coordinates()[mask_selected][mask_visible][mask_valid]
                     .astype(int)
                 )
 
                 i0x = self.I0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
-                z0x = self.I0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
+                z0x = self.Z0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
 
                 r = np.vstack(((i1wxp - i0x) / 255, pcl1t[:, 2] - z0x)).T
 
@@ -121,12 +118,12 @@ class DirectIcp:
 
                 chi2[i] = np.sum(r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis]))
 
-                JZJw_Jtz = JZJw[mask_valid][
-                    mask_occluded
-                ] - self.compute_jacobian_se3_z(pcl1t)
+                JZJw_Jtz = JZJw[mask_visible][mask_valid] - self.compute_jacobian_se3_z(
+                    pcl1t
+                )
                 J = np.hstack(
                     [
-                        JIJw[mask_valid][mask_occluded][:, np.newaxis],
+                        JIJw[mask_visible][mask_valid][:, np.newaxis],
                         JZJw_Jtz[:, np.newaxis],
                     ]
                 )
@@ -250,32 +247,22 @@ class DirectIcp:
         w_u0 = 1.0 - w_u1
         w_v1 = v - v0
         w_v0 = 1.0 - w_v1
-
-        w00 = np.reshape(w_u0 * w_v0, (-1, 1))
-
-        w00[np.abs(Z[v0, u0].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
-        w00[~np.isfinite(Z[v0, u0].reshape((-1, 1)))] = 0
-        w00[Z[v0, u0].reshape((-1, 1)) <= 0] = 0
-
-        w10 = np.reshape(w_u0 * w_v1, (-1, 1))
-        w10[np.abs(Z[v1, u0].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
-        w10[~np.isfinite(Z[v1, u0].reshape((-1, 1)))] = 0
-        w10[Z[v1, u0].reshape((-1, 1)) <= 0] = 0
-
-        w01 = np.reshape(w_u1 * w_v0, (-1, 1))
-        w01[np.abs(Z[v0, u1].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
-        w01[~np.isfinite(Z[v0, u1].reshape((-1, 1)))] = 0
-        w01[Z[v0, u1].reshape((-1, 1)) <= 0] = 0
-
-        w11 = np.reshape(w_u1 * w_v1, (-1, 1))
-        w11[np.abs(Z[v1, u1].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
-        w11[~np.isfinite(Z[v1, u1].reshape((-1, 1)))] = 0
-        w11[Z[v1, u1].reshape((-1, 1)) <= 0] = 0
-        w_sum = np.reshape(w00 + w01 + w10 + w11, (-1, 1))
+        u_v_wu_wv = (
+            (u0, v0, w_u0, w_v0),
+            (u1, v0, w_u1, w_v0),
+            (u0, v1, w_u0, w_v1),
+            (u1, v1, w_u1, w_v1),
+        )
+        w = []
+        for u_, v_, w_u, w_v in u_v_wu_wv:
+            w_ = np.reshape(w_u * w_v, (-1, 1))
+            w_[~np.isfinite(Z[v_, u_].reshape((-1, 1)))] = 0
+            w_[Z[v_, u_].reshape((-1, 1)) <= 0] = 0
+            w += [w_]
 
         M = np.dstack([I, Z])
-        Mvu = w00 * M[v0, u0] + w01 * M[v0, u1] + w10 * M[v1, u0] + w11 * M[v1, u1]
-        Mvu /= w_sum
+        Mvu = w[0] * M[v0, u0] + w[1] * M[v0, u1] + w[2] * M[v1, u0] + w[3] * M[v1, u1]
+        Mvu /= np.reshape(w[0] + w[1] + w[2] + w[3], (-1, 1))
 
         mask_valid = np.isfinite(Mvu[:, 0].reshape((-1,))) & np.isfinite(
             Mvu[:, 1].reshape((-1,))

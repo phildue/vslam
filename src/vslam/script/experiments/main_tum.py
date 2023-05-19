@@ -22,7 +22,7 @@ if __name__ == "__main__":
     n_frames = np.inf
 
     wait_time = 1
-    upload = True
+    upload = False
     parser = argparse.ArgumentParser(
         description="""
     Run evaluation of algorithm"""
@@ -37,7 +37,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    np.set_printoptions(precision=4)
     logging.config.dictConfig(
         {
             "version": 1,
@@ -51,14 +50,14 @@ if __name__ == "__main__":
 
     params = {
         "nLevels": 4,
-        "weight_prior": 0.0,
-        "min_gradient_intensity": 10,  #
+        "weight_prior": 0.1,
+        "min_gradient_intensity": 10,
         "min_gradient_depth": np.inf,
         "max_gradient_depth": 0.3,
         "max_z": 5.0,
-        "max_z_diff": np.inf,
         "max_iterations": 100,
-        "min_parameter_update": 1e-5,
+        "min_parameter_update": 1e-4,
+        "weight_function": "LinearCombination",
     }
     sequence = TumRgbd(args.sequence_id)
 
@@ -75,13 +74,15 @@ if __name__ == "__main__":
     timestamps, files_I, files_Z = sequence.image_depth_filepaths()
     f_end = min([n_frames, len(timestamps)])
 
-    t_multi = TDistributionMultivariateWeights(5.0, np.identity(2))
-    t_combi = LinearCombination(
-        TDistributionWeights(5, 1),
-        TDistributionWeights(5, 1),
+    weight_function = (
+        LinearCombination(
+            TDistributionWeights(5, 1),
+            TDistributionWeights(5, 1),
+        )
+        if params["weight_function"] == "LinearCombination"
+        else TDistributionMultivariateWeights(5.0, np.identity(2))
     )
-
-    weight_function = t_multi
+    params.pop("weight_function")
     image_log = (
         OverlayShow(f_end, wait_time, weight_function) if wait_time >= 0 else Overlay()
     )
