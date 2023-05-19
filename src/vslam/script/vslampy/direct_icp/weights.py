@@ -14,15 +14,15 @@ class LinearCombination:
         self.scale = np.identity(2)
 
     def compute_weight_matrices(self, r: np.array):
-        sigma_I, w_I = self.weight_function_intensity.fit(r[:, 0])
-        sigma_Z, w_Z = self.weight_function_depth.fit(r[:, 1])
-        self.scale[0, 0] = sigma_I
-        self.scale[1, 1] = sigma_Z
-        norm_I = 255
-        norm_Z = 1
+        scale_I, w_I = self.weight_function_intensity.fit(r[:, 0])
+        scale_Z, w_Z = self.weight_function_depth.fit(r[:, 1])
+        self.scale[0, 0] = scale_I
+        self.scale[1, 1] = scale_Z
+        # scale_I = 1 / r.shape[0]
+        # scale_Z = 1 / r.shape[0]
         weights = np.zeros((r.shape[0], 2, 2))
-        weights[:, 0, 0] = self.weight_intensity / norm_I * w_I * sigma_I
-        weights[:, 1, 1] = self.weight_depth / norm_Z * w_Z * sigma_Z
+        weights[:, 0, 0] = self.weight_intensity * w_I * scale_I
+        weights[:, 1, 1] = self.weight_depth * w_Z * scale_Z
         return weights
 
 
@@ -60,7 +60,7 @@ class TDistributionMultivariateWeights:
         if scale is None:
             scale = np.identity(2)
         self.dof = dof
-        self.sigma = scale
+        self.scale = scale
         self.dim = dim
         self.log = logging.getLogger("WeightEstimation")
 
@@ -72,7 +72,7 @@ class TDistributionMultivariateWeights:
     def compute_weights(self, r: np.array) -> np.array:
         self._check_shape(r)
         return (self.dof + self.dim) / (
-            self.dof + np.sum(np.dot(r, self.sigma) * r, axis=1)
+            self.dof + np.sum(np.dot(r, self.scale) * r, axis=1)
         )
 
     def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
@@ -80,26 +80,26 @@ class TDistributionMultivariateWeights:
         step_size = np.inf
         for iter in range(max_iterations):
             w = self.compute_weights(r)
-            sigma_i = (
+            scale_i = (
                 np.sum(
                     w.reshape((-1, 1, 1)) * (r[:, :, np.newaxis] @ r[:, np.newaxis]),
                     axis=0,
                 )
                 / r.shape[0]
             )
-
-            step_size = np.linalg.norm(self.sigma - sigma_i)
-            self.sigma = sigma_i
+            scale_i = np.linalg.inv(scale_i)
+            step_size = np.linalg.norm(self.scale - scale_i)
+            self.scale = scale_i
             self.log.debug(
-                f"\titer = {iter}, sigma = {self.sigma}, step_size = {step_size:4f} \n\tW={statsstr(w)})"
+                f"\titer = {iter}, sigma = {self.scale}, step_size = {step_size:4f} \n\tW={statsstr(w)})"
             )
             if step_size < precision:
                 break
 
         self.log.info(
-            f"\tEM: {iter}, precision: {step_size:.4f}, scale: {self.sigma}, \nW={statsstr(w)}"
+            f"\tEM: {iter}, precision: {step_size:.4f}, scale: {self.scale}, \nW={statsstr(w)}"
         )
-        return self.sigma, w
+        return self.scale, w
 
     def _check_shape(self, r: np.array):
         if r.shape[1] != self.dim:
