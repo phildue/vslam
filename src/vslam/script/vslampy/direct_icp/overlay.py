@@ -1,6 +1,7 @@
 import numpy as np
 import cv2 as cv
 from vslampy.utils.utils import statsstr
+from vslampy.direct_icp.weights import TDistributionMultivariateWeights
 
 
 class Overlay:
@@ -13,29 +14,32 @@ class Overlay:
         level: int,
         i,
         uv0: np.array,
-        I0,
-        Z0,
-        i1wxp: np.array,
-        z1wxp: np.array,
+        IZ0,
+        iz1wxp,
         r,
         scale,
         chi2,
         dx,
-        sigma,
     ):
         pass
 
 
 class OverlayShow(Overlay):
-    def __init__(self, nFrames: int, wait_time=1):
+    def __init__(
+        self,
+        nFrames: int,
+        wait_time=1,
+        weight_function=TDistributionMultivariateWeights(),
+    ):
         self.nFrames = nFrames
         self.f_no = 0
         self.wait_time = wait_time
         self.max_z = 5.0
         self.rmse_t = np.inf
         self.rmse_r = np.inf
+        self.weight_function = weight_function
 
-    def create_overlay(self, uv0, I0, i1wxp, residuals, weights):
+    def create_overlay(self, uv0, I0, i1wxp, residuals, weights, w_max):
         Warped = np.zeros_like(I0)
         Residual = np.zeros_like(I0)
         Weights = np.zeros_like(I0)
@@ -49,10 +53,12 @@ class OverlayShow(Overlay):
         Valid[uv0[:, 1], uv0[:, 0]] = 255
 
         Weights[uv0[:, 1], uv0[:, 0]] = weights.reshape((-1,))
-        Weights = (255.0 * Weights / Weights.max()).astype(np.uint8)
+        Weights = (255.0 * Weights / w_max).astype(np.uint8)
 
         R_W[uv0[:, 1], uv0[:, 0]] = np.abs(
-            residuals.reshape((-1,)) * weights.reshape((-1,))
+            residuals.reshape((-1,))
+            * weights.reshape((-1,))
+            * self.weight_function.scale[1, 1]
         )
         R_W = (255 * R_W / R_W.max()).astype(np.uint8)
         imgs = [I0, Warped, Valid, Residual, Weights, R_W]
@@ -61,7 +67,7 @@ class OverlayShow(Overlay):
 
         return stack
 
-    def create_overlay_depth(self, uv0, Z0, z1wxp, residuals, weights):
+    def create_overlay_depth(self, uv0, Z0, z1wxp, residuals, weights, w_max):
         Warped = np.zeros_like(Z0)
         Residual = np.zeros_like(Z0)
         Weights = np.zeros_like(Z0)
@@ -75,10 +81,12 @@ class OverlayShow(Overlay):
         Valid[uv0[:, 1], uv0[:, 0]] = 255
 
         Weights[uv0[:, 1], uv0[:, 0]] = weights.reshape((-1,))
-        Weights = 255.0 * Weights / Weights.max()
+        Weights = 255.0 * Weights / w_max
 
         R_W[uv0[:, 1], uv0[:, 0]] = np.abs(
-            residuals.reshape((-1,)) * weights.reshape((-1,))
+            residuals.reshape((-1,))
+            * weights.reshape((-1,))
+            * self.weight_function.scale[1, 1]
         )
         R_W = 255 * R_W / R_W.max()
         Z0 = Z0 / self.max_z * 255
@@ -94,25 +102,23 @@ class OverlayShow(Overlay):
         level: int,
         i,
         uv0: np.array,
-        I0,
-        Z0,
-        i1wxp: np.array,
-        z1wxp: np.array,
+        IZ0,
+        iz1wxp,
         r,
         scale,
         chi2,
         dx,
-        sigma,
     ):
-        w_I = scale[:, 0, 0] * 255 * scale.shape[0]
-        w_Z = scale[:, 1, 1] * scale.shape[0]
+        w_I = scale[:, 0, 0] / self.weight_function.scale[0, 0]
+        w_Z = scale[:, 1, 1] / self.weight_function.scale[1, 1]
+        w_max = np.max((w_I.max(), w_Z.max()))
         r_I = r[:, 0]
         r_Z = r[:, 1]
-        sigma_I = sigma[0, 0]
-        sigma_Z = sigma[1, 1]
+        I0, Z0 = IZ0
+        i1wxp, z1wxp = iz1wxp
 
-        overlay_I = self.create_overlay(uv0, I0[level], i1wxp, r_I, w_I)
-        overlay_Z = self.create_overlay_depth(uv0, Z0[level], z1wxp, r_Z, w_Z)
+        overlay_I = self.create_overlay(uv0, I0[level], i1wxp, r_I, w_I, w_max)
+        overlay_Z = self.create_overlay_depth(uv0, Z0[level], z1wxp, r_Z, w_Z, w_max)
         info = np.zeros((80, overlay_I.shape[1]), dtype=np.uint8)
         font = cv.FONT_HERSHEY_TRIPLEX
         color = (255, 255, 255)
@@ -124,7 +130,7 @@ class OverlayShow(Overlay):
         info = cv.putText(info, "Residual", (int(640 * 3 / 2), 15), font, 0.5, color, 1)
         info = cv.putText(
             info,
-            f"|r_Z| = {np.linalg.norm(r_I):.2f}",
+            f"|r_I| = {np.linalg.norm(r_I):.2f}",
             (int(640 * 3 / 2), 40),
             font,
             0.5,
@@ -142,10 +148,22 @@ class OverlayShow(Overlay):
         )
         info = cv.putText(info, f"Weights", (int(640 * 4 / 2), 15), font, 0.5, color, 1)
         info = cv.putText(
-            info, f"s_I = {sigma_I:.3f}", (int(640 * 4 / 2), 40), font, 0.5, color, 1
+            info,
+            f"s_I = {self.weight_function.scale[0,0]:.3f}",
+            (int(640 * 4 / 2), 40),
+            font,
+            0.5,
+            color,
+            1,
         )
         info = cv.putText(
-            info, f"s_Z = {sigma_Z:.3f}", (int(640 * 4 / 2), 65), font, 0.5, color, 1
+            info,
+            f"s_Z = {self.weight_function.scale[1,1]:.3f}",
+            (int(640 * 4 / 2), 65),
+            font,
+            0.5,
+            color,
+            1,
         )
         info = cv.putText(
             info,
@@ -156,6 +174,8 @@ class OverlayShow(Overlay):
             color,
             1,
         )
+        """
+        
         info = cv.putText(
             info,
             f"rw_max_I = {(w_I * r_I).max():.2f}",
@@ -165,7 +185,7 @@ class OverlayShow(Overlay):
             color,
             1,
         )
-        info = cv.putText(
+           info = cv.putText(
             info,
             f"rw_max_Z = {(w_Z * r_Z).max():.2f}",
             (int(640 * 5 / 2), 65),
@@ -174,5 +194,25 @@ class OverlayShow(Overlay):
             color,
             1,
         )
+        """
+        info = cv.putText(
+            info,
+            f"|wr_I| = {np.linalg.norm(r_I*w_I):.2f} mean(wr_I) = {np.sum(r_I*w_I):.2f}",
+            (int(640 * 5 / 2), 40),
+            font,
+            0.5,
+            color,
+            1,
+        )
+        info = cv.putText(
+            info,
+            f"|wr_Z| = {np.linalg.norm(r_Z*w_Z):.2f} mean(wr_Z) = {np.sum(r_Z*w_Z):.2f}",
+            (int(640 * 5 / 2), 65),
+            font,
+            0.5,
+            color,
+            1,
+        )
+
         cv.imshow("DirectIcp", np.vstack([overlay_I, info, overlay_Z]))
         cv.waitKey(self.wait_time)

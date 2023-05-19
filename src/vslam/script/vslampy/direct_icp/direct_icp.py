@@ -32,7 +32,7 @@ class DirectIcp:
         self.Z0 = None
         self.t0 = None
         self.weight_prior = weight_prior
-        self.min_dI = min_gradient_intensity
+        self.min_dI = min_gradient_intensity / 255
         self.min_dZ = min_gradient_depth
         self.max_dZ = max_gradient_depth
 
@@ -103,18 +103,19 @@ class DirectIcp:
                     pcl0t[:, 2].reshape((-1, 1))[mask_valid],
                 )
 
-                i0x = self.I0[level].reshape((-1,))[mask_selected][mask_valid][
-                    mask_occluded
-                ]
-
                 pcl1t = motion.inverse() * (
                     self.cam[level].reconstruct(uv0t[mask_occluded], z1wxp)
                 )
-                z0x = self.Z0[level].reshape((-1,))[mask_selected][mask_valid][
-                    mask_occluded
-                ]
+                uv0 = (
+                    self.cam[level]
+                    .image_coordinates()[mask_selected][mask_valid][mask_occluded]
+                    .astype(int)
+                )
 
-                r = np.vstack((i1wxp - i0x, pcl1t[:, 2] - z0x)).T
+                i0x = self.I0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
+                z0x = self.I0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
+
+                r = np.vstack(((i1wxp - i0x) / 255, pcl1t[:, 2] - z0x)).T
 
                 weights = self.weight_function.compute_weight_matrices(r)
 
@@ -133,25 +134,16 @@ class DirectIcp:
 
                 motion = SE3.exp(-dx) * motion
 
-                """ Logging """
-                uv0 = (
-                    self.cam[level]
-                    .image_coordinates()[mask_selected][mask_valid][mask_occluded]
-                    .astype(int)
-                )
                 self.image_log.log(
                     level,
                     i,
                     uv0,
-                    self.I0,
-                    self.Z0,
-                    i1wxp,
-                    z1wxp,
+                    (self.I0, self.Z0),
+                    (i1wxp, z1wxp),
                     r,
                     weights,
                     chi2,
                     dx,
-                    self.weight_function.scale,
                 )
 
                 if np.linalg.norm(dx) < self.min_parameter_update:
@@ -178,8 +170,8 @@ class DirectIcp:
         return I, Z
 
     def compute_jacobian_image(self, I):
-        dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0)
-        dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1)
+        dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0, scale=1 / 8) / 255
+        dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1, scale=1 / 8) / 255
 
         return np.reshape(np.dstack([dIdx, dIdy]), (-1, 2))
 
@@ -260,20 +252,25 @@ class DirectIcp:
         w_v0 = 1.0 - w_v1
 
         w00 = np.reshape(w_u0 * w_v0, (-1, 1))
+
         w00[np.abs(Z[v0, u0].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
         w00[~np.isfinite(Z[v0, u0].reshape((-1, 1)))] = 0
+        w00[Z[v0, u0].reshape((-1, 1)) <= 0] = 0
 
         w10 = np.reshape(w_u0 * w_v1, (-1, 1))
         w10[np.abs(Z[v1, u0].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
         w10[~np.isfinite(Z[v1, u0].reshape((-1, 1)))] = 0
+        w10[Z[v1, u0].reshape((-1, 1)) <= 0] = 0
 
         w01 = np.reshape(w_u1 * w_v0, (-1, 1))
         w01[np.abs(Z[v0, u1].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
         w01[~np.isfinite(Z[v0, u1].reshape((-1, 1)))] = 0
+        w01[Z[v0, u1].reshape((-1, 1)) <= 0] = 0
 
         w11 = np.reshape(w_u1 * w_v1, (-1, 1))
         w11[np.abs(Z[v1, u1].reshape((-1, 1)) - zt) > self.max_z_diff] = 0
         w11[~np.isfinite(Z[v1, u1].reshape((-1, 1)))] = 0
+        w11[Z[v1, u1].reshape((-1, 1)) <= 0] = 0
         w_sum = np.reshape(w00 + w01 + w10 + w11, (-1, 1))
 
         M = np.dstack([I, Z])
