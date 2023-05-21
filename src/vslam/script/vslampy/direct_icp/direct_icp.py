@@ -88,10 +88,6 @@ class DirectIcp:
                 uv0t = self.cam[level].project(pcl0t)
                 mask_visible = self.select_visible(pcl0t[:, 2], uv0t, self.cam[level])
                 uv0t = uv0t[mask_visible]
-                if uv0t.shape[0] < 6:
-                    reason = "Not enough constraints"
-                    motion = SE3()
-                    break
 
                 i1wxp, z1wxp, mask_valid = self.interpolate(
                     I1[level],
@@ -99,6 +95,10 @@ class DirectIcp:
                     uv0t,
                     pcl0t[:, 2].reshape((-1, 1))[mask_visible],
                 )
+                if i1wxp.shape[0] < 6:
+                    reason = "Not enough constraints"
+                    motion = SE3()
+                    break
 
                 pcl1t = motion.inverse() * (
                     self.cam[level].reconstruct(uv0t[mask_valid], z1wxp)
