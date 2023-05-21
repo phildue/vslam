@@ -25,18 +25,25 @@ class TumRgbd(Dataset):
         return "/camera/depth/image"
 
     def image_depth_filepaths(self):
-        timestamps = []
+        timestamps_depth = []
+        timestamps_intensity = []
         filenames_depth = []
         filenames_intensity = []
         folder = f"/mnt/dataset/tum_rgbd/{self._sequence_id}/{self._sequence_id}"
         for line in open(f"{folder}/assoc.txt", "r"):
             elements = line.split(" ")
-            timestamps += [float(elements[0])]
+            timestamps_depth += [float(elements[0])]
+            timestamps_intensity += [float(elements[2])]
             filenames_depth += [folder + "/" + elements[1]]
             filenames_intensity += [folder + "/" + elements[3][:-1]]
 
-        print(f"Found {len(timestamps)} frames")
-        return timestamps, filenames_intensity, filenames_depth
+        print(f"Found {len(timestamps_depth)} frames")
+        return (
+            timestamps_depth,
+            filenames_depth,
+            timestamps_intensity,
+            filenames_intensity,
+        )
 
     def evaluate_rpe(self, traj_est, output_dir="./", upload=True):
         rpe_plot = os.path.join(output_dir, "rpe.png")
@@ -174,6 +181,7 @@ class TumRgbd(Dataset):
             "rgbd_dataset_freiburg1_desk2_validation",
             "rgbd_dataset_freiburg1_floor",
             "rgbd_dataset_freiburg1_rpy",
+            "rgbd_dataset_freiburg1_teddy",
             "rgbd_dataset_freiburg1_xyz",
             "rgbd_dataset_freiburg1_360",
             "rgbd_dataset_freiburg2_desk",

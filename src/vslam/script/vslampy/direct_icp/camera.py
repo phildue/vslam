@@ -33,3 +33,13 @@ class Camera:
         uv = (self.K @ pcl.T).T
         uv /= uv[:, 2, None]
         return np.reshape(uv, (-1, 3))[:, :2]
+
+    def select_visible(self, uv: np.array, z: np.array, border=0.01) -> np.array:
+        border = max((1, int(border * self.w)))
+        return (
+            (z > 0)
+            & (self.w - border > uv[:, 0])
+            & (uv[:, 0] > border)
+            & (self.h - border > uv[:, 1])
+            & (uv[:, 1] > border)
+        )
