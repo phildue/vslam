@@ -50,6 +50,14 @@ def write_result_file(trajectory, filename):
         )
 
 
+def create_intensity_depth_overlay(I, Z):
+    Z = 255.0 * Z / Z.max()
+    I = cv.cvtColor(I.astype(np.uint8), cv.COLOR_GRAY2BGR)
+    Z = cv.cvtColor(Z.astype(np.uint8), cv.COLOR_GRAY2BGR)
+    Z = cv.applyColorMap(Z, cv.COLORMAP_JET)
+    return (0.7 * I + 0.3 * Z).astype(np.uint8)
+
+
 import time
 
 
