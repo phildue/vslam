@@ -4,7 +4,8 @@ from typing import List, Tuple
 from sophus.sophuspy import SE3
 import logging
 import logging.config
-from vslampy.dataset.tum import TumRgbd
+from vslampy.evaluation.tum import TumRgbd
+from vslampy.evaluation.evaluation import Evaluation
 from vslampy.direct_icp.direct_icp import DirectIcp, Camera
 from vslampy.direct_icp.overlay import LogShow, Log
 from vslampy.direct_icp.weights import (
@@ -13,14 +14,11 @@ from vslampy.direct_icp.weights import (
     LinearCombination,
 )
 from vslampy.utils.utils import (
-    load_frame,
     write_result_file,
     Timer,
     statsstr,
     create_intensity_depth_overlay,
 )
-import wandb
-import os
 import argparse
 import matplotlib.pyplot as plt
 
@@ -42,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sequence_id",
         help="Id of the sequence to run on)",
-        default="rgbd_dataset_freiburg1_room",
+        default="rgbd_dataset_freiburg1_floor",
     )
     args = parser.parse_args()
 
@@ -71,20 +69,12 @@ if __name__ == "__main__":
     }
     sequence = TumRgbd(args.sequence_id)
 
-    os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
-    os.environ["WANDB_API_KEY"] = "local-837a2a9d75b14cf1ae7886da28a78394a9a7b053"
-    wandb.init(
-        project="vslam",
-        entity="phild",
-        config=params,
-    )
-    wandb.run.name = f"{args.sequence_id}.{args.experiment_name}"
+    evaluation = Evaluation(sequence, params, args.experiment_name, upload, True)
 
-    timestamps_Z, files_Z, timestamps_I, files_I = sequence.image_depth_filepaths()
-    timestamps = timestamps_I
+    timestamps = sequence.timestamps("image")
     f_end = min([f_start + n_frames, len(timestamps)])
 
-    cam = Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640)
+    cam = sequence.camera()
     weight_function = (
         LinearCombination(
             TDistributionWeights(5, 1),
@@ -107,13 +97,13 @@ if __name__ == "__main__":
     pose = SE3()
     f_no0 = f_start
     t0 = timestamps[f_start]
-    I0, Z0 = load_frame(files_I[f_start], files_Z[f_start])
+    I0, Z0 = sequence.load_frame(f_start)
     motion = SE3()
     speed = np.zeros((6,))
     for f_no in range(f_start, f_end):
         t1 = timestamps[f_no]
         dt = t1 - t0
-        I1, Z1 = load_frame(files_I[f_no], files_Z[f_no])
+        I1, Z1 = sequence.load_frame(f_no)
 
         o = np.hstack(
             [
@@ -144,10 +134,8 @@ if __name__ == "__main__":
                 log.rmse_t, log.rmse_r = sequence.evaluate_rpe(
                     trajectory, output_dir="./", upload=upload
                 )
-                write_result_file(trajectory, f"{sequence._sequence_id}-algo.txt")
+                write_result_file(trajectory, sequence.directory())
             except Exception as e:
                 print(e)
 
-    sequence.evaluate_rpe(trajectory, output_dir="./", upload=upload)
-    if upload:
-        wandb.finish()
+    evaluation.finalize(trajectory)

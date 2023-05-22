@@ -1,8 +1,11 @@
 import os
-from typing import List
-from vslampy.dataset._tum.evaluate_rpe import read_trajectory, evaluate_trajectory
-from vslampy.dataset.dataset import Dataset
+from typing import List, Tuple
+from vslampy.evaluation._tum.evaluate_rpe import read_trajectory, evaluate_trajectory
+from vslampy.evaluation.dataset import Dataset
+from vslampy.camera import Camera
 import numpy as np
+import cv2 as cv
+import logging
 
 
 class TumRgbd(Dataset):
@@ -11,6 +14,16 @@ class TumRgbd(Dataset):
             raise ValueError(f"This is not a tum_rgbd sequence: {sequence_id}")
 
         super(TumRgbd, self).__init__(sequence_id)
+
+        try:
+            self._t_Z, self._files_Z, self._t_I, self._files_I = self.parse_data()
+        except Exception as e:
+            logging.warning(
+                f"Extracted data is not available for: {sequence_id} because: \n{e}"
+            )
+
+    def directory(self) -> str:
+        return f"/mnt/dataset/tum_rgbd/{self._sequence_id}"
 
     def bag_filepath(self) -> str:
         return f"/mnt/dataset/tum_rgbd/{self._sequence_id}"
@@ -24,7 +37,20 @@ class TumRgbd(Dataset):
     def sync_topic(self) -> str:
         return "/camera/depth/image"
 
+    def camera(self):
+        return Camera(fx=525.0, fy=525.0, cx=319.5, cy=239.5, h=480, w=640)
+
     def image_depth_filepaths(self):
+        return self._t_Z, self._files_Z, self._t_I, self._files_I
+
+    def timestamps(self, sensor_name="image"):
+        if sensor_name == "image":
+            return self._t_I
+        if sensor_name == "depth":
+            return self._t_Z
+        raise ValueError(f"{sensor_name} not found.")
+
+    def parse_data(self):
         timestamps_depth = []
         timestamps_intensity = []
         filenames_depth = []
@@ -44,6 +70,19 @@ class TumRgbd(Dataset):
             timestamps_intensity,
             filenames_intensity,
         )
+
+    def load_frame(self, f_no) -> Tuple[np.array, np.array]:
+        path_img = self._files_I[f_no]
+        path_depth = self._files_Z[f_no]
+
+        if not os.path.exists(path_img):
+            raise ValueError(f"Path does not exist: {path_img}")
+        if not os.path.exists(path_depth):
+            raise ValueError(f"Path does not exist: {path_depth}")
+
+        I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
+        Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
+        return I, Z
 
     def evaluate_rpe(self, traj_est, output_dir="./", upload=True):
         rpe_plot = os.path.join(output_dir, "rpe.png")

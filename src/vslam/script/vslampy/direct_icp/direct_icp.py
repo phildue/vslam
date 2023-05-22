@@ -5,7 +5,7 @@ from sophus.sophuspy import SE3
 from vslampy.direct_icp.overlay import Log
 from vslampy.direct_icp.weights import TDistributionMultivariateWeights
 from vslampy.utils.utils import statsstr
-from vslampy.direct_icp.camera import Camera
+from vslampy.camera import Camera
 
 
 class DirectIcp:

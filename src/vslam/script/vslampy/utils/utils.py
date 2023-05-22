@@ -28,16 +28,6 @@ def interpolate_pose_between(trajectory, t0, t1):
     return dp
 
 
-def load_frame(path_img, path_depth) -> Tuple[List[np.array], List[np.array]]:
-    if not os.path.exists(path_img):
-        raise ValueError(f"Path does not exist: {path_img}")
-    if not os.path.exists(path_depth):
-        raise ValueError(f"Path does not exist: {path_depth}")
-
-    I = cv.imread(path_img, cv.IMREAD_GRAYSCALE)
-    Z = cv.imread(path_depth, cv.IMREAD_ANYDEPTH) / 5000.0
-    # Z[Z <= 0] = np.nan
-    return I, Z
 
 
 def write_result_file(trajectory, filename):

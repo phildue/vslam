@@ -5,6 +5,9 @@ class Dataset:
     def __init__(self, sequence_id):
         self._sequence_id = sequence_id
 
+    def id(self):
+        return self._sequence_id
+
     def bag_filepath(self) -> str:
         pass
 

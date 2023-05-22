@@ -4,7 +4,7 @@ from typing import List, Tuple
 from sophus.sophuspy import SE3
 import logging
 import logging.config
-from vslampy.dataset.tum import TumRgbd
+from vslampy.evaluation.tum import TumRgbd
 from vslampy.direct_icp.direct_icp import DirectIcp, Camera
 from vslampy.direct_icp.overlay import LogShow, Log
 from vslampy.direct_icp.weights import (
