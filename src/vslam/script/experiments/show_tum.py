@@ -6,7 +6,7 @@ import logging
 import logging.config
 from vslampy.dataset.tum import TumRgbd
 from vslampy.direct_icp.direct_icp import DirectIcp, Camera
-from vslampy.direct_icp.overlay import OverlayShow, Overlay
+from vslampy.direct_icp.overlay import LogShow, Log
 from vslampy.direct_icp.weights import (
     TDistributionWeights,
     TDistributionMultivariateWeights,
