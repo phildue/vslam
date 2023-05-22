@@ -21,8 +21,8 @@ class LinearCombination:
         # scale_I = 1 / r.shape[0]
         # scale_Z = 1 / r.shape[0]
         weights = np.zeros((r.shape[0], 2, 2))
-        weights[:, 0, 0] = self.weight_intensity * w_I * scale_I
-        weights[:, 1, 1] = self.weight_depth * w_Z * scale_Z
+        weights[:, 0, 0] = w_I * scale_I
+        weights[:, 1, 1] = w_Z * scale_Z
         return weights
 
 
@@ -33,14 +33,14 @@ class TDistributionWeights:
         self.log = logging.getLogger("WeightEstimation")
 
     def compute_weights(self, r: np.array) -> np.array:
-        w = (self.dof + 1.0) / (self.dof + (r / self.sigma) ** 2)
+        w = (self.dof + 1.0) / (self.dof + r * r * self.sigma)
         return w
 
     def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
         step_size = np.inf
         for iter in range(max_iterations):
             w = self.compute_weights(r)
-            sigma_i = np.sqrt(float((w * r).T @ r) / r.shape[0])
+            sigma_i = 1.0 / (float((w * r).T @ r) / r.shape[0])
             step_size = np.abs(self.sigma - sigma_i)
             self.sigma = sigma_i
             self.log.debug(
@@ -78,15 +78,14 @@ class TDistributionMultivariateWeights:
     def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
         self._check_shape(r)
         step_size = np.inf
+        r_ = r[:, :, np.newaxis]
+        rT = np.transpose(r_, (0, 2, 1))
         for iter in range(max_iterations):
             w = self.compute_weights(r)
-            scale_i = (
-                np.sum(
-                    w.reshape((-1, 1, 1)) * (r[:, :, np.newaxis] @ r[:, np.newaxis]),
-                    axis=0,
-                )
-                / r.shape[0]
+            scale_i = np.sum(w.reshape((-1, 1, 1)) * r_ @ rT, axis=0) / (
+                r.shape[0] - 2 - 1
             )
+
             scale_i = np.linalg.inv(scale_i)
             step_size = np.linalg.norm(self.scale - scale_i)
             self.scale = scale_i
