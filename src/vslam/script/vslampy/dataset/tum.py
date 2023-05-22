@@ -180,6 +180,7 @@ class TumRgbd(Dataset):
             "rgbd_dataset_freiburg1_desk2",
             "rgbd_dataset_freiburg1_desk2_validation",
             "rgbd_dataset_freiburg1_floor",
+            "rgbd_dataset_freiburg1_room",
             "rgbd_dataset_freiburg1_rpy",
             "rgbd_dataset_freiburg1_teddy",
             "rgbd_dataset_freiburg1_xyz",

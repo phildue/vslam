@@ -31,15 +31,18 @@ if __name__ == "__main__":
     rate_eval = 25
 
     wait_time = 1
-    upload = False
+    upload = True
     parser = argparse.ArgumentParser(
         description="""
     Run evaluation of algorithm"""
     )
     parser.add_argument(
+        "--experiment_name", help="Name for the experiment", default="test"
+    )
+    parser.add_argument(
         "--sequence_id",
         help="Id of the sequence to run on)",
-        default="rgbd_dataset_freiburg1_360",
+        default="rgbd_dataset_freiburg1_room",
     )
     args = parser.parse_args()
 
@@ -67,6 +70,15 @@ if __name__ == "__main__":
         "weight_function": "Multivariate",
     }
     sequence = TumRgbd(args.sequence_id)
+
+    os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+    os.environ["WANDB_API_KEY"] = "local-837a2a9d75b14cf1ae7886da28a78394a9a7b053"
+    wandb.init(
+        project="vslam",
+        entity="phild",
+        config=params,
+    )
+    wandb.run.name = f"{args.sequence_id}.{args.experiment_name}"
 
     timestamps_Z, files_Z, timestamps_I, files_I = sequence.image_depth_filepaths()
     timestamps = timestamps_I
