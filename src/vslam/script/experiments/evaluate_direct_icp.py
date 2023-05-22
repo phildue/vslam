@@ -6,7 +6,7 @@ import logging
 import logging.config
 from vslampy.dataset.tum import TumRgbd
 from vslampy.direct_icp.direct_icp import DirectIcp, Camera
-from vslampy.direct_icp.overlay import OverlayShow, Overlay
+from vslampy.direct_icp.overlay import LogShow, Log
 from vslampy.direct_icp.weights import (
     TDistributionWeights,
     TDistributionMultivariateWeights,
@@ -63,6 +63,7 @@ if __name__ == "__main__":
         "max_z": 5.0,
         "max_iterations": 100,
         "min_parameter_update": 1e-4,
+        "max_error_increase": 1.1,
         "weight_function": "Multivariate",
     }
     sequence = TumRgbd(args.sequence_id)
@@ -81,14 +82,12 @@ if __name__ == "__main__":
         else TDistributionMultivariateWeights(5.0, np.identity(2))
     )
     params.pop("weight_function")
-    image_log = (
-        OverlayShow(f_end, wait_time, weight_function) if wait_time >= 0 else Overlay()
-    )
+    log = LogShow(f_end, wait_time, weight_function) if wait_time >= 0 else Log()
 
     direct_icp = DirectIcp(
         cam=cam,
         weight_function=weight_function,
-        image_log=image_log,
+        log=log,
         **params,
     )
 
@@ -116,7 +115,7 @@ if __name__ == "__main__":
         logging.info(
             f"_________Aligning: {f_no0} -> {f_no} / {f_end}, {t0}->{t1}, dt={dt:.3f}___________"
         )
-        image_log.f_no = f_no
+        log.f_no = f_no
         Timer.tick("compute_egomotion")
         motion = direct_icp.compute_egomotion(t1, I1, Z1, SE3.exp(speed * dt))
         Timer.tock()
@@ -130,7 +129,7 @@ if __name__ == "__main__":
 
         if f_no - f_start > 25 and f_no % rate_eval == 0:
             try:
-                image_log.rmse_t, image_log.rmse_r = sequence.evaluate_rpe(
+                log.rmse_t, log.rmse_r = sequence.evaluate_rpe(
                     trajectory, output_dir="./", upload=upload
                 )
                 write_result_file(trajectory, f"{sequence._sequence_id}-algo.txt")

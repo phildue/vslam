@@ -1,9 +1,8 @@
 import cv2 as cv
 import numpy as np
 from sophus.sophuspy import SE3
-import logging
 
-from vslampy.direct_icp.overlay import Overlay
+from vslampy.direct_icp.overlay import Log
 from vslampy.direct_icp.weights import TDistributionMultivariateWeights
 from vslampy.utils.utils import statsstr
 from vslampy.direct_icp.camera import Camera
@@ -21,8 +20,9 @@ class DirectIcp:
         max_z=5.0,
         max_iterations=100,
         min_parameter_update=1e-4,
+        max_error_increase=1.1,
         weight_function=TDistributionMultivariateWeights(5, np.identity(2)),
-        image_log=Overlay(),
+        log=Log(),
     ):
         self.nLevels = nLevels
         self.cam = [cam.resize(1 / (2**l)) for l in range(nLevels)]
@@ -30,19 +30,20 @@ class DirectIcp:
         self.I0 = None
         self.Z0 = None
         self.t0 = None
-        self.weight_prior = weight_prior
+
         self.min_dI = min_gradient_intensity / 255
         self.min_dZ = min_gradient_depth
         self.max_dZ = max_gradient_depth
-
         self.max_z = max_z
+
         self.max_iterations = max_iterations
         self.min_parameter_update = min_parameter_update
-        self.weight_function = weight_function
-        self.image_log = image_log
-        self.border_dist = 0.01
+        self.max_error_increase = max_error_increase
 
-        self.log = logging.getLogger("DirectIcp")
+        self.weight_prior = weight_prior
+        self.weight_function = weight_function
+        self.image_log = log
+        self.border_dist = 0.01
 
     def compute_egomotion(
         self, t1: float, I1: np.array, Z1: np.array, guess=SE3()
@@ -58,10 +59,9 @@ class DirectIcp:
 
         prior = guess
         motion = prior
-
         for l_ in range(self.nLevels):
             level = self.nLevels - (l_ + 1)
-            self.log.info(f"_________Level={level}___________")
+            self.image_log.log_level(level)
 
             dI0 = self.compute_jacobian_image(self.I0[level])
             dZ0 = self.compute_jacobian_depth(self.Z0[level])
@@ -80,21 +80,18 @@ class DirectIcp:
             JIJw = dI0[:, :1][mask_selected] * Jwx + dI0[:, 1:][mask_selected] * Jwy
             JZJw = dZ0[:, :1][mask_selected] * Jwx + dZ0[:, 1:][mask_selected] * Jwy
 
-            chi2 = np.zeros((self.max_iterations,))
+            error = np.zeros((self.max_iterations,))
             dx = np.zeros((6,))
             reason = "Max iterations exceeded"
+            self.weight_function.scale = np.identity(2)
             for i in range(self.max_iterations):
                 pcl0t = motion * pcl0
                 uv0t = self.cam[level].project(pcl0t)
-                mask_visible = self.select_visible(pcl0t[:, 2], uv0t, self.cam[level])
+                mask_visible = self.cam[level].select_visible(uv0t, pcl0t[:, 2])
                 uv0t = uv0t[mask_visible]
 
-                i1wxp, z1wxp, mask_valid = self.interpolate(
-                    I1[level],
-                    Z1[level],
-                    uv0t,
-                    pcl0t[:, 2].reshape((-1, 1))[mask_visible],
-                )
+                i1wxp, z1wxp, mask_valid = self.interpolate(I1[level], Z1[level], uv0t)
+
                 if i1wxp.shape[0] < 6:
                     reason = "Not enough constraints"
                     motion = SE3()
@@ -116,7 +113,14 @@ class DirectIcp:
 
                 weights = self.weight_function.compute_weight_matrices(r)
 
-                chi2[i] = np.sum(r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis]))
+                error[i] = np.sum(
+                    r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis])
+                ) + self.weight_prior * np.linalg.norm((motion * prior.inverse()).log())
+
+                if i > 0 and error[i] / error[i - 1] > self.max_error_increase:
+                    reason = f"Error increased: {error[i]/error[i-1]:.2f}/{self.max_error_increase:.2f}"
+                    motion = SE3.exp(dx) * motion
+                    break
 
                 JZJw_Jtz = JZJw[mask_visible][mask_valid] - self.compute_jacobian_se3_z(
                     pcl1t
@@ -131,24 +135,21 @@ class DirectIcp:
 
                 motion = SE3.exp(-dx) * motion
 
-                self.image_log.log(
-                    level,
+                self.image_log.log_iteration(
                     i,
                     uv0,
                     (self.I0, self.Z0),
                     (i1wxp, z1wxp),
                     r,
                     weights,
-                    chi2,
+                    error,
                     dx,
                 )
-
                 if np.linalg.norm(dx) < self.min_parameter_update:
                     reason = f"Min Step Size reached: {np.linalg.norm(dx):.6f}/{self.min_parameter_update:.6f}"
                     break
-            self.log.info(
-                f"Aligned after {i} iterations because [{reason}]\nt={motion.log()[:3]}m r={np.linalg.norm(motion.log()[3:])*180.0/np.pi:.3f}°"
-            )
+
+            self.image_log.log_converged(reason, motion)
         self.I0 = I1
         self.Z0 = Z1
         self.t0 = t1
@@ -225,17 +226,7 @@ class DirectIcp:
         J[:, 4] = -pcl[:, 0]
         return J
 
-    def select_visible(self, z: np.array, uv: np.array, cam: Camera) -> np.array:
-        border = max((1, int(self.border_dist * cam.w)))
-        return (
-            (z > 0)
-            & (cam.w - border > uv[:, 0])
-            & (uv[:, 0] > border)
-            & (cam.h - border > uv[:, 1])
-            & (uv[:, 1] > border)
-        )
-
-    def interpolate(self, I: np.array, Z, uv: np.array, zt: np.array) -> np.array:
+    def interpolate(self, I: np.array, Z, uv: np.array) -> np.array:
         u = uv[:, 0]
         v = uv[:, 1]
         u0 = np.floor(u).astype(int)
@@ -260,26 +251,33 @@ class DirectIcp:
             w_[Z[v_, u_].reshape((-1, 1)) <= 0] = 0
             w += [w_]
 
-        M = np.dstack([I, Z])
-        Mvu = w[0] * M[v0, u0] + w[1] * M[v0, u1] + w[2] * M[v1, u0] + w[3] * M[v1, u1]
-        Mvu /= np.reshape(w[0] + w[1] + w[2] + w[3], (-1, 1))
+        IZ = np.dstack([I, Z])
+        IZvu = (
+            w[0] * IZ[v0, u0]
+            + w[1] * IZ[v0, u1]
+            + w[2] * IZ[v1, u0]
+            + w[3] * IZ[v1, u1]
+        )
+        IZvu /= np.reshape(w[0] + w[1] + w[2] + w[3], (-1, 1))
 
-        mask_valid = np.isfinite(Mvu[:, 0].reshape((-1,))) & np.isfinite(
-            Mvu[:, 1].reshape((-1,))
+        mask_valid = (
+            np.isfinite(IZvu[:, 0].reshape((-1,)))
+            & np.isfinite(IZvu[:, 1].reshape((-1,)))
+            & (IZvu[:, 1].reshape((-1,)) > 0)
         )
 
         return (
-            Mvu[:, 0].reshape((-1,))[mask_valid],
-            Mvu[:, 1].reshape((-1,))[mask_valid],
+            IZvu[:, 0].reshape((-1,))[mask_valid],
+            IZvu[:, 1].reshape((-1,))[mask_valid],
             mask_valid,
         )
 
     def compute_pose_update(self, r, J, weights, prior, motion):
+        A = self.weight_prior * np.identity(6)
+        b = self.weight_prior * (motion * prior.inverse()).log()
+
         JT = np.transpose(J, (0, 2, 1))
-        A = np.sum(JT @ weights @ J, axis=0).reshape((6, 6))
-        b = np.sum(JT @ weights @ r[:, :, np.newaxis], axis=0).reshape((6,))
+        A += np.sum(JT @ weights @ J, axis=0).reshape((6, 6))
+        b += np.sum(JT @ weights @ r[:, :, np.newaxis], axis=0).reshape((6,))
 
-        Ap = self.weight_prior * np.identity(6)
-        bp = self.weight_prior * (motion * prior.inverse()).log()
-
-        return np.linalg.solve(A + Ap, b + bp)
+        return np.linalg.solve(A, b)
