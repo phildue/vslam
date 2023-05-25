@@ -64,31 +64,29 @@ class TDistributionMultivariateWeights:
         self.dim = dim
         self.log = logging.getLogger("WeightEstimation")
 
-    def compute_weight_matrices(self, r: np.array):
-        scale, w = self.fit(r)
+    def compute_weight_matrices(self, r: np.array, w: np.array):
+        scale, w = self.fit(r, w)
         weights = w.reshape(-1, 1, 1) * scale
         return weights
 
     def compute_weights(self, r: np.array) -> np.array:
         self._check_shape(r)
-        return (self.dof + self.dim) / (
-            self.dof + np.sum(np.dot(r, self.scale) * r, axis=1)
-        )
+        rT = np.transpose(r, (0, 2, 1))
+        return (self.dof + self.dim) / (self.dof + rT @ self.scale @ r)
 
-    def fit(self, r: np.array, precision=1e-3, max_iterations=50) -> np.array:
+    def fit(
+        self, r: np.array, w: np.array, precision=1e-3, max_iterations=50
+    ) -> np.array:
         self._check_shape(r)
         step_size = np.inf
-        r_ = r[:, :, np.newaxis]
-        rT = np.transpose(r_, (0, 2, 1))
+        r = r[:, :, np.newaxis]
+        rT = np.transpose(r, (0, 2, 1))
         for iter in range(max_iterations):
-            w = self.compute_weights(r)
-            scale_i = np.sum(w.reshape((-1, 1, 1)) * r_ @ rT, axis=0) / (
-                r.shape[0] - 2 - 1
-            )
-
+            scale_i = np.sum(w.reshape((-1, 1, 1)) * r @ rT, axis=0) / (r.shape[0])
             scale_i = np.linalg.inv(scale_i)
             step_size = np.linalg.norm(self.scale - scale_i)
             self.scale = scale_i
+            w = self.compute_weights(r)
             self.log.debug(
                 f"\titer = {iter}, sigma = {self.scale}, step_size = {step_size:4f} \n\tW={statsstr(w)})"
             )

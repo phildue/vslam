@@ -31,7 +31,7 @@ class DirectIcp:
         self.Z0 = None
         self.t0 = None
 
-        self.min_dI = min_gradient_intensity / 255
+        self.min_dI = min_gradient_intensity
         self.min_dZ = min_gradient_depth
         self.max_dZ = max_gradient_depth
         self.max_z = max_z
@@ -109,9 +109,11 @@ class DirectIcp:
                 i0x = self.I0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
                 z0x = self.Z0[level][uv0[:, 1], uv0[:, 0]].reshape((-1,))
 
-                r = np.vstack(((i1wxp - i0x) / 255, pcl1t[:, 2] - z0x)).T
+                r = np.vstack(((i1wxp - i0x), pcl1t[:, 2] - z0x)).T
 
-                weights = self.weight_function.compute_weight_matrices(r)
+                weights = self.weight_function.compute_weight_matrices(
+                    r, np.ones((r.shape[0],))
+                )
 
                 error[i] = np.sum(
                     r[:, np.newaxis] @ (weights @ r[:, :, np.newaxis])
@@ -131,8 +133,7 @@ class DirectIcp:
                         JZJw_Jtz[:, np.newaxis],
                     ]
                 )
-                dx = self.compute_pose_update(r, J, weights, prior, motion)
-
+                dx = self.solve_linear_equations(r, J, weights, prior, motion)
                 motion = SE3.exp(-dx) * motion
 
                 self.image_log.log_iteration(
@@ -168,8 +169,8 @@ class DirectIcp:
         return I, Z
 
     def compute_jacobian_image(self, I):
-        dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0, scale=1 / 8) / 255
-        dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1, scale=1 / 8) / 255
+        dIdx = cv.Sobel(I, cv.CV_64F, dx=1, dy=0, scale=1 / 8)
+        dIdy = cv.Sobel(I, cv.CV_64F, dx=0, dy=1, scale=1 / 8)
 
         return np.reshape(np.dstack([dIdx, dIdy]), (-1, 2))
 
@@ -272,7 +273,7 @@ class DirectIcp:
             mask_valid,
         )
 
-    def compute_pose_update(self, r, J, weights, prior, motion):
+    def solve_linear_equations(self, r, J, weights, prior, motion):
         A = self.weight_prior * np.identity(6)
         b = self.weight_prior * (motion * prior.inverse()).log()
 
@@ -280,4 +281,5 @@ class DirectIcp:
         A += np.sum(JT @ weights @ J, axis=0).reshape((6, 6))
         b += np.sum(JT @ weights @ r[:, :, np.newaxis], axis=0).reshape((6,))
 
-        return np.linalg.solve(A, b)
+        dx = np.linalg.solve(A, b)
+        return dx
