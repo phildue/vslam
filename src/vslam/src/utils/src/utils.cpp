@@ -17,8 +17,10 @@
 // Created by phil on 08.08.21.
 //
 
+#include <fmt/chrono.h>
 #include <fmt/core.h>
-
+using fmt::format;
+using fmt::print;
 #include <Eigen/Dense>
 #include <filesystem>
 #include <opencv2/core.hpp>
@@ -159,6 +161,9 @@ void utils::saveDepth(const Eigen::MatrixXd & img, const fs::path & path)
 
 void utils::writeTrajectory(const Trajectory & traj, const fs::path & path, bool writeCovariance)
 {
+  if (!fs::is_directory(path.parent_path())) {
+    fs::create_directories(path.parent_path());
+  }
   std::fstream algoFile;
   algoFile.open(path, std::ios_base::out);
   algoFile << "# Algorithm Trajectory\n";
@@ -169,14 +174,15 @@ void utils::writeTrajectory(const Trajectory & traj, const fs::path & path, bool
   }
 
   for (const auto & pose : traj.poses()) {
-    Timestamp sec = static_cast<Timestamp>(static_cast<double>(pose.first) / 1e9);
+    std::string ts = format("{}", pose.first);
+    ts = format("{}.{}", ts.substr(0, 10), ts.substr(10));
+
+    ts = ts.substr(0, ts.size() - 3);
+
     const auto t = pose.second->pose().translation();
     const auto q = pose.second->pose().unit_quaternion();
-    algoFile << sec << "."
-             << static_cast<Timestamp>(
-                  static_cast<double>(pose.first) - static_cast<double>(sec) * 1e9)
-             << " " << t.x() << " " << t.y() << " " << t.z() << " " << q.x() << " " << q.y() << " "
-             << q.z() << " " << q.w();
+    algoFile << ts << " " << t.x() << " " << t.y() << " " << t.z() << " " << q.x() << " " << q.y()
+             << " " << q.z() << " " << q.w();
     if (writeCovariance) {
       for (int i = 0; i < 6; i++) {
         for (int j = 0; j < 6; j++) {
