@@ -19,7 +19,7 @@
 #include "Camera.h"
 namespace vslam
 {
-Eigen::Vector2d Camera::camera2image(const Eigen::Vector3d & p) const
+Vec2d Camera::project(const Vec3d & p) const
 {
   if (p.z() <= 0) {
     return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
@@ -28,19 +28,21 @@ Eigen::Vector2d Camera::camera2image(const Eigen::Vector3d & p) const
   return {(fx() * p(0) / p(2)) + cx(), (fy() * p(1) / p(2)) + cy()};
 }
 
-Eigen::Vector3d Camera::image2camera(const Eigen::Vector2d & uv, double z) const
+Vec3d Camera::reconstruct(const Vec2d & uv, double z) const
 {
-  return Eigen::Vector3d((uv(0) - cx()) / fx() * z, (uv(1) - cy()) / fy() * z, z);
+  return Vec3d((uv(0) - cx()) / fx() * z, (uv(1) - cy()) / fy() * z, z);
 }
 
-Camera::Camera(double f, double cx, double cy) : Camera(f, f, cx, cy) {}
-
-Camera::Camera(double fx, double fy, double cx, double cy)
-: Camera(fx, fy, cx, cy, std::ceil(2 * cx), std::ceil(2 * cy))
+bool Camera::withinImage(const Vec2d & uv, double border) const
 {
+  const int bh = std::max<int>(0, (int)border * _h);
+  const int bw = std::max<int>(0, (int)border * _w);
+
+  return (bw < uv(0) && uv(0) < _w - bw && bh < uv(1) && uv(1) < _h - bh);
 }
+
 Camera::Camera(double fx, double fy, double cx, double cy, int width, int height)
-: _width(width), _height(height)
+: _w(width), _h(height)
 {
   _K << fx, 0, cx, 0, fy, cy, 0, 0, 1;
   _Kinv = _K.inverse();
@@ -49,13 +51,14 @@ Camera::Camera(double fx, double fy, double cx, double cy, int width, int height
 Camera::ShPtr Camera::resize(Camera::ConstShPtr cam, double s)
 {
   return std::make_shared<Camera>(
-    cam->fx() * s, cam->fy() * s, cam->principalPoint().x() * s, cam->principalPoint().y() * s);
+    cam->fx() * s, cam->fy() * s, cam->cx() * s, cam->cy() * s, cam->width() * s,
+    cam->height() * s);
 }
 std::string Camera::toString() const
 {
   return format(
-    "Focal Length: {},{} | Principal Point: {},{} | Resolution: {},{}", fx(), fy(),
-    principalPoint().x(), principalPoint().y(), _width, _height);
+    "Focal Length: {},{} | Principal Point: {},{} | Resolution: {},{}", fx(), fy(), cx(), cy(), _w,
+    _h);
 }
 
 }  // namespace vslam

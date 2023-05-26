@@ -9,10 +9,13 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 {
   const std::string experimentId = "test_c++";
   auto dl =
-    std::make_unique<tum::DataLoader>("/mnt/dataset/tum_rgbd/", "rgbd_dataset_freiburg1_teddy");
+    std::make_unique<tum::DataLoader>("/mnt/dataset/tum_rgbd/", "rgbd_dataset_freiburg2_desk");
 
-  const std::string trajectoryAlgoPath = format(
-    "{}/algorithm_results/{}/{}-algo.txt", dl->datasetPath(), experimentId, dl->sequenceId());
+  const std::string outPath = format("{}/algorithm_results/{}", dl->datasetPath(), experimentId);
+  const std::string trajectoryAlgoPath = format("{}-algo.txt", outPath, dl->sequenceId());
+  el::Loggers::reconfigureAllLoggers(
+    el::ConfigurationType::Filename, format("{}/vslam.log", outPath));
+
   const int tRmse = 25;
 
   const std::map<std::string, double> params = {
@@ -20,12 +23,10 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
     {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
     {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
 
-  auto weightFunction = std::make_shared<TDistributionBivariate>(5.0, Mat2d::Identity());
-
-  auto directIcp = std::make_shared<DirectIcp>(dl->cam(), weightFunction, params);
+  auto directIcp = std::make_shared<DirectIcp>(dl->cam(), params);
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
-  const size_t fEnd = dl->timestamps().size();
+  const size_t fEnd = 200;  //dl->timestamps().size();
   SE3d motion;
   SE3d pose;
   for (size_t fId = 0; fId < fEnd; fId++) {
@@ -54,4 +55,5 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
   }
   tum::writeTrajectory(*traj, trajectoryAlgoPath);
   tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
+  runPerformanceLogParserpy(format("{}/vslam.log", outPath));
 }

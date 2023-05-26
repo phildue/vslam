@@ -40,21 +40,18 @@ double TDistributionBivariate::computeWeight(const Vec2d & r) const
 const VecXd & TDistributionBivariate::weights() const { return _weights; }
 const Mat2d & TDistributionBivariate::scale() const { return _scale; }
 
-DirectIcp::DirectIcp(
-  Camera::ConstShPtr cam, TDistributionBivariate::ShPtr weightFunction,
-  const std::map<std::string, double> params)
+DirectIcp::DirectIcp(Camera::ConstShPtr cam, const std::map<std::string, double> params)
 : DirectIcp(
-    cam, weightFunction, params.at("nLevels"), params.at("weightPrior"),
-    params.at("minGradientIntensity"), params.at("minGradientDepth"), params.at("maxGradientDepth"),
-    params.at("maxDepth"), params.at("maxIterations"), params.at("minParameterUpdate"),
-    params.at("maxErrorIncrease"))
+    cam, params.at("nLevels"), params.at("weightPrior"), params.at("minGradientIntensity"),
+    params.at("minGradientDepth"), params.at("maxGradientDepth"), params.at("maxDepth"),
+    params.at("maxIterations"), params.at("minParameterUpdate"), params.at("maxErrorIncrease"))
 {
 }
 DirectIcp::DirectIcp(
-  Camera::ConstShPtr cam, TDistributionBivariate::ShPtr weightFunction, int nLevels,
-  double weightPrior, double minGradientIntensity, double minGradientDepth, double maxGradientDepth,
-  double maxZ, double maxIterations, double minParameterUpdate, double maxErrorIncrease)
-: _weightFunction(weightFunction),
+  Camera::ConstShPtr cam, int nLevels, double weightPrior, double minGradientIntensity,
+  double minGradientDepth, double maxGradientDepth, double maxZ, double maxIterations,
+  double minParameterUpdate, double maxErrorIncrease)
+: _weightFunction(std::make_shared<TDistributionBivariate>(5.0, Mat2d::Identity())),
   _nLevels(nLevels),
   _weightPrior(weightPrior),
   _minGradientIntensity(minGradientIntensity),
@@ -79,6 +76,7 @@ SE3d DirectIcp::computeEgomotion(
     _Z0 = computePyramidDepth(depth);
     return guess;
   }
+  TIMED_SCOPE(timer, "computeEgomotion");
   const std::vector<cv::Mat> I1 = computePyramidIntensity(intensity);
   const std::vector<cv::Mat> Z1 = computePyramidDepth(depth);
 
@@ -93,7 +91,6 @@ SE3d DirectIcp::computeEgomotion(
     std::string reason = "Max iterations exceeded";
     double error = INFd;
     Vec6d dx = Vec6d::Zero();
-    int idx = 0;
     for (int iteration = 0; iteration < _maxIterations; iteration++) {
       std::for_each(features.begin(), features.end(), [&](auto c) {
         c->valid = false;
@@ -101,15 +98,15 @@ SE3d DirectIcp::computeEgomotion(
 
         if (c->p0t.z() <= 0) return;
 
-        c->uv0t = _cam[level]->camera2image(c->p0t);
+        c->uv0t = _cam[level]->project(c->p0t);
 
-        if (!withinImage(c->uv0t, I1[level].rows, I1[level].cols)) return;
+        if (!_cam[level]->withinImage(c->uv0t, 0.02)) return;
 
         Vec2d iz1w = interpolate(I1[level], Z1[level], c->uv0t);
 
         if (!std::isfinite(iz1w(0)) || !std::isfinite(iz1w(1))) return;
 
-        c->p1t = motion.inverse() * _cam[level]->image2camera(c->uv0t, iz1w(1));
+        c->p1t = motion.inverse() * _cam[level]->reconstruct(c->uv0t, iz1w(1));
 
         c->iz1w = Vec2d(iz1w(0), c->p1t.z());
 
@@ -123,11 +120,6 @@ SE3d DirectIcp::computeEgomotion(
 
         if (!std::isfinite(c->J.norm())) return;
 
-        if (false) {
-          print(
-            "{}: {} {} {} {} {}\n", idx, c->uv0.transpose(), c->uv0t.transpose(),
-            c->iz0.transpose(), c->iz1w.transpose(), c->residual.transpose());
-        }
         c->valid = true;
       });
       std::vector<Feature::ShPtr> constraints;
@@ -280,7 +272,7 @@ std::vector<Feature::ShPtr> DirectIcp::extractFeatures(
         c->uv0 = Vec2d(u, v);
         c->iz0 = Vec2d(i, z);
 
-        c->p0 = cam->image2camera(c->uv0, c->iz0(1));
+        c->p0 = cam->reconstruct(c->uv0, c->iz0(1));
         Mat<double, 2, 6> Jw = computeJacobianWarp(motion * c->p0, cam);
         c->JIJw = dIvu[0] * Jw.row(0) + dIvu[1] * Jw.row(1);
         c->JZJw = dZvu[0] * Jw.row(0) + dZvu[1] * Jw.row(1);
@@ -327,11 +319,6 @@ Vec6d DirectIcp::computeJacobianSE3z(const Vec3d & p) const
   J(5) = 0.0;
 
   return J;
-}
-bool DirectIcp::withinImage(const Vec2d & uv, int h, int w)
-{
-  int border = std::max<int>(1, (int)(0.05 * (double)w));
-  return (border < uv(0) && uv(0) < w - border && border < uv(1) && uv(1) < h - border);
 }
 
 Vec2d DirectIcp::interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv)

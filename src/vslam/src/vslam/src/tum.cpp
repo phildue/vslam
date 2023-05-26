@@ -12,7 +12,7 @@ namespace vslam::tum
 {
 vslam::Camera::ShPtr Camera()
 {
-  return std::make_shared<vslam::Camera>(525.0, 525.0, 319.5, 239.5);
+  return std::make_shared<vslam::Camera>(525.0, 525.0, 319.5, 239.5, 640, 480);
 }
 
 Trajectory::UnPtr loadTrajectory(const std::string & path, bool invertPoses)

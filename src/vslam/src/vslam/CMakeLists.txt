@@ -10,6 +10,7 @@ set( sources
   src/utils.cpp
   src/Trajectory.cpp
   src/Pose.cpp
+  /usr/local/include/easylogging++.cc
    )
 
 set( headers

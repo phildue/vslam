@@ -15,8 +15,6 @@ struct Feature
   typedef std::shared_ptr<Feature> ShPtr;
   Vec2d uv0;
   Vec2d iz0;
-  Vec2d JI;
-  Vec2d JZ;
   Vec3d p0;
   Vec6d JIJw;
   Vec6d JZJw;
@@ -53,12 +51,10 @@ class DirectIcp
 public:
   typedef std::shared_ptr<DirectIcp> ShPtr;
 
+  DirectIcp(Camera::ConstShPtr cam, const std::map<std::string, double> params);
   DirectIcp(
-    Camera::ConstShPtr cam, TDistributionBivariate::ShPtr weightFunction,
-    const std::map<std::string, double> params);
-  DirectIcp(
-    Camera::ConstShPtr cam, TDistributionBivariate::ShPtr weightFunction, int nLevels = 4,
-    double weightPrior = 0.0, double minGradientIntensity = 10 * 8, double minGradientDepth = INFd,
+    Camera::ConstShPtr cam, int nLevels = 4, double weightPrior = 0.0,
+    double minGradientIntensity = 10 * 8, double minGradientDepth = INFd,
     double maxGradientDepth = 0.5, double maxZ = 5.0, double maxIterations = 100,
     double minParameterUpdate = 1e-6, double maxErrorIncrease = 1.1);
   SE3d computeEgomotion(const cv::Mat & intensity, const cv::Mat & depth, const SE3d & guess);

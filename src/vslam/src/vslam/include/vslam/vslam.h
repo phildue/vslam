@@ -23,6 +23,7 @@
 #include "macros.h"
 #include "tum.h"
 #include "types.h"
+#include "utils.h"
 #include "visuals.h"
 
 #endif  // VSLAM_CORE_H__

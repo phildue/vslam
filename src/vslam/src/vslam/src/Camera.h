@@ -34,33 +34,30 @@ public:
   using Ptr = std::unique_ptr<Camera>;
   typedef std::vector<ConstShPtr> ConstShPtrVec;
 
-  Camera(double f, double cx, double cy);
-  Camera(double fx, double fy, double cx, double cy);
   Camera(double fx, double fy, double cx, double cy, int width, int height);
 
-  Eigen::Vector2d camera2image(const Eigen::Vector3d & pCamera) const;
-  Eigen::Vector3d image2camera(const Eigen::Vector2d & pImage, double depth = 1.0) const;
+  Vec2d project(const Vec3d & uv) const;
+  Vec3d reconstruct(const Vec2d & uv, double z = 1.0) const;
+  bool withinImage(const Vec2d & uv, double border = 0.) const;
 
-  const double & focalLength() const { return _K(0, 0); }
   const double & fx() const { return _K(0, 0); }
   const double & fy() const { return _K(1, 1); }
-  const int & width() const { return _width; }
-  const int & height() const { return _height; }
+  const int & width() const { return _w; }
+  const int & height() const { return _h; }
 
-  Eigen::Vector2d principalPoint() const { return {_K(0, 2), _K(1, 2)}; }
   const double & cx() const { return _K(0, 2); }
   const double & cy() const { return _K(1, 2); }
 
-  const Eigen::Matrix3d & K() const { return _K; }
-  const Eigen::Matrix3d & Kinv() const { return _Kinv; }
+  const Mat3d & K() const { return _K; }
+  const Mat3d & Kinv() const { return _Kinv; }
   ShPtr static resize(ConstShPtr cam, double s);
 
   std::string toString() const;
 
 private:
-  Eigen::Matrix<double, 3, 3> _K;     //< Intrinsic camera matrix
-  Eigen::Matrix<double, 3, 3> _Kinv;  //< Intrinsic camera matrix inverted
-  int _width, _height;
+  Mat3d _K;     //< Intrinsic camera matrix
+  Mat3d _Kinv;  //< Intrinsic camera matrix inverted
+  int _w, _h;
 };
 }  // namespace vslam
 
