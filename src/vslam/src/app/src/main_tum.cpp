@@ -13,10 +13,8 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 
   const std::string outPath = format("{}/algorithm_results/{}", dl->datasetPath(), experimentId);
   const std::string trajectoryAlgoPath = format("{}-algo.txt", outPath, dl->sequenceId());
-  el::Loggers::reconfigureAllLoggers(
-    el::ConfigurationType::Filename, format("{}/vslam.log", outPath));
-
   const int tRmse = 25;
+  log::initialize(outPath);
 
   const std::map<std::string, double> params = {
     {"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
