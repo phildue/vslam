@@ -2,28 +2,30 @@ cmake_minimum_required(VERSION 3.8)
 project(vslam VERSION 1.0.0)
 
 set( sources
-  src/Camera.cpp
-  src/DirectIcp.cpp
-  src/log.cpp
-  src/tum.cpp
-  src/visuals.cpp
-  src/utils.cpp
-  src/Trajectory.cpp
-  src/Pose.cpp
+  src/direct_icp/DirectIcp.cpp
+  src/evaluation/evaluation.cpp
+  src/evaluation/tum.cpp
+  src/core/Camera.cpp
+  src/core/Trajectory.cpp
+  src/core/Pose.cpp
+  src/utils/log.cpp
+  src/utils/visuals.cpp
+  src/utils/utils.cpp
   /usr/local/include/easylogging++.cc
    )
 
 set( headers
-  src/Camera.h
-  src/DirectIcp.h
-  src/types.h
-  src/utils.h
-  src/visuals.h
-  src/tum.h
-  src/macros.h
-  src/log.h
-  src/Trajectory.h
-  src/Pose.h
+  src/evaluation/evaluation.h
+  src/evaluation/tum.h
+  src/core/Trajectory.h
+  src/core/Pose.h
+  src/core/Camera.h
+  src/core/macros.h
+  src/core/types.h
+  src/direct_icp/DirectIcp.h
+  src/utils/utils.h
+  src/utils/visuals.h
+  src/utils/log.h
   /usr/local/include/easylogging++.h 
   include/vslam/vslam.h 
   )

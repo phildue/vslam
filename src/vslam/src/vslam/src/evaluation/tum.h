@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "Camera.h"
-#include "Trajectory.h"
-#include "types.h"
-namespace vslam::tum
+#include "core/Camera.h"
+#include "core/Trajectory.h"
+#include "core/types.h"
+namespace vslam::evaluation::tum
 {
 /**
    * @brief Load trajectory from file (TUM RGBD Format)
@@ -71,6 +71,6 @@ private:
   void readAssocTextfile(std::string filename);
 };
 
-}  // namespace vslam::tum
+}  // namespace vslam::evaluation::tum
 
 #endif

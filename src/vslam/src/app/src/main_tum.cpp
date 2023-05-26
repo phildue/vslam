@@ -8,8 +8,8 @@ using namespace vslam;
 int main(int UNUSED(argc), char ** UNUSED(argv))
 {
   const std::string experimentId = "test_c++";
-  auto dl =
-    std::make_unique<tum::DataLoader>("/mnt/dataset/tum_rgbd/", "rgbd_dataset_freiburg2_desk");
+  auto dl = std::make_unique<evaluation::tum::DataLoader>(
+    "/mnt/dataset/tum_rgbd/", "rgbd_dataset_freiburg2_desk");
 
   const std::string outPath = format("{}/algorithm_results/{}", dl->datasetPath(), experimentId);
   const std::string trajectoryAlgoPath = format("{}-algo.txt", outPath, dl->sequenceId());
@@ -49,11 +49,11 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
       std::cerr << e.what() << std::endl;
     }
     if (fId > tRmse && fId % tRmse == 0) {
-      tum::writeTrajectory(*traj, trajectoryAlgoPath);
-      tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
+      evaluation::tum::writeTrajectory(*traj, trajectoryAlgoPath);
+      evaluation::tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
     };
   }
-  tum::writeTrajectory(*traj, trajectoryAlgoPath);
-  tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
-  runPerformanceLogParserpy(format("{}/vslam.log", outPath));
+  evaluation::tum::writeTrajectory(*traj, trajectoryAlgoPath);
+  evaluation::tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
+  evaluation::runPerformanceLogParserpy(format("{}/vslam.log", outPath));
 }

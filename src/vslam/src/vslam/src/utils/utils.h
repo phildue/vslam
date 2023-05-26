@@ -2,11 +2,9 @@
 #define VSLAM_TIME_H__
 #include <chrono>
 
-#include "types.h"
+#include "core/types.h"
 namespace vslam
 {
-void runPerformanceLogParserpy(const std::string & file);
-
 }
 
 namespace vslam::time

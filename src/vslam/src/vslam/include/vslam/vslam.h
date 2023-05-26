@@ -15,15 +15,16 @@
 
 #ifndef VSLAM_H__
 #define VSLAM_H__
-#include "Camera.h"
-#include "DirectIcp.h"
-#include "Pose.h"
-#include "Trajectory.h"
-#include "log.h"
-#include "macros.h"
-#include "tum.h"
-#include "types.h"
-#include "utils.h"
-#include "visuals.h"
+#include "core/Camera.h"
+#include "core/Pose.h"
+#include "core/Trajectory.h"
+#include "core/macros.h"
+#include "core/types.h"
+#include "direct_icp/DirectIcp.h"
+#include "evaluation/evaluation.h"
+#include "evaluation/tum.h"
+#include "utils/log.h"
+#include "utils/utils.h"
+#include "utils/visuals.h"
 
 #endif  // VSLAM_CORE_H__

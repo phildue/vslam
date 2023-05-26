@@ -1,7 +1,7 @@
 #ifndef VSLAM_VISUALS_H__
 #define VSLAM_VISUALS_H__
 
-#include "types.h"
+#include "core/types.h"
 
 namespace vslam
 {

@@ -8,7 +8,7 @@
 #include "tum.h"
 namespace fs = std::experimental::filesystem;
 
-namespace vslam::tum
+namespace vslam::evaluation::tum
 {
 vslam::Camera::ShPtr Camera()
 {
@@ -214,4 +214,4 @@ void DataLoader::readAssocTextfile(std::string filename)
   in_stream.close();
 }
 
-}  // namespace vslam::tum
+}  // namespace vslam::evaluation::tum

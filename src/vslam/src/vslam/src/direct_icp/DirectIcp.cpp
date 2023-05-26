@@ -1,7 +1,7 @@
 
 
 #include "DirectIcp.h"
-#include "log.h"
+#include "utils/log.h"
 namespace vslam
 {
 TDistributionBivariate::TDistributionBivariate(double dof, const Mat2d & scale)

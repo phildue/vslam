@@ -5,8 +5,8 @@
 #include <opencv4/opencv2/imgproc.hpp>
 #include <string>
 
-#include "Camera.h"
-#include "types.h"
+#include "core/Camera.h"
+#include "core/types.h"
 
 namespace vslam
 {
