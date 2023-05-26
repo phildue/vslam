@@ -7,23 +7,23 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
-add_subdirectory(src/dvo/dvo_core)
-add_subdirectory(src/core)
-add_subdirectory(src/utils)
-add_subdirectory(src/least_squares)
-add_subdirectory(src/lukas_kanade)
-add_subdirectory(src/odometry)
-add_subdirectory(src/mapping)
-add_subdirectory(src/evaluation)
+#add_subdirectory(src/core)
+#add_subdirectory(src/utils)
+#add_subdirectory(src/least_squares)
+#add_subdirectory(src/lukas_kanade)
+#add_subdirectory(src/odometry)
+#add_subdirectory(src/mapping)
+#add_subdirectory(src/evaluation)
+add_subdirectory(src/vslam)
+add_subdirectory(src/app)
 
-add_library(vslam INTERFACE)
+#add_library(vslam INTERFACE)
 add_library(pd::vslam ALIAS vslam)
-target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping evaluation)
+#target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping evaluation)
 target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
 
-add_subdirectory(src/app)
 
 # Add tests
 option(VSLAM_BUILD_TESTS "Enable to build tests" ON)
@@ -96,7 +96,7 @@ if(VSLAM_BUILD_TESTS)
 endif()
 
 # Installation
-install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade odometry mapping evaluation
+install(TARGETS ${PROJECT_NAME}
     EXPORT ${PROJECT_NAME}Targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
