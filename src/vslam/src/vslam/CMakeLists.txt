@@ -8,6 +8,7 @@ set( sources
   src/core/Camera.cpp
   src/core/Trajectory.cpp
   src/core/Pose.cpp
+  src/core/random.cpp
   src/utils/log.cpp
   src/utils/visuals.cpp
   src/utils/utils.cpp
@@ -22,6 +23,7 @@ set( headers
   src/core/Camera.h
   src/core/macros.h
   src/core/types.h
+  src/core/random.h
   src/direct_icp/DirectIcp.h
   src/utils/utils.h
   src/utils/visuals.h
@@ -32,6 +34,7 @@ set( headers
 
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 
+message(STATUS "Flags: ${CMAKE_CXX_FLAGS}")
 if(UNIX)
   target_link_libraries(${PROJECT_NAME} stdc++fs)
 endif()

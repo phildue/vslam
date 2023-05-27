@@ -13,6 +13,7 @@ namespace vslam
 struct Feature
 {
   typedef std::shared_ptr<Feature> ShPtr;
+  size_t idx;
   Vec2d uv0;
   Vec2d iz0;
   Vec3d p0;
@@ -34,18 +35,16 @@ class TDistributionBivariate
 {
 public:
   typedef std::shared_ptr<TDistributionBivariate> ShPtr;
-  TDistributionBivariate(double dof, const Mat2d & scale);
-  void fit(
-    const std::vector<Vec2d> & r, const VecXd & w, double precision = 1e-3, int maxIterations = 50);
+  TDistributionBivariate(double dof);
+  void computeWeights(
+    const std::vector<Feature::ShPtr> & r, double precision = 1e-3, int maxIterations = 50);
   double computeWeight(const Vec2d & r) const;
-  const VecXd & weights() const;
-  const Mat2d & scale() const;
 
 private:
   const double _dof;
   Mat2d _scale;
-  VecXd _weights;
 };
+
 class DirectIcp
 {
 public:
@@ -77,8 +76,10 @@ private:
   Matd<2, 6> computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const;
 
   Vec6d computeJacobianSE3z(const Vec3d & p) const;
-  bool withinImage(const Vec2d & uv, int h, int w);
   Vec2d interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv);
+  std::vector<Feature::ShPtr> uniformSubselection(
+    Camera::ConstShPtr cam, const std::vector<Feature::ShPtr> & features) const;
 };
+
 }  // namespace vslam
 #endif
