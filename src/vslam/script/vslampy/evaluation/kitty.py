@@ -1,3 +1,5 @@
+from vslampy.evaluation.dataset import Dataset
+from typing import List
 class Kitti(Dataset):
     def __init__(self, sequence_id):
         if sequence_id not in Kitti.sequences():

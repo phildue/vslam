@@ -29,6 +29,8 @@ void writeTrajectory(
 
 void runEvaluateRPEpy(const std::string & pathAlgo, const std::string & pathGt);
 
+cv::Mat convertDepthMat(const cv::Mat & depth, float factor = 0.0002);
+
 vslam::Camera::ShPtr Camera();
 
 class DataLoader

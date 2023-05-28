@@ -97,30 +97,21 @@ private:
   std::shared_ptr<ApproximateSync> _approximateSync;
 
   // Algorithm
-  bool _includeKeyFrame;
-  bool _trackKeyFrame;
-  pd::vslam::RgbdAlignment::ShPtr _rgbdAlignment;
-  pd::vslam::KeyFrameSelection::ShPtr _keyFrameSelection;
-  pd::vslam::MotionModel::ShPtr _motionModel;
-  pd::vslam::Map::ShPtr _map;
-  pd::vslam::FeatureTracking::ShPtr _tracking;
-  pd::vslam::Matcher::ShPtr _matcher;
-  pd::vslam::mapping::BundleAdjustment::ShPtr _ba;
-  pd::vslam::Camera::ShPtr _camera;
+  vslam::DirectIcp::ShPtr _directIcp;
+  vslam::Camera::ShPtr _camera;
+  vslam::Pose _motion, _pose;
+  vslam::Trajectory _trajectory;
+  std::map<std::string, double> _paramsIcp;
 
   // Buffers
   geometry_msgs::msg::TransformStamped
     _world2origin;  //transforms from fixed frame to initial pose of optical frame
-  nav_msgs::msg::Path _path;
 
   void cameraCallback(sensor_msgs::msg::CameraInfo::ConstSharedPtr msg);
   void imageCallback(
     sensor_msgs::msg::Image::ConstSharedPtr msgImg,
     sensor_msgs::msg::Image::ConstSharedPtr msgDepth);
 
-  pd::vslam::Frame::UnPtr createFrame(
-    sensor_msgs::msg::Image::ConstSharedPtr msgImg,
-    sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const;
   void timerCallback();
   void publish(const rclcpp::Time & t);
   void lookupTf();

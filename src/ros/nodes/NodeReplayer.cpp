@@ -5,8 +5,7 @@ using fmt::format;
 
 #include "NodeReplayer.h"
 namespace fs = std::filesystem;
-using namespace pd;
-using namespace pd::vslam;
+using namespace vslam;
 using namespace std::chrono_literals;
 
 namespace vslam_ros
@@ -82,7 +81,7 @@ NodeReplayer::NodeReplayer(const rclcpp::NodeOptions & options)
     get_logger(), "%s",
     format(
       "Will play from t0=[{:%Y-%m-%d %H:%M:%S}] to t1=[{:%Y-%m-%d %H:%M:%S}] for [{:.3f}]s.",
-      time::to_time_point(_tStart), time::to_time_point(_tEnd), _duration)
+      vslam::time::to_time_point(_tStart), vslam::time::to_time_point(_tEnd), _duration)
       .c_str());
   _period = 100;
   _tWaitingForNode = 0;
@@ -235,7 +234,7 @@ rcl_time_point_value_t NodeReplayer::getStartingTime(
   const rosbag2_storage::BagMetadata & meta) const
 {
   if (get_parameter("start_random").as_bool()) {
-    return pd::vslam::random::U(
+    return vslam::random::U(
       static_cast<uint64_t>(meta.starting_time.time_since_epoch().count()),
       static_cast<uint64_t>((meta.starting_time + meta.duration).time_since_epoch().count()));
   } else

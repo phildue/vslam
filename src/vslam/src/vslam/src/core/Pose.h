@@ -28,12 +28,15 @@ public:
   typedef std::shared_ptr<const Pose> ConstShPtr;
   typedef std::unique_ptr<const Pose> ConstUnPtr;
 
-  Pose(const Vec6d & x = Vec6d::Zero(), const Matd<6, 6> & cov = Matd<6, 6>::Identity())
-  : _pose(SE3d::exp(x)), _cov(cov)
+  Pose(const SE3d & pose = SE3d(), const Mat6d & cov = Mat6d::Identity()) : _pose(pose), _cov(cov)
   {
   }
-  //PoseWithCovariance( const Vec3d& t, const Vec4d& q, const Matd<6,6>& cov):_x(SE3d(q,t).log()),_cov(cov){}
-  Pose(const SE3d & pose, const Matd<6, 6> & cov) : _pose(pose), _cov(cov) {}
+
+  const Vec3d & translation() const { return _pose.translation(); }
+  double totalRotationDegrees() const
+  {
+    return _pose.log().block(3, 0, 3, 0).norm() * 180.0 / M_PI;
+  }
 
   const SE3d & pose() const { return _pose; }
   SE3d & pose() { return _pose; }

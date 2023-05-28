@@ -38,6 +38,13 @@ double TDistributionBivariate::computeWeight(const Vec2d & r) const
   return (_dof + 2.0) / (_dof + r.transpose() * _scale * r);
 }
 
+std::map<std::string, double> DirectIcp::defaultParameters()
+{
+  return {{"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
+          {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
+          {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
+}
+
 DirectIcp::DirectIcp(Camera::ConstShPtr cam, const std::map<std::string, double> params)
 : DirectIcp(
     cam, params.at("nLevels"), params.at("weightPrior"), params.at("minGradientIntensity"),
@@ -66,8 +73,8 @@ DirectIcp::DirectIcp(
     _cam[i] = Camera::resize(_cam[i - 1], 0.5);
   }
 }
-SE3d DirectIcp::computeEgomotion(
-  const cv::Mat & intensity, const cv::Mat & depth, const SE3d & guess)
+Pose DirectIcp::computeEgomotion(
+  const cv::Mat & intensity, const cv::Mat & depth, const Pose & guess)
 {
   if (_I0.empty()) {
     _I0 = computePyramidIntensity(intensity);
@@ -78,7 +85,7 @@ SE3d DirectIcp::computeEgomotion(
   const std::vector<cv::Mat> I1 = computePyramidIntensity(intensity);
   const std::vector<cv::Mat> Z1 = computePyramidDepth(depth);
 
-  SE3d prior = guess;
+  SE3d prior = guess.SE3();
   SE3d motion = prior;
   for (int level = _nLevels - 1; level >= 0; level--) {
     TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", level), DETAILED_SCOPES);

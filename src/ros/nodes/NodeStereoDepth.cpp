@@ -30,7 +30,7 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 #include <cv_bridge/cv_bridge.h>
-#include <vslam/vslam.h>
+#include <utils/visuals.h>
 
 #include <opencv2/highgui.hpp>
 
@@ -247,8 +247,8 @@ void NodeStereoDepth::imageCb(
     }
   }
 
-  cv::imshow("disparity", pd::vslam::vis::colorMap(dmat, cv::COLORMAP_JET));
-  cv::imshow("DDepth", pd::vslam::vis::colorMap(depthMat, cv::COLORMAP_JET));
+  cv::imshow("disparity", vslam::colorizedDepth(dmat, cv::COLORMAP_JET));
+  cv::imshow("DDepth", vslam::colorizedDepth(depthMat, cv::COLORMAP_JET));
 
   cv::waitKey(1);
   auto depth_msg =

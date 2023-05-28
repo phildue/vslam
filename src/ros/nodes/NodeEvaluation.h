@@ -27,8 +27,8 @@ private:
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _pub;
   std::string _algoFileName;
   nav_msgs::msg::Path _pathGt;
-  pd::vslam::Trajectory::ShPtr _trajAlgo;
-  pd::vslam::Trajectory::ConstShPtr _trajGt;
+  vslam::Trajectory::ShPtr _trajAlgo;
+  vslam::Trajectory::ConstShPtr _trajGt;
 };
 }  // namespace vslam_ros
 #endif

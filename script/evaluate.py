@@ -6,7 +6,10 @@ import git
 import yaml
 import shutil
 from datetime import datetime
-from vslampy.dataset import Kitti, TumRgbd
+from vslampy.evaluation.tum import TumRgbd
+from vslampy.evaluation.kitty import Kitti
+
+from vslampy.evaluation.evaluation import Evaluation
 import wandb
 from pathlib import Path
 from vslampy.plot.plot_logs import plot_logs
@@ -42,7 +45,7 @@ parser.add_argument(
     "--run_algo", help="Set to create algorithm results", action="store_true"
 )
 parser.add_argument(
-    "--upload", help="Upload results to experiment tracking tool", action="store_false"
+    "--upload", help="Upload results to experiment tracking tool", action="store_true"
 )
 
 parser.add_argument(
@@ -66,94 +69,37 @@ dataset = (
     if args.sequence_id in Kitti.sequences()
     else TumRgbd(args.sequence_id)
 )
+config_file = os.path.join(args.workspace_dir, "config", "node_config.yaml")
+params = yaml.safe_load(
+                Path(os.path.join(config_file)).read_text()
+            )
 
-if not args.out_root:
-    args.out_root = f"{dataset.bag_filepath()}/algorithm_results/"
-output_dir = f"{args.out_root}/{args.experiment_name}"
-algo_traj = os.path.join(output_dir, args.sequence_id + "-algo.txt")
-traj_plot = os.path.join(output_dir, "trajectory.png")
-
-
-gt_traj = os.path.join(
-    args.sequence_root, args.sequence_id, args.sequence_id + "-groundtruth.txt"
-)
-if not os.path.exists(output_dir):
-    if not args.run_algo:
-        raise ValueError(
-            f"There is no algorithm output for: {args.experiment_name}. \
-            Create it by setting --run_algo"
-        )
-    os.makedirs(output_dir)
-
-
-os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
-os.environ["WANDB_API_KEY"] = "local-837a2a9d75b14cf1ae7886da28a78394a9a7b053"
+evaluation = Evaluation(sequence=dataset, parameters=params, experiment_name=args.experiment_name, upload=args.upload,out_root=args.out_root,run_algo=args.run_algo)
 
 if args.run_algo:
     print("---------Running Algorithm-----------------")
-    sha = (
-        args.commit_hash
-        if args.commit_hash
-        else git.Repo(args.workspace_dir).head.object.hexsha
-    )
-    with open(os.path.join(output_dir, "meta.yaml"), "w") as f:
-        yaml.dump(
-            [
-                {"date": datetime.now()},
-                {"name": args.experiment_name},
-                {"code_sha": sha},
-            ],
-            f,
-        )
-
-    config_file = os.path.join(args.workspace_dir, "config", "node_config.yaml")
-    shutil.copy(config_file, os.path.join(output_dir, "node_config.yaml"))
-
-    if args.upload:
-        # os.environ["WANDB_MODE"] = "offline"
-        wandb.init(
-            project="vslam",
-            entity="phild",
-            config=yaml.safe_load(
-                Path(os.path.join(output_dir, "node_config.yaml")).read_text()
-            ),
-        )
-        wandb.run.name = f"{args.sequence_id}.{args.experiment_name}"
 
     os.system(
         f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{args.dataset} --ros-args --params-file {config_file} \
-        -p bag_file:={dataset.bag_filepath()} \
+        -p bag_file:={dataset.filepath()} \
         -p gtTrajectoryFile:={dataset.gt_filepath()} \
-        -p algoOutputFile:={output_dir}/{args.sequence_id}-algo.txt \
+        -p algoOutputFile:={evaluation.output_dir}/{args.sequence_id}-algo.txt \
         -p replayMode:=True \
         -p sync_topic:={dataset.sync_topic()} \
-        -p log.root_dir:={os.path.join(output_dir, 'log')} \
+        -p log.root_dir:={os.path.join(evaluation.output_dir, 'log')} \
         {dataset.remappings()} \
-        2>&1 | tee {os.path.join(output_dir,'log','log.txt')}"
+        2>&1 | tee {os.path.join(evaluation.output_dir,'log','log.txt')}"
     )
-else:
-    if args.upload:
-        # TODO update existing run
-        wandb.init(
-            project="vslam",
-            entity="phild",
-            config=yaml.safe_load(
-                Path(os.path.join(output_dir, "node_config.yaml")).read_text()
-            ),
-        )
-        wandb.run.name = f"{args.sequence_id}.{args.experiment_name}"
-
-
 # TODO plot, fix paths
 print("---------Creating Plots-----------------")
-plot_trajectory(algo_traj, gt_traj, traj_plot, None, True)
+plot_trajectory(evaluation.filepath_trajectory_algo, dataset.gt_filepath(), evaluation.filepath_trajectory_plot, None,upload=args.upload)
 
 plot_logs(args.experiment_name, args.sequence_id, args.sequence_root)
 
-dataset.run_evaluation_scripts(gt_traj, algo_traj, output_dir, script_dir)
+dataset.run_evaluation_scripts(dataset.gt_filepath(), evaluation.filepath_trajectory_algo, evaluation.output_dir, script_dir)
 
 print("Parsing performance log..")
-parse_performance_log(os.path.join(output_dir, "log", "vslam.log"))
+parse_performance_log(os.path.join(evaluation.output_dir, "log", "vslam.log"))
 
 if args.upload:
     wandb.finish()

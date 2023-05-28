@@ -64,7 +64,7 @@ rclcpp_components_register_nodes(
 rclcpp_components_register_node(
     vslam_ros_nodes
     PLUGIN "vslam_ros::NodeRgbdAlignment"
-    EXECUTABLE node_mapping
+    EXECUTABLE node_rgbd_alignment
 )
 rclcpp_components_register_node(
     vslam_ros_nodes
@@ -123,12 +123,12 @@ install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}/)
 
-install(DIRECTORY
-  src/vslam/config
-  DESTINATION share/${PROJECT_NAME}/)
+#install(DIRECTORY
+#  src/vslam/config
+#  DESTINATION share/${PROJECT_NAME}/)
 
 install(
-  TARGETS ${PROJECT_NAME} vslam_ros_nodes node_mapping node_evaluation composition_evaluation_tum composition_evaluation_kitti
+  TARGETS ${PROJECT_NAME} vslam_ros_nodes node_rgbd_alignment node_evaluation composition_evaluation_tum composition_evaluation_kitti
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib

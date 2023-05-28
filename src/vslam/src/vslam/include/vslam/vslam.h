@@ -19,6 +19,7 @@
 #include "core/Pose.h"
 #include "core/Trajectory.h"
 #include "core/macros.h"
+#include "core/random.h"
 #include "core/types.h"
 #include "direct_icp/DirectIcp.h"
 #include "evaluation/evaluation.h"

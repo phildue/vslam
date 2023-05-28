@@ -127,6 +127,19 @@ void runEvaluateRPEpy(const std::string & pathAlgo, const std::string & pathGt)
   }
 }
 
+cv::Mat convertDepthMat(const cv::Mat & depth_, float factor)
+{
+  cv::Mat depth(cv::Size(depth_.cols, depth_.rows), CV_32FC1);
+  for (int u = 0; u < depth_.cols; u++) {
+    for (int v = 0; v < depth_.rows; v++) {
+      const ushort d = depth_.at<ushort>(v, u);
+      depth.at<float>(v, u) =
+        factor * static_cast<float>(d > 0 ? d : std::numeric_limits<ushort>::quiet_NaN());
+    }
+  }
+  return depth;
+}
+
 DataLoader::DataLoader(const std::string & datasetRoot, const std::string & sequenceId)
 : _datasetRoot(datasetRoot),
   _sequenceId(sequenceId),
@@ -151,22 +164,15 @@ cv::Mat DataLoader::loadDepth(std::uint64_t fNo) const
 {
   // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
   const std::string path = format("{}/{}", datasetPath(), pathsDepth()[fNo]);
-  cv::Mat depth_ = cv::imread(path, cv::IMREAD_ANYDEPTH);
-  if (depth_.empty()) {
+  cv::Mat depth = cv::imread(path, cv::IMREAD_ANYDEPTH);
+  if (depth.empty()) {
     throw std::runtime_error(format("Could not load depth from [{}]", path));
   }
-  if (depth_.type() != CV_16U) {
+  if (depth.type() != CV_16U) {
     throw std::runtime_error(format("Depth image loaded incorrectly from [{}].", path));
   }
 
-  cv::Mat depth(cv::Size(depth_.cols, depth_.rows), CV_32FC1);
-  for (int u = 0; u < depth_.cols; u++) {
-    for (int v = 0; v < depth_.rows; v++) {
-      const ushort d = depth_.at<ushort>(v, u);
-      depth.at<float>(v, u) =
-        0.0002f * static_cast<float>(d > 0 ? d : std::numeric_limits<ushort>::quiet_NaN());
-    }
-  }
+  depth = convertDepthMat(depth, 0.0002);
 
   return depth;
 }

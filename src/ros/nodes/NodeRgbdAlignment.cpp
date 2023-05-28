@@ -22,18 +22,9 @@
 #include "NodeRgbdAlignment.h"
 #include "vslam_ros/converters.h"
 
-using namespace pd::vslam;
+using namespace vslam;
 using namespace std::chrono_literals;
-#include <fmt/core.h>
-#include <fmt/ostream.h>
 
-using fmt::format;
-using fmt::print;
-template <typename T>
-struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>, T>, char>>
-: ostream_formatter
-{
-};
 namespace vslam_ros
 {
 NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
@@ -56,236 +47,12 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   declare_parameter("tf.frame_id", _frameId);
   _fixedFrameId = get_parameter("tf.base_link_id").as_string();
   _frameId = get_parameter("tf.frame_id").as_string();
-  declare_parameter("frame_alignment.method", "rgbd");
-  declare_parameter("frame_alignment.opencv.odometry_type", "RgbdAlignment");
-
-  declare_parameter("frame_alignment.trackKeyFrame", false);
-  declare_parameter("frame_alignment.includeKeyFrame", false);
-  declare_parameter("frame_alignment.includePrior", false);
-  declare_parameter("frame_alignment.initOnPrior", false);
-  declare_parameter(
-    "frame_alignment.features.min_gradients", std::vector<double>({10.0, 10.0, 10.0, 10.0}));
-  declare_parameter("frame_alignment.features.min_depth", 0.0);
-  declare_parameter("frame_alignment.features.max_depth", 4.0);
-  declare_parameter("frame_alignment.features.min_depth_diff", 0.05);
-  declare_parameter("frame_alignment.features.max_depth_diff", 1.0);
-  declare_parameter(
-    "frame_alignment.features.max_points", std::vector<double>({1.0, 1.0, 1.0, 0.25}));
-  declare_parameter("frame_alignment.pyramid.levels", std::vector<double>({0.25, 0.5, 1.0}));
-  declare_parameter("frame_alignment.solver.max_iterations", 100);
-  declare_parameter("frame_alignment.solver.min_step_size", 1e-7);
-  declare_parameter("frame_alignment.solver.min_gradient", 1e-7);
-  declare_parameter("frame_alignment.solver.max_increase", 1e-7);
-  declare_parameter("frame_alignment.solver.min_reduction", 0.0);
-  declare_parameter("frame_alignment.loss.function", "None");
-  declare_parameter("frame_alignment.loss.huber.c", 10.0);
-  declare_parameter("frame_alignment.loss.tdistribution.v", 5.0);
-  declare_parameter("keyframe_selection.method", "idx");
-  declare_parameter("keyframe_selection.idx.period", 5);
-  declare_parameter("keyframe_selection.custom.min_visible_points", 50);
-  declare_parameter("keyframe_selection.custom.max_translation", 0.2);
-  declare_parameter("keyframe_selection.custom.max_rotation", 1.0);
-  declare_parameter("prediction.model", "NoMotion");
-  declare_parameter("prediction.kalman.process_noise.pose.translation", 1e-15);
-  declare_parameter("prediction.kalman.process_noise.pose.rotation", 1e-15);
-  declare_parameter("prediction.kalman.process_noise.velocity.translation", 1e-15);
-  declare_parameter("prediction.kalman.process_noise.velocity.rotation", 1e-15);
-  declare_parameter("prediction.kalman.initial_uncertainty.pose.translation", 1e-15);
-  declare_parameter("prediction.kalman.initial_uncertainty.pose.rotation", 1e-15);
-  declare_parameter("prediction.kalman.initial_uncertainty.velocity.translation", 1e-15);
-  declare_parameter("prediction.kalman.initial_uncertainty.velocity.rotation", 1e-15);
-
-  declare_parameter("map.n_keyframes", 7);
-  declare_parameter("map.n_frames", 7);
-
-  RCLCPP_INFO(get_logger(), "Setting up..");
-
   if (get_parameter("replayMode").as_bool()) {
     _cliReplayer = create_client<std_srvs::srv::SetBool>("set_ready");
   }
 
-  _map = std::make_shared<Map>(
-    get_parameter("frame_alignment.trackKeyFrame").as_bool(),
-    get_parameter("frame_alignment.includeKeyFrame").as_bool(),
-    get_parameter("map.n_keyframes").as_int(), get_parameter("map.n_frames").as_int());
-
-  least_squares::Loss::ShPtr loss =
-    std::make_shared<least_squares::QuadraticLoss>(std::make_shared<least_squares::Scaler>());
-  auto paramLoss = get_parameter("frame_alignment.loss.function").as_string();
-  if (paramLoss == "Tukey") {
-    loss =
-      std::make_shared<least_squares::TukeyLoss>(std::make_shared<least_squares::MedianScaler>());
-  } else if (paramLoss == "Huber") {
-    loss = std::make_shared<least_squares::HuberLoss>(
-      std::make_shared<least_squares::MedianScaler>(),
-      get_parameter("frame_alignment.loss.huber.c").as_double());
-  } else if (paramLoss == "tdistribution") {
-    loss = std::make_shared<least_squares::LossTDistribution>(
-      std::make_shared<least_squares::ScalerTDistribution>(
-        get_parameter("frame_alignment.loss.tdistribution.v").as_double()),
-      get_parameter("frame_alignment.loss.tdistribution.v").as_double());
-  } else {
-    RCLCPP_WARN(get_logger(), "Unknown loss selected. Assuming None");
-  }
-  auto solver = std::make_shared<least_squares::GaussNewton>(
-    get_parameter("frame_alignment.solver.min_step_size").as_double(),
-    get_parameter("frame_alignment.solver.max_iterations").as_int(),
-    get_parameter("frame_alignment.solver.min_gradient").as_double(),
-    get_parameter("frame_alignment.solver.min_reduction").as_double(),
-    get_parameter("frame_alignment.solver.max_increase").as_double());
-
-  if (get_parameter("frame_alignment.method").as_string() == "icp") {
-    _rgbdAlignment = std::make_shared<RgbdAlignmentIcp>(
-      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
-      get_parameter("frame_alignment.initOnPrior").as_bool(),
-      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
-      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
-      get_parameter("frame_alignment.features.min_depth").as_double(),
-      get_parameter("frame_alignment.features.max_depth").as_double(),
-      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points").as_double_array());
-  } else if (get_parameter("frame_alignment.method").as_string() == "rgbd") {
-    _rgbdAlignment = std::make_shared<RgbdAlignment>(
-      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
-      get_parameter("frame_alignment.initOnPrior").as_bool(),
-      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
-      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
-      get_parameter("frame_alignment.features.min_depth").as_double(),
-      get_parameter("frame_alignment.features.max_depth").as_double(),
-      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points").as_double_array());
-  } else if (get_parameter("frame_alignment.method").as_string() == "rgb") {
-    _rgbdAlignment = std::make_shared<RgbdAlignmentRgb>(
-      solver, loss, get_parameter("frame_alignment.includePrior").as_bool(),
-      get_parameter("frame_alignment.initOnPrior").as_bool(),
-      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
-      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
-      get_parameter("frame_alignment.features.min_depth").as_double(),
-      get_parameter("frame_alignment.features.max_depth").as_double(),
-      get_parameter("frame_alignment.features.min_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points").as_double_array());
-  } else if (get_parameter("frame_alignment.method").as_string() == "opencv") {
-    _rgbdAlignment = std::make_shared<RgbdAlignmentOcv>(
-      get_parameter("frame_alignment.initOnPrior").as_bool(),
-      get_parameter("frame_alignment.pyramid.levels").as_double_array().size(),
-      get_parameter("frame_alignment.features.min_gradients").as_double_array(),
-      get_parameter("frame_alignment.features.min_depth").as_double(),
-      get_parameter("frame_alignment.features.max_depth").as_double(),
-      get_parameter("frame_alignment.features.max_depth_diff").as_double(),
-      get_parameter("frame_alignment.features.max_points").as_double_array(),
-      get_parameter("frame_alignment.opencv.odometry_type").as_string());
-  } else {
-    throw pd::Exception(format(
-      "Unknown frame_alignment method {} available are: [rgbd, depth, rgb]",
-      get_parameter("prediction.model").as_string().c_str()));
-  }
-
-  if (get_parameter("prediction.model").as_string() == "NoMotion") {
-    _motionModel = std::make_shared<motion_model::NoMotion>(
-      declare_parameter<double>("prediction.no_motion.max_translational_velocity", 0.15),
-      declare_parameter<double>("prediction.no_motion.max_angular_velocity", 15) * M_PI / 180.0);
-  } else if (get_parameter("prediction.model").as_string() == "ConstantMotion") {
-    _motionModel = std::make_shared<motion_model::ConstantMotion>(
-      Mat6d::Identity() * declare_parameter<double>("prediction.constant_motion.covariance", 1.0),
-      declare_parameter<double>("prediction.constant_motion.max_translational_velocity", 0.15),
-      declare_parameter<double>("prediction.constant_motion.max_angular_velocity", 15) * M_PI /
-        180.0);
-  } else if (get_parameter("prediction.model").as_string() == "Kalman") {
-    const double processVarRot = std::pow(
-      get_parameter("prediction.kalman.process_noise.pose.rotation").as_double() / 180.0 * M_PI, 2);
-    const double processVarTrans =
-      std::pow(get_parameter("prediction.kalman.process_noise.pose.translation").as_double(), 2);
-    const double processVarRotVel = std::pow(
-      (get_parameter("prediction.kalman.process_noise.velocity.rotation").as_double() / 180.0 *
-       M_PI),
-      2);
-    const double processVarTransVel = std::pow(
-      get_parameter("prediction.kalman.process_noise.velocity.translation").as_double(), 2);
-    Vec12d processVarDiag;
-    processVarDiag << processVarTrans, processVarTrans, processVarTrans, processVarRot,
-      processVarRot, processVarRot, processVarTransVel, processVarTransVel, processVarTransVel,
-      processVarRotVel, processVarRotVel, processVarRotVel;
-
-    const double stateVarRot = std::pow(
-      get_parameter("prediction.kalman.initial_uncertainty.pose.rotation").as_double() / 180.0 *
-        M_PI,
-      2);
-    const double stateVarTrans = std::pow(
-      get_parameter("prediction.kalman.initial_uncertainty.pose.translation").as_double(), 2);
-    const double stateVarRotVel = std::pow(
-      (get_parameter("prediction.kalman.initial_uncertainty.velocity.rotation").as_double() /
-       180.0 * M_PI),
-      2);
-    const double stateVarTransVel = std::pow(
-      get_parameter("prediction.kalman.initial_uncertainty.velocity.translation").as_double(), 2);
-    Vec12d stateVarDiag;
-    stateVarDiag << stateVarTrans, stateVarTrans, stateVarTrans, stateVarRot, stateVarRot,
-      stateVarRot, stateVarTransVel, stateVarTransVel, stateVarTransVel, stateVarRotVel,
-      stateVarRotVel, stateVarRotVel;
-
-    _motionModel = std::make_shared<motion_model::ConstantMotionKalman>(
-      processVarDiag.asDiagonal(), stateVarDiag.asDiagonal());
-  } else {
-    throw pd::Exception(format(
-      "Unknown prediction model {} available are: [NoMotion, ConstantMotion, Kalman]",
-      get_parameter("prediction.model").as_string().c_str()));
-  }
-
-  if (get_parameter("keyframe_selection.method").as_string() == "idx") {
-    _keyFrameSelection = std::make_shared<KeyFrameSelectionIdx>(
-      get_parameter("keyframe_selection.idx.period").as_int());
-  } else if (get_parameter("keyframe_selection.method").as_string() == "custom") {
-    _keyFrameSelection = std::make_shared<KeyFrameSelectionCustom>(
-      _map, get_parameter("keyframe_selection.custom.min_visible_points").as_int(),
-      get_parameter("keyframe_selection.custom.max_translation").as_double(),
-      get_parameter("keyframe_selection.custom.max_rotation").as_double() / 180.0 * M_PI);
-  } else if (get_parameter("keyframe_selection.method").as_string() == "entropy") {
-    _keyFrameSelection = std::make_shared<KeyFrameSelectionEntropy>(
-      _map, declare_parameter<double>("keyframe_selection.entropy.max_entropy_ratio", 5.0));
-  } else if (get_parameter("keyframe_selection.method").as_string() == "never") {
-    _keyFrameSelection = std::make_shared<KeyFrameSelectionNever>();
-  } else {
-    throw pd::Exception("Unknown method for key frame selection.");
-  }
-  declare_parameter("bundle_adjustment.huber_constant", 1.43);
-  declare_parameter("bundle_adjustment.max_iterations", 50);
-
-  _ba = std::make_shared<mapping::BundleAdjustment>(
-    get_parameter("bundle_adjustment.max_iterations").as_int(),
-    get_parameter("bundle_adjustment.huber_constant").as_double());
-
-  _matcher = std::make_shared<Matcher>(Matcher::reprojectionHamming, 5.0, 0.8);
-  _tracking = std::make_shared<FeatureTracking>(_matcher);
-
-  // _cameraName = this->declare_parameter<std::string>("camera","/camera/rgb");
-  //sync.registerDropCallback(std::bind(&StereoAlignmentROS::dropCallback, this,std::placeholders::_1, std::placeholders::_2));
-  LOG_IMG("KeyFrames");
-  declare_parameter("log.config_dir", "/share/cfg/log/");
-  declare_parameter("log.root_dir", "/tmp/log/vslam");
-  LogImage::rootFolder() = get_parameter("log.root_dir").as_string();
-  el::Loggers::reconfigureAllLoggers(
-    el::ConfigurationType::Filename, LogImage::rootFolder() + "/vslam.log");
-  //TODO move this behind interface
-  for (const auto & name : Log::registeredLogs()) {
-    RCLCPP_INFO(get_logger(), "Found logger: %s", name.c_str());
-    Log::get(name)->configure(get_parameter("log.config_dir").as_string() + "/" + name + ".conf");
-  }
-  for (const auto & name : Log::registeredLogsImage()) {
-    RCLCPP_INFO(get_logger(), "Found image logger: %s", name.c_str());
-
-    declare_parameter("log.image." + name + ".show", false);
-    declare_parameter("log.image." + name + ".block", false);
-    declare_parameter("log.image." + name + ".save", false);
-    declare_parameter("log.image." + name + ".rate", 1);
-    LOG_IMG(name)->set(
-      get_parameter("log.image." + name + ".show").as_bool(),
-      get_parameter("log.image." + name + ".block").as_bool(),
-      get_parameter("log.image." + name + ".save").as_bool(),
-      get_parameter("log.image." + name + ".rate").as_int());
-    RCLCPP_INFO(get_logger(), "Found image logger:\n%s", LOG_IMG(name)->toString().c_str());
+  for (auto name_value : DirectIcp::defaultParameters()) {
+    _paramsIcp[name_value.first] = declare_parameter(name_value.first, name_value.second);
   }
 
   int queue_size = declare_parameter("sync.queue_size", 5);
@@ -338,9 +105,10 @@ void NodeRgbdAlignment::cameraCallback(sensor_msgs::msg::CameraInfo::ConstShared
 {
   auto camera = vslam_ros::convert(*msg);
 
-  if (camera->fx() > 0.0 && camera->principalPoint().norm() > 0.0) {
+  if (camera->fx() > 0.0 && camera->cx() > 0.0) {
     _subCamInfo.reset();
     _camera = camera;
+    _directIcp = std::make_shared<DirectIcp>(_camera, _paramsIcp);
 
     _periodicTimer =
       create_wall_timer(std::chrono::seconds(1), [this, msg]() { this->timerCallback(); });
@@ -369,28 +137,21 @@ void NodeRgbdAlignment::imageCallback(
   try {
     TIMED_SCOPE(timerF, "processFrame");
 
-    Frame::ShPtr frame = createFrame(msgImg, msgDepth);
-
-    Log::setCurrentTimestamp(frame->t());
-
-    frame->set(_motionModel->predictPose(frame->t()));
-
-    Pose pose;
-    {
-      auto framesRef = _map->referenceFrames();
-      if (!framesRef.empty()) {
-        pose = framesRef.size() > 1 ? _rgbdAlignment->align(framesRef, frame)
-                                    : _rgbdAlignment->align(framesRef[0], frame);
-      }
+    namespace enc = sensor_msgs::image_encodings;
+    auto cv_ptr = cv_bridge::toCvShare(msgImg);
+    if (enc::isColor(msgImg->encoding)) {
+      cv_ptr = cv_bridge::cvtColor(cv_ptr, "mono8");
     }
-    auto relativePose = _map->lastFrame() ? pose * _map->lastFrame()->pose().inverse() : pose;
-    _motionModel->update(relativePose, frame->t());
+    Timestamp t;
+    convert(msgImg->header.stamp, t);
+    cv::Mat depth = cv_bridge::toCvShare(msgDepth)->image;
+    if (depth.type() == CV_16UC1) {
+      depth = evaluation::tum::convertDepthMat(depth, 0.001);
+    }
+    _motion = _directIcp->computeEgomotion(cv_ptr->image, depth, _motion);
 
-    frame->set(_motionModel->pose());
-
-    _keyFrameSelection->update(frame);
-
-    _map->insert(frame, _keyFrameSelection->isKeyFrame() || _map->keyFrames().empty());
+    _pose = _motion * _pose;
+    _trajectory.append(t, _pose);
 
     publish(msgImg->header.stamp);
 
@@ -406,22 +167,10 @@ void NodeRgbdAlignment::timerCallback()
   if (!_tfAvailable) {
     lookupTf();
   }
-  if (_map->lastFrame()) {
-    auto x = _map->lastFrame()->pose().inverse().twist();
-    auto cx = _map->lastFrame()->pose().inverse().twistCov();
-    const auto fId = _map->lastFrame()->id();
-
-    RCLCPP_INFO(
-      get_logger(), "Frame: %ld Pose: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f | Cov | %.3f\n", fId, x(0),
-      x(1), x(2), x(3), x(4), x(5), cx.norm());
-  }
-
   RCLCPP_INFO(
-    get_logger(), format(
-                    "Translational Speed: {} [m/s] | Cov | {}",
-                    _motionModel->speed().SE3().translation().transpose(),
-                    _motionModel->speed().twistCov().block(0, 0, 3, 3).diagonal().transpose())
-                    .c_str());
+    get_logger(),
+    format("Egomotion: {} m {}°", _motion.translation().transpose(), _motion.totalRotationDegrees())
+      .c_str());
 }
 
 void NodeRgbdAlignment::lookupTf()
@@ -457,32 +206,6 @@ void NodeRgbdAlignment::triggerReplayer()
   _cliReplayer->async_send_request(request, response_received_callback);
 }
 
-Frame::UnPtr NodeRgbdAlignment::createFrame(
-  sensor_msgs::msg::Image::ConstSharedPtr msgImg,
-  sensor_msgs::msg::Image::ConstSharedPtr msgDepth) const
-{
-  TIMED_SCOPE(timerF, "createFrame");
-
-  //TODO(me) try to avoid copying here
-  namespace enc = sensor_msgs::image_encodings;
-  auto cv_ptr = cv_bridge::toCvShare(msgImg);
-  if (enc::isColor(msgImg->encoding)) {
-    cv_ptr = cv_bridge::cvtColor(cv_ptr, "mono8");
-  }
-
-  Image img;
-  cv::cv2eigen(cv_ptr->image, img);
-
-  Eigen::MatrixXd depth;
-  cv::cv2eigen(cv_bridge::toCvShare(msgDepth)->image, depth);
-
-  //depth = depth.array().isNaN().select(0, depth);
-  const Timestamp t =
-    rclcpp::Time(msgImg->header.stamp.sec, msgImg->header.stamp.nanosec).nanoseconds();
-
-  return std::make_unique<Frame>(img, depth, _camera, t);
-}
-
 void NodeRgbdAlignment::publish(const rclcpp::Time & t)
 {
   // tf from origin (odom) to another fixed frame (world)
@@ -496,43 +219,21 @@ void NodeRgbdAlignment::publish(const rclcpp::Time & t)
   tf.header.stamp = t;
   tf.header.frame_id = _frameId;
   tf.child_frame_id = "camera";  //camera name?
-  vslam_ros::convert(_map->lastFrame()->pose().SE3().inverse(), tf);
+  vslam_ros::convert(_pose.SE3().inverse(), tf);
   _pubTf->sendTransform({tf, tfOrigin});
 
   // Send pose, twist and path in optical frame
   nav_msgs::msg::Odometry odom;
   odom.header.stamp = t;
   odom.header.frame_id = _frameId;
-  vslam_ros::convert(_map->lastFrame()->pose().inverse(), odom.pose);
-  vslam_ros::convert(_motionModel->speed().inverse(), odom.twist);
+  vslam_ros::convert(_pose.inverse(), odom.pose);
+  vslam_ros::convert(_motion.inverse(), odom.twist);
   _pubOdom->publish(odom);
 
-  geometry_msgs::msg::PoseStamped poseStamped;
-  poseStamped.header = odom.header;
-  poseStamped.pose = vslam_ros::convert(_map->lastFrame()->pose().pose().inverse());
-  _path.header = odom.header;
-  _path.poses.push_back(poseStamped);
-  _pubPath->publish(_path);
-
-  if (!_map->points().empty()) {
-    sensor_msgs::msg::PointCloud2 pcl;
-    vslam_ros::convert(Map::ConstShPtr(_map)->points(), pcl);
-    pcl.header = odom.header;
-    _pubPclMap->publish(pcl);
-  }
-
-  if (!_map->keyFrames().empty()) {
-    nav_msgs::msg::Path poseGraph;
-    poseGraph.header = odom.header;
-    for (auto kf : _map->keyFrames()) {
-      geometry_msgs::msg::PoseStamped kfPoseStamped;
-      kfPoseStamped.header = odom.header;
-      vslam_ros::convert(kf->t(), kfPoseStamped.header.stamp);
-      kfPoseStamped.pose = vslam_ros::convert(kf->pose().pose().inverse());
-      poseGraph.poses.push_back(kfPoseStamped);
-    }
-    _pubPoseGraph->publish(poseGraph);
-  }
+  nav_msgs::msg::Path path;
+  path.header = odom.header;
+  vslam_ros::convert(_trajectory.inverse(), path);
+  _pubPath->publish(path);
 }
 
 }  // namespace vslam_ros

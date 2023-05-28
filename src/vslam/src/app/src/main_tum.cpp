@@ -25,13 +25,13 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
   const size_t fEnd = 200;  //dl->timestamps().size();
-  SE3d motion;
-  SE3d pose;
+  Pose motion;
+  Pose pose;
   for (size_t fId = 0; fId < fEnd; fId++) {
     try {
       print(
         "{}/{}: {} m, {:.3f}°\n", fId, fEnd, pose.translation().transpose(),
-        pose.log().block(3, 0, 3, 1).norm() * 180.0 / M_PI);
+        pose.totalRotationDegrees());
 
       const cv::Mat img = dl->loadIntensity(fId);
       const cv::Mat depth = dl->loadDepth(fId);
@@ -41,7 +41,7 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 
       motion = directIcp->computeEgomotion(img, depth, motion);
       pose = motion * pose;
-      traj->append(dl->timestamps()[fId], Pose(pose.inverse(), Mat6d::Identity()));
+      traj->append(dl->timestamps()[fId], pose.inverse());
 
     } catch (const std::runtime_error & e) {
       std::cerr << e.what() << std::endl;

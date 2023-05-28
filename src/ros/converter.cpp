@@ -13,22 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <pcl_conversions/pcl_conversions.h>
-
 #include "vslam_ros/converters.h"
 
 namespace vslam_ros
 {
-void convert(pd::vslam::Timestamp t, builtin_interfaces::msg::Time & tRos)
+void convert(vslam::Timestamp t, builtin_interfaces::msg::Time & tRos)
 {
   tRos.sec = static_cast<int32_t>(t / 1e9);
   tRos.nanosec = t - tRos.sec * 1e9;
 }
-void convert(const builtin_interfaces::msg::Time & tRos, pd::vslam::Timestamp & t)
+void convert(const builtin_interfaces::msg::Time & tRos, vslam::Timestamp & t)
 {
   t = tRos.sec * 1e9 + tRos.nanosec;
 }
-pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
+vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
 {
   double fx = msg.k[0 * 3 + 0];
   double fy = msg.k[1 * 3 + 1];
@@ -48,7 +46,7 @@ pd::vslam::Camera::ShPtr convert(const sensor_msgs::msg::CameraInfo & msg)
     cy = msg.p[1 * 4 + 2];
   }
 
-  return std::make_shared<pd::vslam::Camera>(fx, fy, cx, cy);
+  return std::make_shared<vslam::Camera>(fx, fy, cx, cy, std::ceil(cx * 2.0), std::ceil(cy * 2.0));
 }
 
 geometry_msgs::msg::Pose convert(const Sophus::SE3d & se3)
@@ -104,7 +102,7 @@ void convert(const Sophus::SE3d & sophus, geometry_msgs::msg::TransformStamped &
   tf.transform.rotation.z = q.z();
 }
 
-void convert(const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::PoseWithCovariance & pRos)
+void convert(const vslam::Pose & p, geometry_msgs::msg::PoseWithCovariance & pRos)
 {
   pRos.pose = convert(p.pose());
   for (int i = 0; i < 6; i++) {
@@ -114,8 +112,7 @@ void convert(const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::PoseWi
   }
   //TODO check ros2 conventions for covariance ordering
 }
-void convert(
-  const pd::vslam::PoseWithCovariance & p, geometry_msgs::msg::TwistWithCovariance & pRos)
+void convert(const vslam::Pose & p, geometry_msgs::msg::TwistWithCovariance & pRos)
 {
   convert(p.pose(), pRos.twist);
   for (int i = 0; i < 6; i++) {
@@ -125,8 +122,9 @@ void convert(
   }
   //TODO check ros2 conventions for covariance ordering
 }
+#if false
 void convert(
-  const std::vector<pd::vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos)
+  const std::vector<vslam::Point3D::ConstShPtr> & pcl, sensor_msgs::msg::PointCloud2 & pclRos)
 {
   //TODO(phil) is this copying the pcl two times?
   pcl::PointCloud<pcl::PointXYZRGB> pclPcl;
@@ -144,7 +142,8 @@ void convert(
   }
   pcl::toROSMsg(pclPcl, pclRos);
 }
-void convert(const geometry_msgs::msg::PoseWithCovariance & pRos, pd::vslam::PoseWithCovariance & p)
+#endif
+void convert(const geometry_msgs::msg::PoseWithCovariance & pRos, vslam::Pose & p)
 {
   p.pose() = convert(pRos.pose);
   for (int i = 0; i < 6; i++) {
@@ -154,17 +153,16 @@ void convert(const geometry_msgs::msg::PoseWithCovariance & pRos, pd::vslam::Pos
   }
   //TODO check ros2 conventions for covariance ordering
 }
-void convert(
-  const geometry_msgs::msg::TwistWithCovariance & twistRos, pd::vslam::PoseWithCovariance & p)
+void convert(const geometry_msgs::msg::TwistWithCovariance & twistRos, vslam::Pose & p)
 {
-  pd::vslam::Vec6d twist;
+  vslam::Vec6d twist;
   twist(0) = twistRos.twist.linear.x;
   twist(1) = twistRos.twist.linear.y;
   twist(2) = twistRos.twist.linear.z;
   twist(3) = twistRos.twist.angular.x;
   twist(4) = twistRos.twist.angular.y;
   twist(5) = twistRos.twist.angular.z;
-  p.pose() = pd::vslam::SE3d::exp(twist);
+  p.pose() = vslam::SE3d::exp(twist);
   for (int i = 0; i < 6; i++) {
     for (int j = 0; j < 6; j++) {
       p.cov()(i, j) = twistRos.covariance[i * 6 + j];
@@ -172,7 +170,7 @@ void convert(
   }
   //TODO check ros2 conventions for covariance ordering
 }
-void convert(const pd::vslam::Trajectory & traj, nav_msgs::msg::Path & trajRos)
+void convert(const vslam::Trajectory & traj, nav_msgs::msg::Path & trajRos)
 {
   trajRos.poses.reserve(traj.poses().size());
   for (const auto t_p : traj.poses()) {

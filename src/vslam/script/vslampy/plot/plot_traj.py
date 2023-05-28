@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
-from vslampy._tum.dataset_analysis import read_trajectory, ominus
+from vslampy.evaluation._tum.dataset_analysis import read_trajectory, ominus
 import wandb
 import os
 

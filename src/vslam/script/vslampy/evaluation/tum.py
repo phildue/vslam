@@ -25,7 +25,7 @@ class TumRgbd(Dataset):
     def directory(self) -> str:
         return f"/mnt/dataset/tum_rgbd/{self._sequence_id}"
 
-    def bag_filepath(self) -> str:
+    def filepath(self) -> str:
         return f"/mnt/dataset/tum_rgbd/{self._sequence_id}"
 
     def gt_filepath(self) -> str:

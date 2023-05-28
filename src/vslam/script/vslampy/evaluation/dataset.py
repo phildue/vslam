@@ -8,7 +8,7 @@ class Dataset:
     def id(self):
         return self._sequence_id
 
-    def bag_filepath(self) -> str:
+    def filepath(self) -> str:
         pass
 
     def gt_filepath(self) -> str:
