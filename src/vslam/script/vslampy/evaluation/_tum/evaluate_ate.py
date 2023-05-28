@@ -42,7 +42,7 @@ trajectory and the estimated trajectory.
 import sys
 import numpy
 import argparse
-import associate
+from vslampy.evaluation._tum import associate
 
 def align(model,data):
     """Align two trajectories using the method of Horn (closed-form).

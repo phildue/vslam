@@ -17,10 +17,7 @@ plots = {
 }
 
 
-def plot_logs(experiment_name, sequence_id, sequence_root):
-    result_dir = os.path.join(
-        sequence_root, sequence_id, "algorithm_results", experiment_name
-    )
+def plot_logs(result_dir):
     log_dir = os.path.join(result_dir, "log")
     for log in os.listdir(log_dir):
         if log in plots.keys():

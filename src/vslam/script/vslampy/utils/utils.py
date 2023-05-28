@@ -30,14 +30,7 @@ def interpolate_pose_between(trajectory, t0, t1):
 
 
 
-def write_result_file(trajectory, filename):
-    with open(filename, "w") as f:
-        f.writelines(
-            [
-                f"{t} {SE3(pose).log()[0]} {SE3(pose).log()[1]} {SE3(pose).log()[2]} {SE3(pose).log()[3]} {SE3(pose).log()[4]} {SE3(pose).log()[5]}\n"
-                for t, pose in trajectory.items()
-            ]
-        )
+
 
 
 def create_intensity_depth_overlay(I, Z):

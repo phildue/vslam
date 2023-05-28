@@ -14,7 +14,6 @@ from vslampy.direct_icp.weights import (
     LinearCombination,
 )
 from vslampy.utils.utils import (
-    write_result_file,
     Timer,
     statsstr,
     create_intensity_depth_overlay,
@@ -25,17 +24,17 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     f_start = 0
-    n_frames = np.inf
+    n_frames = 50#np.inf
     rate_eval = 25
 
     wait_time = 1
-    upload = True
+    upload = False
     parser = argparse.ArgumentParser(
         description="""
     Run evaluation of algorithm"""
     )
     parser.add_argument(
-        "--experiment_name", help="Name for the experiment", default="test"
+        "--experiment_name", help="Name for the experiment", default="test-python"
     )
     parser.add_argument(
         "--sequence_id",
@@ -69,8 +68,8 @@ if __name__ == "__main__":
     }
     sequence = TumRgbd(args.sequence_id)
 
-    evaluation = Evaluation(sequence, params, args.experiment_name, upload, True)
-
+    evaluation = Evaluation(sequence, args.experiment_name)
+    evaluation.prepare_directory(params, upload=upload)
     timestamps = sequence.timestamps("image")
     f_end = min([f_start + n_frames, len(timestamps)])
 
@@ -138,4 +137,4 @@ if __name__ == "__main__":
             except Exception as e:
                 print(e)
 
-    evaluation.finalize(trajectory)
+    evaluation.evaluate(trajectory)

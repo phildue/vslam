@@ -17,8 +17,5 @@ class Dataset:
     def sync_topic(self) -> str:
         pass
 
-    def run_evaluation_scripts(self, gt_traj, algo_traj, output_dir, script_dir):
-        pass
-
     def remappings(self) -> str:
         pass
