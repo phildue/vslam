@@ -45,17 +45,17 @@ std::map<std::string, double> DirectIcp::defaultParameters()
           {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
 }
 
-DirectIcp::DirectIcp(Camera::ConstShPtr cam, const std::map<std::string, double> params)
+DirectIcp::DirectIcp(const std::map<std::string, double> params)
 : DirectIcp(
-    cam, params.at("nLevels"), params.at("weightPrior"), params.at("minGradientIntensity"),
+    params.at("nLevels"), params.at("weightPrior"), params.at("minGradientIntensity"),
     params.at("minGradientDepth"), params.at("maxGradientDepth"), params.at("maxDepth"),
     params.at("maxIterations"), params.at("minParameterUpdate"), params.at("maxErrorIncrease"))
 {
 }
 DirectIcp::DirectIcp(
-  Camera::ConstShPtr cam, int nLevels, double weightPrior, double minGradientIntensity,
-  double minGradientDepth, double maxGradientDepth, double maxZ, double maxIterations,
-  double minParameterUpdate, double maxErrorIncrease)
+  int nLevels, double weightPrior, double minGradientIntensity, double minGradientDepth,
+  double maxGradientDepth, double maxZ, double maxIterations, double minParameterUpdate,
+  double maxErrorIncrease)
 : _weightFunction(std::make_shared<TDistributionBivariate>(5.0)),
   _nLevels(nLevels),
   _weightPrior(weightPrior),
@@ -67,30 +67,33 @@ DirectIcp::DirectIcp(
   _minParameterUpdate(minParameterUpdate),
   _maxErrorIncrease(maxErrorIncrease)
 {
-  _cam.resize(_nLevels);
-  _cam[0] = cam;
-  for (int i = 1; i < _nLevels; i++) {
-    _cam[i] = Camera::resize(_cam[i - 1], 0.5);
-  }
 }
+
 Pose DirectIcp::computeEgomotion(
-  const cv::Mat & intensity, const cv::Mat & depth, const Pose & guess)
+  Camera::ConstShPtr cam, const cv::Mat & intensity0, const cv::Mat & depth0,
+  const cv::Mat & intensity1, const cv::Mat & depth1, const Pose & guess)
 {
-  if (_I0.empty()) {
-    _I0 = computePyramidIntensity(intensity);
-    _Z0 = computePyramidDepth(depth);
-    return guess;
-  }
+  Frame f0(intensity0, depth0, cam);
+  f0.computePyramid(_nLevels);
+  f0.computeDerivatives();
+  f0.computePcl();
+  Frame f1(intensity1, depth1, cam);
+  f1.computePyramid(_nLevels);
+
+  return computeEgomotion(f0, f1, guess);
+}
+
+Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, const Pose & guess)
+{
   TIMED_SCOPE(timer, "computeEgomotion");
-  const std::vector<cv::Mat> I1 = computePyramidIntensity(intensity);
-  const std::vector<cv::Mat> Z1 = computePyramidDepth(depth);
 
   SE3d prior = guess.SE3();
   SE3d motion = prior;
   for (int level = _nLevels - 1; level >= 0; level--) {
     TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", level), DETAILED_SCOPES);
-    const std::vector<Feature::ShPtr> features =
-      extractFeatures(_I0[level], _Z0[level], _cam[level], motion);
+    const Frame f0 = frame0.level(level);
+    const Frame f1 = frame1.level(level);
+    const std::vector<Feature::ShPtr> features = extractFeatures(f0, motion);
 
     std::string reason = "Max iterations exceeded";
     double error = INFd;
@@ -98,44 +101,8 @@ Pose DirectIcp::computeEgomotion(
     for (int iteration = 0; iteration < _maxIterations; iteration++) {
       TIMED_SCOPE_IF(timerIter, format("computeIteration{}", level), DETAILED_SCOPES);
       //auto subset = uniformSubselection(_cam[level], features);
-      {
-        TIMED_SCOPE_IF(timer1, "computeResidualAndJacobian", DETAILED_SCOPES);
 
-        std::for_each(features.begin(), features.end(), [&](auto c) {
-          c->valid = false;
-          c->p0t = motion * c->p0;
-
-          if (c->p0t.z() <= 0) return;
-
-          c->uv0t = _cam[level]->project(c->p0t);
-
-          if (!_cam[level]->withinImage(c->uv0t, 0.02)) return;
-
-          Vec2d iz1w = interpolate(I1[level], Z1[level], c->uv0t);
-
-          if (!std::isfinite(iz1w(0)) || !std::isfinite(iz1w(1))) return;
-
-          c->p1t = motion.inverse() * _cam[level]->reconstruct(c->uv0t, iz1w(1));
-
-          c->iz1w = Vec2d(iz1w(0), c->p1t.z());
-
-          c->residual = c->iz1w - c->iz0;
-          if (!std::isfinite(c->residual.norm())) return;
-
-          c->JZJw_Jtz = c->JZJw - computeJacobianSE3z(c->p1t);
-
-          c->J.row(0) = c->JIJw;
-          c->J.row(1) = c->JZJw_Jtz;
-
-          if (!std::isfinite(c->J.norm())) return;
-
-          c->valid = true;
-        });
-      }
-      std::vector<Feature::ShPtr> constraints;
-      std::copy_if(features.begin(), features.end(), std::back_inserter(constraints), [](auto c) {
-        return c->valid;
-      });
+      auto constraints = computeResidualsAndJacobian(features, f1, motion);
 
       if (constraints.size() < 6) {
         reason = format("Not enough constraints: {}", constraints.size());
@@ -183,82 +150,16 @@ Pose DirectIcp::computeEgomotion(
       }
     }
   }
-  _I0 = I1;
-  _Z0 = Z1;
   return motion;
 }
 
-std::vector<cv::Mat> DirectIcp::computePyramidIntensity(const cv::Mat & intensity) const
-{
-  std::vector<cv::Mat> pyramid(_nLevels);
-  pyramid[0] = intensity;
-  for (int i = 1; i < _nLevels; i++) {
-    cv::pyrDown(pyramid[i - 1], pyramid[i]);
-  }
-  return pyramid;
-}
-std::vector<cv::Mat> DirectIcp::computePyramidDepth(const cv::Mat & depth) const
-{
-  std::vector<cv::Mat> pyramid(_nLevels);
-  pyramid[0] = depth;
-  for (int i = 1; i < _nLevels; i++) {
-    cv::Mat out(cv::Size(pyramid[i - 1].cols / 2, pyramid[i - 1].rows / 2), CV_32F);
-    for (int y = 0; y < out.rows; ++y) {
-      for (int x = 0; x < out.cols; ++x) {
-        out.at<float>(y, x) = pyramid[i - 1].at<float>(y * 2, x * 2);
-      }
-      pyramid[i] = out;
-    }
-    //cv::resize(pyramid[i - 1], pyramid[i], cv::Size(), 0.5, 0.5, cv::INTER_NEAREST);
-  }
-  return pyramid;
-}
-cv::Mat DirectIcp::computeJacobianImage(const cv::Mat & image) const
-{
-  cv::Mat dIdx, dIdy;
-  cv::Sobel(image, dIdx, CV_32F, 1, 0, 3, 1. / 8.);
-  cv::Sobel(image, dIdy, CV_32F, 0, 1, 3, 1. / 8.);
-
-  cv::Mat dIdxy;
-  cv::merge(std::vector<cv::Mat>({dIdx, dIdy}), dIdxy);
-  return dIdxy;
-}
-
-cv::Mat DirectIcp::computeJacobianDepth(const cv::Mat & depth) const
-{
-  cv::Mat dZdx(cv::Size(depth.cols, depth.rows), CV_32F),
-    dZdy(cv::Size(depth.cols, depth.rows), CV_32F);
-
-  auto validZ = [](float z0, float z1) {
-    return std::isfinite(z0) && z0 > 0 && std::isfinite(z1) && z1 > 0;
-  };
-  for (int y = 0; y < depth.rows; ++y) {
-    for (int x = 0; x < depth.cols; ++x) {
-      const int y0 = std::max(y - 1, 0);
-      const int y1 = std::min(y + 1, depth.rows - 1);
-      const int x0 = std::max(x - 1, 0);
-      const int x1 = std::min(x + 1, depth.cols - 1);
-      const float zyx0 = depth.at<float>(y, x0);
-      const float zyx1 = depth.at<float>(y, x1);
-      const float zy0x = depth.at<float>(y0, x);
-      const float zy1x = depth.at<float>(y1, x);
-
-      dZdx.at<float>(y, x) =
-        validZ(zyx0, zyx1) ? (zyx1 - zyx0) * 0.5f : std::numeric_limits<float>::quiet_NaN();
-      dZdy.at<float>(y, x) =
-        validZ(zy0x, zy1x) ? (zy1x - zy0x) * 0.5f : std::numeric_limits<float>::quiet_NaN();
-    }
-  }
-  cv::Mat dZdxy;
-  cv::merge(std::vector<cv::Mat>({dZdx, dZdy}), dZdxy);
-  return dZdxy;
-}
 std::vector<Feature::ShPtr> DirectIcp::extractFeatures(
-  const cv::Mat & intensity, const cv::Mat & depth, Camera::ConstShPtr cam,
-  const SE3d & motion) const
+  const Frame & frame, const SE3d & motion) const
 {
-  const cv::Mat dI = computeJacobianImage(intensity);
-  const cv::Mat dZ = computeJacobianDepth(depth);
+  const cv::Mat & intensity = frame.intensity();
+  const cv::Mat & depth = frame.depth();
+  const cv::Mat & dI = frame.dI();
+  const cv::Mat & dZ = frame.dZ();
 
   std::vector<Feature::ShPtr> constraints;
   constraints.reserve(intensity.cols * intensity.rows);
@@ -280,8 +181,8 @@ std::vector<Feature::ShPtr> DirectIcp::extractFeatures(
         c->uv0 = Vec2d(u, v);
         c->iz0 = Vec2d(i, z);
 
-        c->p0 = cam->reconstruct(c->uv0, c->iz0(1));
-        Mat<double, 2, 6> Jw = computeJacobianWarp(motion * c->p0, cam);
+        c->p0 = frame.p3d(v, u);
+        Mat<double, 2, 6> Jw = computeJacobianWarp(motion * c->p0, frame.camera());
         c->JIJw = dIvu[0] * Jw.row(0) + dIvu[1] * Jw.row(1);
         c->JZJw = dZvu[0] * Jw.row(0) + dZvu[1] * Jw.row(1);
         constraints.push_back(c);
@@ -314,6 +215,50 @@ Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr ca
   J.row(1) *= cam->fy();
 
   return J;
+}
+
+std::vector<Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
+  const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion)
+{
+  {
+    TIMED_SCOPE_IF(timer1, "computeResidualAndJacobian", DETAILED_SCOPES);
+
+    std::for_each(features.begin(), features.end(), [&](auto c) {
+      c->valid = false;
+      c->p0t = motion * c->p0;
+
+      if (c->p0t.z() <= 0) return;
+
+      c->uv0t = f1.project(c->p0t);
+
+      if (!f1.camera()->withinImage(c->uv0t, 0.02)) return;
+
+      Vec2d iz1w = interpolate(f1.I(), f1.Z(), c->uv0t);
+
+      if (!std::isfinite(iz1w(0)) || !std::isfinite(iz1w(1))) return;
+
+      c->p1t = motion.inverse() * f1.reconstruct(c->uv0t, iz1w(1));
+
+      c->iz1w = Vec2d(iz1w(0), c->p1t.z());
+
+      c->residual = c->iz1w - c->iz0;
+      if (!std::isfinite(c->residual.norm())) return;
+
+      c->JZJw_Jtz = c->JZJw - computeJacobianSE3z(c->p1t);
+
+      c->J.row(0) = c->JIJw;
+      c->J.row(1) = c->JZJw_Jtz;
+
+      if (!std::isfinite(c->J.norm())) return;
+
+      c->valid = true;
+    });
+  }
+  std::vector<Feature::ShPtr> constraints;
+  std::copy_if(features.begin(), features.end(), std::back_inserter(constraints), [](auto c) {
+    return c->valid;
+  });
+  return constraints;
 }
 
 Vec6d DirectIcp::computeJacobianSE3z(const Vec3d & p) const

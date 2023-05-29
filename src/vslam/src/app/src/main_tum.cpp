@@ -25,13 +25,16 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
     {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
     {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
 
-  auto directIcp = std::make_shared<DirectIcp>(dl->cam(), params);
+  auto directIcp = std::make_shared<DirectIcp>(params);
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
   const size_t fEnd = 200;  //dl->timestamps().size();
   Pose motion;
   Pose pose;
-  for (size_t fId = 0; fId < fEnd; fId++) {
+  cv::Mat img0 = dl->loadIntensity(0);
+  cv::Mat depth0 = dl->loadDepth(0);
+  traj->append(dl->timestamps()[0], Pose());
+  for (size_t fId = 1; fId < fEnd; fId++) {
     try {
       print(
         "{}/{}: {} m, {:.3f}°\n", fId, fEnd, pose.translation().transpose(),
@@ -43,10 +46,11 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
       cv::imshow("Frame", colorizedRgbd(img, depth));
       cv::waitKey(1);
 
-      motion = directIcp->computeEgomotion(img, depth, motion);
+      motion = directIcp->computeEgomotion(dl->cam(), img0, depth0, img, depth, motion);
       pose = motion * pose;
       traj->append(dl->timestamps()[fId], pose.inverse());
-
+      img0 = img;
+      depth0 = depth;
     } catch (const std::runtime_error & e) {
       std::cerr << e.what() << std::endl;
     }

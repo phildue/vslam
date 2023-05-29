@@ -50,6 +50,7 @@ public:
   const cv::Mat & depth(size_t level = 0) const { return _depth.at(level); }
   const cv::Mat & Z(size_t level = 0) const { return depth(level); }
   const cv::Mat & dZ(size_t level = 0) const;
+  Frame level(size_t level) const;
 
   const Pose & pose() const { return _pose; }
   Pose & pose() { return _pose; }
@@ -92,7 +93,7 @@ public:
   std::vector<Vec3d> pclWorld(size_t level = 0, bool removeInvalid = false) const;
 
 private:
-  const std::uint64_t _id;
+  std::uint64_t _id;
   std::vector<cv::Mat> _intensity;
   std::vector<cv::Mat> _dI, _dZ;
   Camera::ConstShPtrVec _cam;

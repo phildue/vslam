@@ -6,6 +6,7 @@
 #include <string>
 
 #include "core/Camera.h"
+#include "core/Frame.h"
 #include "core/Pose.h"
 #include "core/types.h"
 
@@ -53,29 +54,27 @@ public:
 
   static std::map<std::string, double> defaultParameters();
 
-  DirectIcp(Camera::ConstShPtr cam, const std::map<std::string, double> params);
+  DirectIcp(const std::map<std::string, double> params);
   DirectIcp(
-    Camera::ConstShPtr cam, int nLevels = 4, double weightPrior = 0.0,
-    double minGradientIntensity = 10 * 8, double minGradientDepth = INFd,
-    double maxGradientDepth = 0.5, double maxZ = 5.0, double maxIterations = 100,
-    double minParameterUpdate = 1e-6, double maxErrorIncrease = 1.1);
-  Pose computeEgomotion(const cv::Mat & intensity, const cv::Mat & depth, const Pose & guess);
+    int nLevels = 4, double weightPrior = 0.0, double minGradientIntensity = 10 * 8,
+    double minGradientDepth = INFd, double maxGradientDepth = 0.5, double maxZ = 5.0,
+    double maxIterations = 100, double minParameterUpdate = 1e-6, double maxErrorIncrease = 1.1);
+  Pose computeEgomotion(const Frame & frame0, const Frame & frame1, const Pose & guess);
+
+  Pose computeEgomotion(
+    Camera::ConstShPtr cam, const cv::Mat & intensity0, const cv::Mat & depth0,
+    const cv::Mat & intensity1, const cv::Mat & depth1, const Pose & guess);
 
 private:
-  std::vector<Camera::ConstShPtr> _cam;
   TDistributionBivariate::ShPtr _weightFunction;
-  std::vector<cv::Mat> _I0, _Z0;
   int _nLevels;
   double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,
     _maxIterations, _minParameterUpdate, _maxErrorIncrease;
 
-  std::vector<cv::Mat> computePyramidIntensity(const cv::Mat & intensity) const;
-  std::vector<cv::Mat> computePyramidDepth(const cv::Mat & depth) const;
-  cv::Mat computeJacobianImage(const cv::Mat & image) const;
-  cv::Mat computeJacobianDepth(const cv::Mat & depth) const;
-  std::vector<Feature::ShPtr> extractFeatures(
-    const cv::Mat & intensity, const cv::Mat & depth, Camera::ConstShPtr cam,
-    const SE3d & motion) const;
+  std::vector<Feature::ShPtr> computeResidualsAndJacobian(
+    const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion);
+
+  std::vector<Feature::ShPtr> extractFeatures(const Frame & frame, const SE3d & motion) const;
   Matd<2, 6> computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const;
 
   Vec6d computeJacobianSE3z(const Vec3d & p) const;

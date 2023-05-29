@@ -48,6 +48,25 @@ Frame::Frame(
 : Frame(intensity, -1 * cv::Mat(cv::Size(intensity.rows, intensity.cols), CV_32F), cam, t, pose)
 {
 }
+
+Frame Frame::level(size_t level) const
+{
+  if (level >= _intensity.size()) {
+    throw std::runtime_error(
+      "Level: " + std::to_string(level) +
+      "not available. Only: " + std::to_string(_intensity.size()));
+  }
+  Frame f(intensity(level), depth(level), camera(level), _t, _pose);
+  f._dI = _dI.size() >= level + 1 ? std::vector<cv::Mat>({_dI[level]}) : f._dI;
+  f._dZ = _dZ.size() >= level + 1 ? std::vector<cv::Mat>({_dZ[level]}) : f._dZ;
+  f._features = _features;
+  f._id = _id;
+  f._normals =
+    _normals.size() >= level + 1 ? std::vector<std::vector<Vec3d>>({_normals[level]}) : f._normals;
+  f._pcl = _pcl.size() >= level + 1 ? std::vector<std::vector<Vec3d>>({_pcl[level]}) : f._pcl;
+  return f;
+}
+
 Vec2d Frame::project(const Vec3d & pCamera, size_t level) const
 {
   return _cam.at(level)->project(pCamera);
