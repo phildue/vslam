@@ -30,25 +30,39 @@ namespace vslam
 std::uint64_t Frame::_idCtr = 0U;
 
 Frame::Frame(
+  const cv::Mat & intensity, const cv::Mat & depth, Camera::ConstShPtr cam, const Timestamp & t,
+  const Pose & pose)
+: _id(_idCtr++), _intensity({intensity}), _cam({cam}), _t(t), _pose(pose), _depth({depth})
+{
+  if (
+    intensity.cols != depth.cols || std::abs(intensity.cols / 2 - cam->cx()) > 50 ||
+    intensity.rows != depth.rows) {
+    throw std::runtime_error(format(
+      "Inconsistent camera parameters / image / depth dimensions detected: I:{}x{}, Z:{}x{}, "
+      "pp:{},{}",
+      intensity.cols, intensity.rows, depth.cols, depth.rows, cam->cx(), cam->cy()));
+  }
+}
+Frame::Frame(
   const cv::Mat & intensity, Camera::ConstShPtr cam, const Timestamp & t, const Pose & pose)
 : Frame(intensity, -1 * cv::Mat(cv::Size(intensity.rows, intensity.cols), CV_32F), cam, t, pose)
 {
 }
-Vec2d Frame::camera2image(const Vec3d & pCamera, size_t level) const
+Vec2d Frame::project(const Vec3d & pCamera, size_t level) const
 {
   return _cam.at(level)->project(pCamera);
 }
-Vec3d Frame::image2camera(const Vec2d & pImage, double depth, size_t level) const
+Vec3d Frame::reconstruct(const Vec2d & pImage, double depth, size_t level) const
 {
   return _cam.at(level)->reconstruct(pImage, depth);
 }
 Vec2d Frame::world2image(const Vec3d & pWorld, size_t level) const
 {
-  return camera2image(_pose.pose() * pWorld, level);
+  return project(_pose.pose() * pWorld, level);
 }
 Vec3d Frame::image2world(const Vec2d & pImage, double depth, size_t level) const
 {
-  return _pose.pose().inverse() * image2camera(pImage, depth, level);
+  return _pose.pose().inverse() * reconstruct(pImage, depth, level);
 }
 Feature2D::ConstShPtr Frame::observationOf(std::uint64_t pointId) const
 {
@@ -78,86 +92,6 @@ const cv::Mat & Frame::dZ(size_t level) const
       ". Available: " + std::to_string(_dZ.size()));
   }
   return _dZ[level];
-}
-
-void Frame::addFeature(Feature2D::ShPtr ft)
-{
-  if (ft->frame() && ft->frame()->id() != _id) {
-    throw std::runtime_error(
-      "Feature is alread associated with frame [" + std::to_string(ft->frame()->id()) + "]");
-  }
-  _features.push_back(ft);
-}
-
-void Frame::addFeatures(const std::vector<Feature2D::ShPtr> & features)
-{
-  _features.reserve(_features.size() + features.size());
-  for (const auto & ft : features) {
-    addFeature(ft);
-  }
-}
-std::vector<Feature2D::ConstShPtr> Frame::features() const
-{
-  return std::vector<Feature2D::ConstShPtr>(_features.begin(), _features.end());
-}
-std::vector<Feature2D::ShPtr> Frame::featuresWithPoints()
-{
-  std::vector<Feature2D::ShPtr> fts;
-  fts.reserve(_features.size());
-  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
-    return ft->point();
-  });
-  return fts;
-}
-std::vector<Feature2D::ConstShPtr> Frame::featuresWithPoints() const
-{
-  std::vector<Feature2D::ConstShPtr> fts;
-  fts.reserve(_features.size());
-  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
-    return ft->point();
-  });
-  return fts;
-}
-
-void Frame::removeFeatures()
-{
-  for (auto ft : _features) {
-    ft->frame() = nullptr;
-    if (ft->point()) {
-      ft->point()->removeFeature(ft);
-    }
-  }
-  _features.clear();
-}
-void Frame::removeFeature(Feature2D::ShPtr ft)
-{
-  auto it = std::find(_features.begin(), _features.end(), ft);
-  if (it == _features.end()) {
-    throw std::runtime_error(
-      "Did not find feature: [" + std::to_string(ft->id()) + " ] in frame: [" +
-      std::to_string(_id) + "]");
-  }
-  _features.erase(it);
-  ft->frame() = nullptr;
-
-  if (ft->point()) {
-    ft->point()->removeFeature(ft);
-  }
-}
-
-Frame::Frame(
-  const cv::Mat & intensity, const cv::Mat & depth, Camera::ConstShPtr cam, const Timestamp & t,
-  const Pose & pose)
-: _id(_idCtr++), _intensity({intensity}), _cam({cam}), _t(t), _pose(pose), _depth({depth})
-{
-  if (
-    intensity.cols != depth.cols || std::abs(intensity.cols / 2 - cam->cx()) > 50 ||
-    intensity.rows != depth.rows) {
-    throw std::runtime_error(format(
-      "Inconsistent camera parameters / image / depth dimensions detected: I:{}x{}, Z:{}x{}, "
-      "pp:{},{}",
-      intensity.cols, intensity.rows, depth.cols, depth.rows, cam->cx(), cam->cy()));
-  }
 }
 
 std::vector<Vec3d> Frame::pcl(size_t level, bool removeInvalid) const
@@ -215,6 +149,30 @@ bool Frame::withinImage(const Vec2d & pImage, double border, size_t level) const
 {
   return 0 + border < pImage.x() && pImage.x() < width(level) - border && 0 + border < pImage.y() &&
          pImage.y() < height(level) - border;
+}
+
+void Frame::computePyramid(size_t nLevels)
+{
+  if (_intensity.size() == nLevels) return;
+  _intensity.resize(nLevels);
+  _cam.resize(nLevels);
+  _depth.resize(nLevels);
+
+  auto pyrDownZ = [](const cv::Mat & Z) -> cv::Mat {
+    cv::Mat out(cv::Size(Z.cols / 2, Z.rows / 2), CV_32F);
+    for (int y = 0; y < out.rows; ++y) {
+      for (int x = 0; x < out.cols; ++x) {
+        out.at<float>(y, x) = Z.at<float>(y * 2, x * 2);
+      }
+    }
+    return out;
+  };
+
+  for (size_t i = 1; i < nLevels; i++) {
+    cv::pyrDown(_intensity[i - 1], _intensity[i]);
+    _cam[i] = Camera::resize(_cam[i - 1], 0.5);
+    _depth[i] = pyrDownZ(_depth[i - 1]);
+  }
 }
 
 void Frame::computeIntensityDerivatives()
@@ -294,6 +252,71 @@ void Frame::computePcl()
   }
 }
 
+void Frame::addFeature(Feature2D::ShPtr ft)
+{
+  if (ft->frame() && ft->frame()->id() != _id) {
+    throw std::runtime_error(
+      "Feature is alread associated with frame [" + std::to_string(ft->frame()->id()) + "]");
+  }
+  _features.push_back(ft);
+}
+
+void Frame::addFeatures(const std::vector<Feature2D::ShPtr> & features)
+{
+  _features.reserve(_features.size() + features.size());
+  for (const auto & ft : features) {
+    addFeature(ft);
+  }
+}
+std::vector<Feature2D::ConstShPtr> Frame::features() const
+{
+  return std::vector<Feature2D::ConstShPtr>(_features.begin(), _features.end());
+}
+std::vector<Feature2D::ShPtr> Frame::featuresWithPoints()
+{
+  std::vector<Feature2D::ShPtr> fts;
+  fts.reserve(_features.size());
+  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
+    return ft->point();
+  });
+  return fts;
+}
+std::vector<Feature2D::ConstShPtr> Frame::featuresWithPoints() const
+{
+  std::vector<Feature2D::ConstShPtr> fts;
+  fts.reserve(_features.size());
+  std::copy_if(_features.begin(), _features.end(), std::back_inserter(fts), [&](auto ft) {
+    return ft->point();
+  });
+  return fts;
+}
+
+void Frame::removeFeatures()
+{
+  for (auto ft : _features) {
+    ft->frame() = nullptr;
+    if (ft->point()) {
+      ft->point()->removeFeature(ft);
+    }
+  }
+  _features.clear();
+}
+void Frame::removeFeature(Feature2D::ShPtr ft)
+{
+  auto it = std::find(_features.begin(), _features.end(), ft);
+  if (it == _features.end()) {
+    throw std::runtime_error(
+      "Did not find feature: [" + std::to_string(ft->id()) + " ] in frame: [" +
+      std::to_string(_id) + "]");
+  }
+  _features.erase(it);
+  ft->frame() = nullptr;
+
+  if (ft->point()) {
+    ft->point()->removeFeature(ft);
+  }
+}
+
 void Frame::computeNormals()
 {
   if (_normals.size() == nLevels()) return;
@@ -336,30 +359,6 @@ const Vec3d & Frame::normal(int v, int u, size_t level) const
       ". Available: " + std::to_string(_pcl.size()));
   }
   return _normals.at(level)[v * width(level) + u];
-}
-
-void Frame::computePyramid(size_t nLevels)
-{
-  if (_intensity.size() == nLevels) return;
-  _intensity.resize(nLevels);
-  _cam.resize(nLevels);
-  _depth.resize(nLevels);
-
-  auto pyrDownZ = [](const cv::Mat & Z) -> cv::Mat {
-    cv::Mat out(cv::Size(Z.cols / 2, Z.rows / 2), CV_32F);
-    for (int y = 0; y < out.rows; ++y) {
-      for (int x = 0; x < out.cols; ++x) {
-        out.at<float>(y, x) = Z.at<float>(y * 2, x * 2);
-      }
-    }
-    return out;
-  };
-
-  for (size_t i = 1; i < nLevels; i++) {
-    cv::pyrDown(_intensity[i - 1], _intensity[i]);
-    _cam[i] = Camera::resize(_cam[i - 1], 0.5);
-    _depth[i] = pyrDownZ(_depth[i - 1]);
-  }
 }
 
 }  // namespace vslam

@@ -58,6 +58,8 @@ public:
   Camera::ConstShPtr camera(size_t level = 0) const { return _cam.at(level); }
   size_t width(size_t level = 0) const { return _intensity.at(level).cols; }
   size_t height(size_t level = 0) const { return _intensity.at(level).rows; }
+  size_t size(size_t level = 0) const { return width(level) * height(level); }
+
   size_t nLevels() const { return _intensity.size(); }
   bool withinImage(const Vec2d & pImage, double border = 7, size_t level = 0) const;
 
@@ -67,8 +69,8 @@ public:
   std::vector<Feature2D::ShPtr> featuresWithPoints();
   Feature2D::ConstShPtr observationOf(std::uint64_t pointId) const;
 
-  Vec2d camera2image(const Vec3d & pCamera, size_t level = 0) const;
-  Vec3d image2camera(const Vec2d & pImage, double depth = 1.0, size_t level = 0) const;
+  Vec2d project(const Vec3d & pCamera, size_t level = 0) const;
+  Vec3d reconstruct(const Vec2d & pImage, double depth = 1.0, size_t level = 0) const;
   Vec2d world2image(const Vec3d & pWorld, size_t level = 0) const;
   Vec3d image2world(const Vec2d & pImage, double depth = 1.0, size_t level = 0) const;
 
