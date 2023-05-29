@@ -13,19 +13,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef VSLAM_H__
-#define VSLAM_H__
-#include "core/Camera.h"
-#include "core/Pose.h"
-#include "core/Trajectory.h"
-#include "core/macros.h"
-#include "core/random.h"
-#include "core/types.h"
-#include "direct_icp/DirectIcp.h"
-#include "evaluation/evaluation.h"
-#include "evaluation/tum.h"
-#include "utils/log.h"
-#include "utils/utils.h"
-#include "utils/visuals.h"
+//
+// Created by phil on 30.06.21.
+//
 
-#endif  // VSLAM_CORE_H__
+#include "Feature2D.h"
+
+namespace vslam
+{
+std::uint64_t Feature2D::_idCtr = 0U;
+
+Feature2D::Feature2D(
+  const Vec2d & position, std::shared_ptr<Frame> frame, size_t level, double response,
+  const Descriptor & descriptor, std::shared_ptr<Point3D> p3d)
+: _position(position),
+  _frame(frame),
+  _level(level),
+  _response(response),
+  _descriptor(descriptor),
+  _point(p3d),
+  _id(_idCtr++)
+{
+}
+
+}  // namespace vslam

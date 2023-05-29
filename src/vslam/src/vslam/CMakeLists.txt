@@ -6,6 +6,9 @@ set( sources
   src/evaluation/evaluation.cpp
   src/evaluation/tum.cpp
   src/core/Camera.cpp
+  src/core/Frame.cpp
+  src/core/Feature2D.cpp
+  src/core/Point3D.cpp
   src/core/Trajectory.cpp
   src/core/Pose.cpp
   src/core/random.cpp
@@ -21,6 +24,9 @@ set( headers
   src/core/Trajectory.h
   src/core/Pose.h
   src/core/Camera.h
+  src/core/Frame.h
+  src/core/Feature2D.h
+  src/core/Point3D.h
   src/core/macros.h
   src/core/types.h
   src/core/random.h
@@ -29,7 +35,11 @@ set( headers
   src/utils/visuals.h
   src/utils/log.h
   /usr/local/include/easylogging++.h 
-  include/vslam/vslam.h 
+  include/vslam/core.h
+  include/vslam/direct_icp.h 
+  include/vslam/evaluation.h 
+  include/vslam/utils.h 
+
   )
 
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)

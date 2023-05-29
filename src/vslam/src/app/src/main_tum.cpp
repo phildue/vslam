@@ -2,7 +2,11 @@
 
 #include <opencv2/highgui.hpp>
 
-#include "vslam/vslam.h"
+#include "vslam/core.h"
+#include "vslam/direct_icp.h"
+#include "vslam/evaluation.h"
+#include "vslam/utils.h"
+
 using namespace vslam;
 
 int main(int UNUSED(argc), char ** UNUSED(argv))
