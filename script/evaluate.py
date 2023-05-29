@@ -72,7 +72,7 @@ params = yaml.safe_load(
 
 evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
 
-evaluation.prepare_directory(parameters=params, upload=args.upload, sha=args.commit_hash, workspace_dir=args.workspace_dir)
+evaluation.prepare_run(parameters=params, upload=args.upload, sha=args.commit_hash, workspace_dir=args.workspace_dir)
 print("---------Running Algorithm-----------------")
 
 os.system(
@@ -87,5 +87,5 @@ os.system(
     2>&1 | tee {os.path.join(evaluation.output_dir,'log','log.txt')}"
 )
 
-evaluation.evaluate()
+evaluation.evaluate(final=True)
 

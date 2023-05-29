@@ -69,7 +69,7 @@ if __name__ == "__main__":
     sequence = TumRgbd(args.sequence_id)
 
     evaluation = Evaluation(sequence, args.experiment_name)
-    evaluation.prepare_directory(params, upload=upload)
+    evaluation.prepare_run(params, upload=upload)
     timestamps = sequence.timestamps("image")
     f_end = min([f_start + n_frames, len(timestamps)])
 
@@ -130,10 +130,7 @@ if __name__ == "__main__":
 
         if f_no - f_start > 25 and f_no % rate_eval == 0:
             try:
-                log.rmse_t, log.rmse_r = sequence.evaluate_rpe(
-                    trajectory, output_dir="./", upload=upload
-                )
-                write_result_file(trajectory, sequence.directory())
+                evaluation.evaluate(trajectory, final=False)
             except Exception as e:
                 print(e)
 

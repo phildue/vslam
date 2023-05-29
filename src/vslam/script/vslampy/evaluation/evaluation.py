@@ -7,6 +7,7 @@ from vslampy.plot.plot_traj import plot_trajectory
 from vslampy.plot.plot_logs import plot_logs
 from vslampy.evaluation.tum import TumRgbd
 from vslampy.evaluation.kitty import Kitti
+from scipy.spatial.transform import Rotation as R
 
 import wandb
 import os
@@ -32,7 +33,7 @@ class Evaluation:
         self.filepath_trajectory_algo = os.path.join(self.output_dir, sequence.id() + "-algo.txt")
         self.filepath_trajectory_plot = os.path.join(self.output_dir, "trajectory.png")            
             
-    def prepare_directory(self, parameters, upload=False, sha=None, workspace_dir="/home/ros/vslam_ros/"):
+    def prepare_run(self, parameters, upload=False, sha=None, workspace_dir="/home/ros/vslam_ros/"):
         if upload:
             os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
             os.environ[
@@ -65,15 +66,21 @@ class Evaluation:
                 f,
             )
 
-    def evaluate(self, trajectory=None):
+    def evaluate(self, trajectory=None, final = True):
         if trajectory:
+            lines = []
+            for ts, pose in trajectory.items():
+                q = R.from_matrix(pose[:3,:3]).as_quat()
+                t = pose[:3,3]
+                lines += [f"{ts} {t[0]:.4f} {t[1]:.4f} {t[2]:.4f} {q[0]:.4f} {q[1]:.4f} {q[2]:.4f} {q[3]:.4f}\n"]
             with open(self.filepath_trajectory_algo, "w") as f:
-                f.writelines(
-                    [
-                        f"{t} {SE3(pose).log()[0]} {SE3(pose).log()[1]} {SE3(pose).log()[2]} {SE3(pose).log()[3]} {SE3(pose).log()[4]} {SE3(pose).log()[5]}\n"
-                        for t, pose in trajectory.items()
-                    ]
-                )
+                f.writelines([
+                    f"# Algorithm Trajectory\n",
+                    f"# file: {self.filepath_trajectory_algo}\n",
+                    f"# timestamp tx ty tz qx qy qz qw\n"
+                ])
+                f.writelines(lines)
+                
             
         self.evaluate_rpe()
 
@@ -87,7 +94,7 @@ class Evaluation:
 
         plot_trajectory(self.filepath_trajectory_algo, self.sequence.gt_filepath(), self.filepath_trajectory_plot, None, upload=self.upload)
 
-        if self.upload:
+        if final and self.upload:
             wandb.finish()
 
     def evaluate_rpe(self):
