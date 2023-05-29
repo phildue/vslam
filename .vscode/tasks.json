@@ -358,7 +358,7 @@
             "id": "experiment_name",
             "type": "promptString",
             "description": "name of experiment",
-            "default": "test"
+            "default": "test-ros"
         },
         {
             "id": "build_type",
