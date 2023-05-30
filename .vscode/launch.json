@@ -109,7 +109,7 @@
         "name": "(gdb) Launch App",
         "type": "cppdbg",
         "request": "launch",
-        "program": "${workspaceFolder}/build/vslam_ros/src/vslam/src/app/evaluate_tum",
+        "program": "${workspaceFolder}/build/vslam_ros/src/vslam/evaluate_tum",
         "args": [],
         "preLaunchTask": "build_app",
         "stopAtEntry": false,

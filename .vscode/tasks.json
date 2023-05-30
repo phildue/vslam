@@ -7,7 +7,7 @@
             "label": "evaluate",
             "detail": "Evaluate ros pipeline on dataset.",
             "type": "shell",
-            "command":"source install/setup.bash && python3 script/evaluate.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name} --run_algo",
+            "command":"source install/setup.bash && python3 script/evaluate.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
             "problemMatcher": []
 
         },
@@ -15,7 +15,7 @@
             "label": "evaluation pipeline",
             "detail": "Evaluate ros pipeline on dataset.",
             "type": "shell",
-            "command":"source install/setup.bash && python3 script/evaluate.py --launch_without_algo True --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name} --run_algo",
+            "command":"source install/setup.bash && python3 script/evaluate.py --launch_without_algo True --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
             "problemMatcher": []
 
         },
@@ -32,7 +32,7 @@
         },
         {
             "label": "build_app",
-            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/src/app && make -j4",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make -j4",
             "type": "shell",
             "problemMatcher": "$gcc",
             "group": {
