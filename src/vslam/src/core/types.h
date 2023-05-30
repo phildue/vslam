@@ -29,6 +29,7 @@
 #include <sophus/se3.hpp>
 
 #define INFd std::numeric_limits<double>::infinity()
+#define INFi std::numeric_limits<int>::infinity()
 
 namespace Eigen
 {

@@ -42,23 +42,26 @@ std::map<std::string, double> DirectIcp::defaultParameters()
 {
   return {{"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
           {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
-          {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
+          {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0},
+          {"maxPoints", 307200}};
 }
 
 DirectIcp::DirectIcp(const std::map<std::string, double> params)
 : DirectIcp(
     params.at("nLevels"), params.at("weightPrior"), params.at("minGradientIntensity"),
     params.at("minGradientDepth"), params.at("maxGradientDepth"), params.at("maxDepth"),
-    params.at("maxIterations"), params.at("minParameterUpdate"), params.at("maxErrorIncrease"))
+    params.at("maxIterations"), params.at("minParameterUpdate"), params.at("maxErrorIncrease"),
+    params.at("maxPoints"))
 {
 }
 DirectIcp::DirectIcp(
   int nLevels, double weightPrior, double minGradientIntensity, double minGradientDepth,
   double maxGradientDepth, double maxZ, double maxIterations, double minParameterUpdate,
-  double maxErrorIncrease)
+  double maxErrorIncrease, int maxPoints)
 : _log(std::make_shared<DirectIcpOverlay>()),
   _weightFunction(std::make_shared<TDistributionBivariate>(5.0)),
   _nLevels(nLevels),
+  _maxPoints(maxPoints),
   _weightPrior(weightPrior),
   _minGradientIntensity(minGradientIntensity),
   _minGradientDepth(minGradientDepth),
@@ -94,14 +97,14 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
     TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", level), DETAILED_SCOPES);
     const Frame f0 = frame0.level(level);
     const Frame f1 = frame1.level(level);
-    const std::vector<Feature::ShPtr> features = extractFeatures(f0, motion.SE3());
+    std::vector<Feature::ShPtr> features = extractFeatures(f0, motion.SE3());
+    features = uniformSubselection(f0.camera(), features);
 
     std::string reason = "Max iterations exceeded";
     double error = INFd;
     Vec6d dx = Vec6d::Zero();
     for (int iteration = 0; iteration < _maxIterations; iteration++) {
       TIMED_SCOPE_IF(timerIter, format("computeIteration{}", level), DETAILED_SCOPES);
-      //auto subset = uniformSubselection(_cam[level], features);
 
       auto constraints = computeResidualsAndJacobian(features, f1, motion.SE3());
 
@@ -304,7 +307,7 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::uniformSubselection(
   Camera::ConstShPtr cam, const std::vector<DirectIcp::Feature::ShPtr> & interestPoints) const
 {
   TIMED_SCOPE_IF(timer, "uniformSubselection", DETAILED_SCOPES);
-  const size_t nNeeded = std::max<size_t>(20, size_t(1000));
+  const size_t nNeeded = std::max<size_t>(20, _maxPoints);
   std::vector<bool> mask(cam->width() * cam->height(), false);
   std::vector<Feature::ShPtr> subset;
   subset.reserve(interestPoints.size());

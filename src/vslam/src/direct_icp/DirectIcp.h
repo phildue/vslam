@@ -57,9 +57,10 @@ public:
 
   DirectIcp(const std::map<std::string, double> params);
   DirectIcp(
-    int nLevels = 4, double weightPrior = 0.0, double minGradientIntensity = 10 * 8,
-    double minGradientDepth = INFd, double maxGradientDepth = 0.5, double maxZ = 5.0,
-    double maxIterations = 100, double minParameterUpdate = 1e-6, double maxErrorIncrease = 1.1);
+    int nLevels = 4, double weightPrior = 0.0, double minGradientIntensity = 5,
+    double minGradientDepth = INFd, double maxGradientDepth = 0.3, double maxZ = 5.0,
+    double maxIterations = 100, double minParameterUpdate = 1e-4, double maxErrorIncrease = 1.1,
+    int maxPoints = INFi);
   Pose computeEgomotion(const Frame & frame0, const Frame & frame1, const Pose & guess);
 
   Pose computeEgomotion(
@@ -71,7 +72,7 @@ public:
 private:
   std::shared_ptr<DirectIcpOverlay> _log;
   TDistributionBivariate::ShPtr _weightFunction;
-  int _nLevels;
+  int _nLevels, _maxPoints;
   double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,
     _maxIterations, _minParameterUpdate, _maxErrorIncrease;
 
