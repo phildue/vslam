@@ -7,22 +7,96 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
-#add_subdirectory(src/core)
-#add_subdirectory(src/utils)
-#add_subdirectory(src/least_squares)
-#add_subdirectory(src/lukas_kanade)
-#add_subdirectory(src/odometry)
-#add_subdirectory(src/mapping)
-#add_subdirectory(src/evaluation)
-add_subdirectory(src/vslam)
-add_subdirectory(src/app)
+set( sources
+  src/direct_icp/DirectIcp.cpp
+  src/evaluation/evaluation.cpp
+  src/evaluation/tum.cpp
+  src/core/Camera.cpp
+  src/core/Frame.cpp
+  src/core/Feature2D.cpp
+  src/core/Point3D.cpp
+  src/core/Trajectory.cpp
+  src/core/Pose.cpp
+  src/core/random.cpp
+  src/utils/log.cpp
+  src/utils/visuals.cpp
+  src/utils/utils.cpp
+  /usr/local/include/easylogging++.cc
+   )
 
-#add_library(vslam INTERFACE)
+set( headers
+  src/evaluation/evaluation.h
+  src/evaluation/tum.h
+  src/core/Trajectory.h
+  src/core/Pose.h
+  src/core/Camera.h
+  src/core/Frame.h
+  src/core/Feature2D.h
+  src/core/Point3D.h
+  src/core/macros.h
+  src/core/types.h
+  src/core/random.h
+  src/direct_icp/DirectIcp.h
+  src/utils/utils.h
+  src/utils/visuals.h
+  src/utils/log.h
+  /usr/local/include/easylogging++.h 
+  include/vslam/core.h
+  include/vslam/direct_icp.h 
+  include/vslam/evaluation.h 
+  include/vslam/utils.h 
+
+  )
+pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 add_library(pd::vslam ALIAS vslam)
 #target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping evaluation)
 target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
+
+if(UNIX)
+  target_link_libraries(${PROJECT_NAME} stdc++fs)
+endif()
+
+find_package(Eigen3 REQUIRED)
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
+
+find_package(Sophus REQUIRED)
+target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
+
+# While format is not implemented in gcc we use this thirdparty
+find_package(fmt)
+target_link_libraries(${PROJECT_NAME} fmt::fmt)
+
+
+# Try for OpenCV 4.X, but settle for whatever is installed
+find_package(OpenCV 4 QUIET)
+if(NOT OpenCV_FOUND)
+  find_package(OpenCV REQUIRED)
+endif()
+message(STATUS "Found OpenCV version ${OpenCV_VERSION}")
+target_include_directories(${PROJECT_NAME} PUBLIC ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBRARIES})
+
+find_package(Matplot++ REQUIRED)
+target_link_libraries(${PROJECT_NAME} Matplot++::matplot)
+
+target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_FEATURE_PERFORMANCE_TRACKING)
+option(VSLAM_LOG_PERFORMANCE_TRACKING ON)
+if(NOT VSLAM_LOG_PERFORMANCE_TRACKING)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_PERFORMANCE_TRACKING)
+endif()
+option(VSLAM_LOG_MINIMAL Off)
+if(VSLAM_LOG_MINIMAL)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_DEBUG_LOGS)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_INFO_LOGS)
+endif()
+
+
+add_executable(evaluate_tum test/main_tum.cpp)
+target_compile_definitions(evaluate_tum PUBLIC "CONFIG_DIR=\"${VSLAM_CONFIG_DIR}\"")
+target_link_libraries(evaluate_tum vslam)
+
 
 
 # Add tests

@@ -54,6 +54,7 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   for (auto name_value : DirectIcp::defaultParameters()) {
     _paramsIcp[name_value.first] = declare_parameter(name_value.first, name_value.second);
   }
+  _directIcp = std::make_shared<DirectIcp>(_paramsIcp);
 
   int queue_size = declare_parameter("sync.queue_size", 5);
   double max_interval = declare_parameter("sync.max_interval", 0.2);
@@ -108,7 +109,6 @@ void NodeRgbdAlignment::cameraCallback(sensor_msgs::msg::CameraInfo::ConstShared
   if (camera->fx() > 0.0 && camera->cx() > 0.0) {
     _subCamInfo.reset();
     _camera = camera;
-    _directIcp = std::make_shared<DirectIcp>(_camera, _paramsIcp);
 
     _periodicTimer =
       create_wall_timer(std::chrono::seconds(1), [this, msg]() { this->timerCallback(); });
@@ -148,7 +148,18 @@ void NodeRgbdAlignment::imageCallback(
     if (depth.type() == CV_16UC1) {
       depth = evaluation::tum::convertDepthMat(depth, 0.001);
     }
-    _motion = _directIcp->computeEgomotion(cv_ptr->image, depth, _motion);
+    auto f = std::make_shared<Frame>(cv_ptr->image, depth, _camera, t);
+    f->computePyramid(_directIcp->nLevels());
+    if (!_frame0) {
+      _frame0 = f;
+      _trajectory.append(t, _pose);
+      return;
+    }
+    _frame0->computeDerivatives();
+    _frame0->computePcl();
+
+    _motion = _directIcp->computeEgomotion(*_frame0, *f, _motion);
+    _frame0 = f;
 
     _pose = _motion * _pose;
     _trajectory.append(t, _pose);
