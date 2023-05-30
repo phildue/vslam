@@ -12,45 +12,46 @@
 
 namespace vslam
 {
-struct Feature
-{
-  typedef std::shared_ptr<Feature> ShPtr;
-  size_t idx;
-  Vec2d uv0;
-  Vec2d iz0;
-  Vec3d p0;
-  Vec6d JIJw;
-  Vec6d JZJw;
-  Vec6d JZJw_Jtz;
-  Matd<2, 6> J;
-  Mat2d weight;
-  Vec2d residual;
-  Vec2d uv0t;
-  Vec2d iz1w;
-  Vec3d p0t;
-  Vec3d p1t;
-  double error;
-  bool valid;
-};
-
-class TDistributionBivariate
-{
-public:
-  typedef std::shared_ptr<TDistributionBivariate> ShPtr;
-  TDistributionBivariate(double dof);
-  void computeWeights(
-    const std::vector<Feature::ShPtr> & r, double precision = 1e-3, int maxIterations = 50);
-  double computeWeight(const Vec2d & r) const;
-
-private:
-  const double _dof;
-  Mat2d _scale;
-};
-
+class DirectIcpOverlay;
 class DirectIcp
 {
 public:
   typedef std::shared_ptr<DirectIcp> ShPtr;
+
+  struct Feature
+  {
+    typedef std::shared_ptr<Feature> ShPtr;
+    size_t idx;
+    Vec2d uv0;
+    Vec2d iz0;
+    Vec3d p0;
+    Vec6d JIJw;
+    Vec6d JZJw;
+    Vec6d JZJw_Jtz;
+    Matd<2, 6> J;
+    Mat2d weight;
+    Vec2d residual;
+    Vec2d uv0t;
+    Vec2d iz1w;
+    Vec3d p0t;
+    Vec3d p1t;
+    double error;
+    bool valid;
+  };
+
+  class TDistributionBivariate
+  {
+  public:
+    typedef std::shared_ptr<TDistributionBivariate> ShPtr;
+    TDistributionBivariate(double dof);
+    void computeWeights(
+      const std::vector<Feature::ShPtr> & r, double precision = 1e-3, int maxIterations = 50);
+    double computeWeight(const Vec2d & r) const;
+
+  private:
+    const double _dof;
+    Mat2d _scale;
+  };
 
   static std::map<std::string, double> defaultParameters();
 
@@ -68,6 +69,7 @@ public:
   int nLevels() { return _nLevels; }
 
 private:
+  std::shared_ptr<DirectIcpOverlay> _log;
   TDistributionBivariate::ShPtr _weightFunction;
   int _nLevels;
   double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,

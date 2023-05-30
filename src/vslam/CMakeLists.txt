@@ -9,6 +9,7 @@ include(Macros)
 
 set( sources
   src/direct_icp/DirectIcp.cpp
+  src/direct_icp/DirectIcpOverlay.cpp
   src/evaluation/evaluation.cpp
   src/evaluation/tum.cpp
   src/core/Camera.cpp
@@ -37,6 +38,7 @@ set( headers
   src/core/types.h
   src/core/random.h
   src/direct_icp/DirectIcp.h
+  src/direct_icp/DirectIcpOverlay.h
   src/utils/utils.h
   src/utils/visuals.h
   src/utils/log.h

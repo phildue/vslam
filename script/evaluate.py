@@ -14,6 +14,8 @@ import wandb
 from pathlib import Path
 from vslampy.plot.plot_logs import plot_logs
 from vslampy.plot.parse_performance_log import parse_performance_log
+from threading import Thread
+from time import sleep
 
 script_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(script_dir)
@@ -73,6 +75,19 @@ params = yaml.safe_load(
 evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
 
 evaluation.prepare_run(parameters=params, upload=args.upload, sha=args.commit_hash, workspace_dir=args.workspace_dir)
+
+running = True
+def intermediate_evaluation(t):
+    sleep(20)
+    while running:
+        sleep(t)
+        try:
+            evaluation.evaluate(final=False)
+        except Exception as e:
+            print(e)
+thread = Thread(target = intermediate_evaluation, args = (5, ))
+thread.start()
+
 print("---------Running Algorithm-----------------")
 
 os.system(
@@ -86,6 +101,7 @@ os.system(
     {dataset.remappings()} \
     2>&1 | tee {os.path.join(evaluation.output_dir,'log','log.txt')}"
 )
-
+running = False
+thread.join()
 evaluation.evaluate(final=True)
 

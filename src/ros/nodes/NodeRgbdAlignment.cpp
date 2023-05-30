@@ -52,7 +52,8 @@ NodeRgbdAlignment::NodeRgbdAlignment(const rclcpp::NodeOptions & options)
   }
 
   for (auto name_value : DirectIcp::defaultParameters()) {
-    _paramsIcp[name_value.first] = declare_parameter(name_value.first, name_value.second);
+    _paramsIcp[name_value.first] =
+      declare_parameter(format("direct_icp.{}", name_value.first), name_value.second);
   }
   _directIcp = std::make_shared<DirectIcp>(_paramsIcp);
 
@@ -144,10 +145,9 @@ void NodeRgbdAlignment::imageCallback(
     }
     Timestamp t;
     convert(msgImg->header.stamp, t);
-    cv::Mat depth = cv_bridge::toCvShare(msgDepth)->image;
-    if (depth.type() == CV_16UC1) {
-      depth = evaluation::tum::convertDepthMat(depth, 0.001);
-    }
+    cv::Mat depth;
+    cv_bridge::toCvShare(msgDepth)->image.convertTo(depth, CV_32FC1);
+
     auto f = std::make_shared<Frame>(cv_ptr->image, depth, _camera, t);
     f->computePyramid(_directIcp->nLevels());
     if (!_frame0) {

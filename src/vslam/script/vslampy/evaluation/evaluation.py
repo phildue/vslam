@@ -46,8 +46,8 @@ class Evaluation:
             )
             wandb.run.name = f"{self.sequence.id()}.{self.experiment_name}"
 
-        #if os.path.exists(self.output_dir):
-            #os.removedirs(self.output_dir)
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
         sha = (sha if sha else git.Repo(workspace_dir).head.object.hexsha)

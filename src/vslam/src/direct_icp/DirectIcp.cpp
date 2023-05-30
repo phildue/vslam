@@ -1,15 +1,15 @@
 
 
 #include "DirectIcp.h"
+#include "DirectIcpOverlay.h"
 #include "core/random.h"
 #include "utils/log.h"
-
 #define DETAILED_SCOPES false
 namespace vslam
 {
-TDistributionBivariate::TDistributionBivariate(double dof) : _dof(dof) {}
+DirectIcp::TDistributionBivariate::TDistributionBivariate(double dof) : _dof(dof) {}
 
-void TDistributionBivariate::computeWeights(
+void DirectIcp::TDistributionBivariate::computeWeights(
   const std::vector<Feature::ShPtr> & features, double precision, int maxIterations)
 {
   TIMED_SCOPE_IF(timer3, "fit", DETAILED_SCOPES);
@@ -33,7 +33,7 @@ void TDistributionBivariate::computeWeights(
     }
   }
 }
-double TDistributionBivariate::computeWeight(const Vec2d & r) const
+double DirectIcp::TDistributionBivariate::computeWeight(const Vec2d & r) const
 {
   return (_dof + 2.0) / (_dof + r.transpose() * _scale * r);
 }
@@ -56,7 +56,8 @@ DirectIcp::DirectIcp(
   int nLevels, double weightPrior, double minGradientIntensity, double minGradientDepth,
   double maxGradientDepth, double maxZ, double maxIterations, double minParameterUpdate,
   double maxErrorIncrease)
-: _weightFunction(std::make_shared<TDistributionBivariate>(5.0)),
+: _log(std::make_shared<DirectIcpOverlay>()),
+  _weightFunction(std::make_shared<TDistributionBivariate>(5.0)),
   _nLevels(nLevels),
   _weightPrior(weightPrior),
   _minGradientIntensity(minGradientIntensity),
@@ -137,7 +138,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
         motion.cov() = error / (constraints.size() - 6) * A.inverse();
         motion.SE3() = SE3d::exp(-dx) * motion.SE3();
       }
-
+      //_log->update(DirectIcpOverlay::Entry({frame0, frame1, constraints}));
       if (dx.norm() < _minParameterUpdate) {
         reason = format("Minimum step size reached: {:5.f}/{:5.f}", dx.norm(), _minParameterUpdate);
         break;
@@ -147,7 +148,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
   return motion;
 }
 
-std::vector<Feature::ShPtr> DirectIcp::extractFeatures(
+std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
   const Frame & frame, const SE3d & motion) const
 {
   const cv::Mat & intensity = frame.intensity();
@@ -211,8 +212,8 @@ Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr ca
   return J;
 }
 
-std::vector<Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
-  const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion)
+std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
+  const std::vector<DirectIcp::Feature::ShPtr> & features, const Frame & f1, const SE3d & motion)
 {
   {
     TIMED_SCOPE_IF(timer1, "computeResidualAndJacobian", DETAILED_SCOPES);
@@ -299,8 +300,8 @@ Vec2d DirectIcp::interpolate(const cv::Mat & intensity, const cv::Mat & depth, c
   return izw;
 }
 
-std::vector<Feature::ShPtr> DirectIcp::uniformSubselection(
-  Camera::ConstShPtr cam, const std::vector<Feature::ShPtr> & interestPoints) const
+std::vector<DirectIcp::Feature::ShPtr> DirectIcp::uniformSubselection(
+  Camera::ConstShPtr cam, const std::vector<DirectIcp::Feature::ShPtr> & interestPoints) const
 {
   TIMED_SCOPE_IF(timer, "uniformSubselection", DETAILED_SCOPES);
   const size_t nNeeded = std::max<size_t>(20, size_t(1000));
