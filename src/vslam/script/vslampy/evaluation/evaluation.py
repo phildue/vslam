@@ -34,6 +34,7 @@ class Evaluation:
         self.filepath_trajectory_plot = os.path.join(self.output_dir, "trajectory.png")            
             
     def prepare_run(self, parameters, upload=False, sha=None, workspace_dir="/home/ros/vslam_ros/"):
+        self.upload = upload
         if upload:
             os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
             os.environ[
@@ -43,6 +44,7 @@ class Evaluation:
                 project="vslam",
                 entity="phild",
                 config=parameters,
+                id = f"{self.sequence.id()}.{self.experiment_name}"
             )
             wandb.run.name = f"{self.sequence.id()}.{self.experiment_name}"
 
@@ -87,7 +89,7 @@ class Evaluation:
         self.evaluate_ate()
         logfile = os.path.join(self.output_dir, "log", "vslam.log")
         if os.path.exists(logfile):
-            parse_performance_log(logfile)
+            parse_performance_log(logfile,upload=self.upload)
 
         if os.path.exists(os.path.join(self.output_dir,"log")):
             plot_logs(self.output_dir)

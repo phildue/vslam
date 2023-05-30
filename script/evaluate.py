@@ -43,7 +43,7 @@ parser.add_argument(
     default="False",
 )
 parser.add_argument(
-    "--upload", help="Upload results to experiment tracking tool", action="store_true"
+    "--upload", help="Upload results to experiment tracking tool", action="store_false"
 )
 
 parser.add_argument(
@@ -77,6 +77,7 @@ evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
 evaluation.prepare_run(parameters=params, upload=args.upload, sha=args.commit_hash, workspace_dir=args.workspace_dir)
 
 running = True
+
 def intermediate_evaluation(t):
     sleep(20)
     while running:
@@ -85,22 +86,25 @@ def intermediate_evaluation(t):
             evaluation.evaluate(final=False)
         except Exception as e:
             print(e)
-thread = Thread(target = intermediate_evaluation, args = (5, ))
+
+thread=Thread(target=intermediate_evaluation, args=(30, ))
 thread.start()
 
 print("---------Running Algorithm-----------------")
-
-os.system(
-    f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{args.dataset} --ros-args --params-file {config_file} \
-    -p bag_file:={dataset.filepath()} \
-    -p gtTrajectoryFile:={dataset.gt_filepath()} \
-    -p algoOutputFile:={evaluation.output_dir}/{args.sequence_id}-algo.txt \
-    -p replayMode:=True \
-    -p sync_topic:={dataset.sync_topic()} \
-    -p log.root_dir:={os.path.join(evaluation.output_dir, 'log')} \
-    {dataset.remappings()} \
-    2>&1 | tee {os.path.join(evaluation.output_dir,'log','log.txt')}"
-)
+try:
+    os.system(
+        f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{args.dataset} --ros-args --params-file {config_file} \
+        -p bag_file:={dataset.filepath()} \
+        -p gtTrajectoryFile:={dataset.gt_filepath()} \
+        -p algoOutputFile:={evaluation.output_dir}/{args.sequence_id}-algo.txt \
+        -p replayMode:=True \
+        -p sync_topic:={dataset.sync_topic()} \
+        -p log.root_dir:={os.path.join(evaluation.output_dir, 'log')} \
+        {dataset.remappings()} \
+        2>&1 | tee {os.path.join(evaluation.output_dir,'log','log.txt')}"
+    )
+except Exception as e:
+    print(e)
 running = False
 thread.join()
 evaluation.evaluate(final=True)

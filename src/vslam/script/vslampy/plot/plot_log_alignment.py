@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import wandb
 
-def plot_alignment(directory, directory_out, summary_only=True):
+def plot_alignment(directory, directory_out, summary_only=True,upload=False):
     t = []
     err = []
     iters = []
@@ -116,19 +116,19 @@ def plot_alignment(directory, directory_out, summary_only=True):
     # plt.show()
     plt.savefig(directory_out + '/alignment.png')
     plt.close('all')
-    
-    metric_t = wandb.define_metric("Timestamp", summary=None, hidden=True)
-    wandb.define_metric("Iterations", summary=None, hidden=False, step_metric=metric_t)
-    wandb.define_metric("nConstraints", summary=None, hidden=False, step_metric=metric_t)
-    wandb.define_metric("Alignment Error", summary='mean', goal='minimize', step_metric=metric_t)
-    wandb.define_metric("Translation", summary=None, hidden=True, step_metric=metric_t)
-    wandb.define_metric("Rotation", summary=None, hidden=True, step_metric=metric_t)
+    if upload:
+        metric_t = wandb.define_metric("Timestamp", summary=None, hidden=True)
+        wandb.define_metric("Iterations", summary=None, hidden=False, step_metric=metric_t)
+        wandb.define_metric("nConstraints", summary=None, hidden=False, step_metric=metric_t)
+        wandb.define_metric("Alignment Error", summary='mean', goal='minimize', step_metric=metric_t)
+        wandb.define_metric("Translation", summary=None, hidden=True, step_metric=metric_t)
+        wandb.define_metric("Rotation", summary=None, hidden=True, step_metric=metric_t)
 
-    for i in range(t.shape[0]):
-        wandb.log({'Timestamp': t[i],
-                   'nConstraints': nConstraints[i],
-                   'Alignment Error': err[i],
-                   'Iterations': iters[i],
-                   'Translation': tv[i],
-                   'Rotation': rv[i]})
-    
+        for i in range(t.shape[0]):
+            wandb.log({'Timestamp': t[i],
+                    'nConstraints': nConstraints[i],
+                    'Alignment Error': err[i],
+                    'Iterations': iters[i],
+                    'Translation': tv[i],
+                    'Rotation': rv[i]})
+        

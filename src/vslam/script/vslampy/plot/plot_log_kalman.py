@@ -5,7 +5,7 @@ import os
 # from scipy.spatial.transform import Rotation as R
 
 
-def plot_kalman(directory, directory_out, summary_only=True):
+def plot_kalman(directory, directory_out, summary_only=True,upload=False):
     f = [f for f in sorted(os.listdir(directory)) if f.endswith('.csv')][-1]
     print(f"Reading: {f}")
     df = pd.read_csv(os.path.join(directory, f))

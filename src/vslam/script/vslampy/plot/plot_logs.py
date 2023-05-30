@@ -17,13 +17,13 @@ plots = {
 }
 
 
-def plot_logs(result_dir):
+def plot_logs(result_dir, upload=False):
     log_dir = os.path.join(result_dir, "log")
     for log in os.listdir(log_dir):
         if log in plots.keys():
             try:
                 print(f"Processing: [{log}] in [{os.path.join(log_dir, log)}]")
-                plots[log](os.path.join(log_dir, log), result_dir)
+                plots[log](os.path.join(log_dir, log), result_dir, upload=upload)
             except Exception as e:
                 print(e)
         else:
