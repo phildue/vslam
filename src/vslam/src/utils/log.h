@@ -7,6 +7,8 @@ namespace vslam::log
 {
 void initialize(const std::string & logfile);
 
+void create(const std::string & name);
+
 /**
    * @brief Load eigen matrix from csv
    *

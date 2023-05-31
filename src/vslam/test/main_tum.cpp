@@ -20,12 +20,7 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
   const int tRmse = 25;
   log::initialize(outPath);
 
-  const std::map<std::string, double> params = {
-    {"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
-    {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
-    {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0}};
-
-  auto directIcp = std::make_shared<DirectIcp>(params);
+  auto directIcp = std::make_shared<DirectIcp>(DirectIcp::defaultParameters());
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
   const size_t fEnd = 200;  //dl->timestamps().size();
