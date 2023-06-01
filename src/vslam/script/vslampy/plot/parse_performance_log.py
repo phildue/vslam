@@ -31,7 +31,9 @@ def parse_performance_log(inputfile, upload=False):
 
         # brings everything on the same scale (ms)
         num_ms = float(vals[0])
-        if unit == "mis":
+        if unit == "ms":
+            num_ms = num_ms / 1.0
+        if unit == "us":
             num_ms = num_ms / 1000.0
 
         # append time to dictionary entry
@@ -47,14 +49,16 @@ def parse_performance_log(inputfile, upload=False):
                 wandb.log({f"Runtime_{key}": e})
 
     # --- create the table
-    values = {"name": [], "median": [], "mean": [], "std": [], "min": [], "max": []}
+    values = {"name": [], "median [ms]": [], "mean [ms]": [], "std [ms]": [], "min [ms]": [], "max [ms]": [], "#":[]}
     for key in sorted(data):
         values["name"].append(key)
-        values["median"].append(np.median(data[key]))
-        values["mean"].append(np.mean(data[key]))
-        values["std"].append(np.std(data[key]))
-        values["max"].append(np.max(data[key]))
-        values["min"].append(np.min(data[key]))
+        values["median [ms]"].append(np.median(data[key]))
+        values["mean [ms]"].append(np.mean(data[key]))
+        values["std [ms]"].append(np.std(data[key]))
+        values["max [ms]"].append(np.max(data[key]))
+        values["min [ms]"].append(np.min(data[key]))
+        values["#"].append(len(data[key]))
+
 
     df = pd.DataFrame(values)
     print(df)

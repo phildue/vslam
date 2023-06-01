@@ -25,9 +25,7 @@ public:
     Vec2d uv0;
     Vec2d iz0;
     Vec3d p0;
-    Vec6d JIJw;
     Vec6d JZJw;
-    Vec6d JZJw_Jtz;
     Matd<2, 6> J;
     Mat2d weight;
     Vec2d residual;
@@ -43,13 +41,13 @@ public:
   {
   public:
     typedef std::shared_ptr<TDistributionBivariate> ShPtr;
-    TDistributionBivariate(double dof);
-    void computeWeights(
-      const std::vector<Feature::ShPtr> & r, double precision = 1e-3, int maxIterations = 50);
+    TDistributionBivariate(double dof, double precision = 1e-3, int maxIterations = 50);
+    void computeWeights(const std::vector<Feature::ShPtr> & r);
     double computeWeight(const Vec2d & r) const;
 
   private:
-    const double _dof;
+    const double _dof, _precision;
+    const int _maxIterations;
     Mat2d _scale;
   };
 
@@ -70,11 +68,13 @@ public:
   int nLevels() { return _nLevels; }
 
 private:
-  std::shared_ptr<DirectIcpOverlay> _log;
-  TDistributionBivariate::ShPtr _weightFunction;
-  int _nLevels, _maxPoints;
-  double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,
+  const std::shared_ptr<DirectIcpOverlay> _log;
+  const TDistributionBivariate::ShPtr _weightFunction;
+  const int _nLevels, _maxPoints;
+  const double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,
     _maxIterations, _minParameterUpdate, _maxErrorIncrease;
+
+  int _level, _iteration;
 
   std::vector<Feature::ShPtr> computeResidualsAndJacobian(
     const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion);

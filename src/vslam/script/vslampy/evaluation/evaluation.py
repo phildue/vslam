@@ -87,7 +87,7 @@ class Evaluation:
         self.evaluate_rpe()
 
         self.evaluate_ate()
-        logfile = os.path.join(self.output_dir, "log", "vslam.log")
+        logfile = os.path.join(self.output_dir, "log", "runtime.log")
         if os.path.exists(logfile):
             parse_performance_log(logfile,upload=self.upload)
 

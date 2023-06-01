@@ -11,6 +11,10 @@ void initialize(const std::string & folder)
   fs::create_directories(folder);
   el::Loggers::reconfigureAllLoggers(
     el::ConfigurationType::Filename, format("{}/vslam.log", folder));
+  el::Loggers::reconfigureLogger("performance", el::ConfigurationType::ToStandardOutput, "false");
+  el::Loggers::reconfigureLogger("performance", el::ConfigurationType::ToFile, "true");
+  el::Loggers::reconfigureLogger(
+    "performance", el::ConfigurationType::Filename, format("{}/runtime.log", folder));
 }
 
 void create(const std::string & name)

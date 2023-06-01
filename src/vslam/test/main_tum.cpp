@@ -17,13 +17,13 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 
   const std::string outPath = format("{}/algorithm_results/{}", dl->datasetPath(), experimentId);
   const std::string trajectoryAlgoPath = format("{}-algo.txt", outPath, dl->sequenceId());
-  const int tRmse = 25;
+  const int tRmse = 200;
   log::initialize(outPath);
 
   auto directIcp = std::make_shared<DirectIcp>(DirectIcp::defaultParameters());
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
-  const size_t fEnd = 200;  //dl->timestamps().size();
+  const size_t fEnd = 100;  //dl->timestamps().size();
   Pose motion;
   Pose pose;
   cv::Mat img0 = dl->loadIntensity(0), depth0 = dl->loadDepth(0);
@@ -56,5 +56,5 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
   }
   evaluation::tum::writeTrajectory(*traj, trajectoryAlgoPath);
   evaluation::tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
-  evaluation::runPerformanceLogParserpy(format("{}/vslam.log", outPath));
+  evaluation::runPerformanceLogParserpy(format("{}/runtime.log", outPath));
 }

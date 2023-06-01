@@ -1,24 +1,36 @@
 
 
+#include <execution>
+
 #include "DirectIcp.h"
 #include "DirectIcpOverlay.h"
 #include "core/random.h"
 #include "utils/log.h"
-#define DETAILED_SCOPES false
+#define DETAILED_SCOPES true
 namespace vslam
 {
-DirectIcp::TDistributionBivariate::TDistributionBivariate(double dof) : _dof(dof) {}
-
-void DirectIcp::TDistributionBivariate::computeWeights(
-  const std::vector<Feature::ShPtr> & features, double precision, int maxIterations)
+DirectIcp::TDistributionBivariate::TDistributionBivariate(
+  double dof, double precision, int maxIterations)
+: _dof(dof), _precision(precision), _maxIterations(maxIterations)
 {
-  TIMED_SCOPE_IF(timer3, "fit", DETAILED_SCOPES);
+}
+
+void DirectIcp::TDistributionBivariate::computeWeights(const std::vector<Feature::ShPtr> & features)
+{
   VecXd weights = VecXd::Ones(features.size());
-  for (int i = 0; i < maxIterations; i++) {
-    Mat2d sum = Mat2d::Zero();
+  std::vector<Mat2d> rrT(features.size());
+  for (size_t n = 0; n < features.size(); n++) {
+    rrT[n] = features[n]->residual * features[n]->residual.transpose();
+  }
+
+  for (int i = 0; i < _maxIterations; i++) {
+    TIMED_SCOPE_IF(timerLevel, format("computeWeightsIteration"), DETAILED_SCOPES);
+    std::vector<Mat2d> wrrT(features.size());
     for (size_t n = 0; n < features.size(); n++) {
-      sum += weights(n) * features[n]->residual * features[n]->residual.transpose();
+      wrrT[n] = weights(n) * rrT[n];
     }
+    Mat2d sum = std::accumulate(rrT.begin(), rrT.end(), Mat2d::Zero().eval());
+
     const Mat2d scale_i = (sum / features.size()).inverse();
 
     const double diff = (_scale - scale_i).norm();
@@ -28,7 +40,7 @@ void DirectIcp::TDistributionBivariate::computeWeights(
       features[n]->weight = weights(n) * _scale;
     }
 
-    if (diff < precision) {
+    if (diff < _precision) {
       break;
     }
   }
@@ -42,8 +54,8 @@ std::map<std::string, double> DirectIcp::defaultParameters()
 {
   return {{"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
           {"minGradientDepth", 0.01}, {"maxGradientDepth", 0.3},    {"maxDepth", 5.0},
-          {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 5.0},
-          {"maxPoints", 307200}};
+          {"maxIterations", 100},     {"minParameterUpdate", 1e-4}, {"maxErrorIncrease", 1.1},
+          {"maxPoints", 640 * 480}};
 }
 
 DirectIcp::DirectIcp(const std::map<std::string, double> params)
@@ -59,7 +71,7 @@ DirectIcp::DirectIcp(
   double maxGradientDepth, double maxZ, double maxIterations, double minParameterUpdate,
   double maxErrorIncrease, int maxPoints)
 : _log(std::make_shared<DirectIcpOverlay>()),
-  _weightFunction(std::make_shared<TDistributionBivariate>(5.0)),
+  _weightFunction(std::make_shared<TDistributionBivariate>(5.0, 1e-3, 10)),
   _nLevels(nLevels),
   _maxPoints(maxPoints),
   _weightPrior(weightPrior),
@@ -93,18 +105,18 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
 
   SE3d prior = guess.SE3();
   Pose motion = Pose(prior);
-  for (int level = _nLevels - 1; level >= 0; level--) {
-    TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", level), DETAILED_SCOPES);
-    const Frame f0 = frame0.level(level);
-    const Frame f1 = frame1.level(level);
+  for (_level = _nLevels - 1; _level >= 0; _level--) {
+    TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", _level), DETAILED_SCOPES);
+    const Frame f0 = frame0.level(_level);
+    const Frame f1 = frame1.level(_level);
     std::vector<Feature::ShPtr> features = extractFeatures(f0, motion.SE3());
     features = uniformSubselection(f0.camera(), features);
 
     std::string reason = "Max iterations exceeded";
     double error = INFd;
     Vec6d dx = Vec6d::Zero();
-    for (int iteration = 0; iteration < _maxIterations; iteration++) {
-      TIMED_SCOPE_IF(timerIter, format("computeIteration{}", level), DETAILED_SCOPES);
+    for (_iteration = 0; _iteration < _maxIterations; _iteration++) {
+      TIMED_SCOPE_IF(timerIter, format("computeIteration{}", _level), DETAILED_SCOPES);
 
       auto constraints = computeResidualsAndJacobian(features, f1, motion.SE3());
 
@@ -113,9 +125,12 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
         motion = SE3();
         break;
       }
-      _weightFunction->computeWeights(constraints);
       {
-        TIMED_SCOPE_IF(timer2, "computeNormalEquations", DETAILED_SCOPES);
+        TIMED_SCOPE_IF(timer3, format("computeWeights{}", _level), DETAILED_SCOPES);
+        _weightFunction->computeWeights(constraints);
+      }
+      {
+        TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
 
         Mat6d A = _weightPrior * Mat6d::Identity();
         Vec6d b = _weightPrior * (motion * prior.inverse()).log();
@@ -154,6 +169,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
 std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
   const Frame & frame, const SE3d & motion) const
 {
+  TIMED_SCOPE_IF(timer2, format("extractFeatures{}", _level), DETAILED_SCOPES);
   const cv::Mat & intensity = frame.intensity();
   const cv::Mat & depth = frame.depth();
   const cv::Mat & dI = frame.dI();
@@ -181,7 +197,7 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
 
         c->p0 = frame.p3d(v, u);
         Mat<double, 2, 6> Jw = computeJacobianWarp(motion * c->p0, frame.camera());
-        c->JIJw = dIvu[0] * Jw.row(0) + dIvu[1] * Jw.row(1);
+        c->J.row(0) = dIvu[0] * Jw.row(0) + dIvu[1] * Jw.row(1);
         c->JZJw = dZvu[0] * Jw.row(0) + dZvu[1] * Jw.row(1);
         constraints.push_back(c);
       }
@@ -218,40 +234,28 @@ Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr ca
 std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
   const std::vector<DirectIcp::Feature::ShPtr> & features, const Frame & f1, const SE3d & motion)
 {
-  {
-    TIMED_SCOPE_IF(timer1, "computeResidualAndJacobian", DETAILED_SCOPES);
+  TIMED_SCOPE_IF(timer1, format("computeResidualAndJacobian{}", _level), DETAILED_SCOPES);
+  SE3d motionInv = motion.inverse();
+  std::for_each(std::execution::par_unseq, features.begin(), features.end(), [&](auto c) {
+    c->valid = false;
+    c->p0t = motion * c->p0;
 
-    std::for_each(features.begin(), features.end(), [&](auto c) {
-      c->valid = false;
-      c->p0t = motion * c->p0;
+    c->uv0t = f1.project(c->p0t);
 
-      if (c->p0t.z() <= 0) return;
+    Vec2d iz1w = interpolate(f1.I(), f1.Z(), c->uv0t);
 
-      c->uv0t = f1.project(c->p0t);
+    c->p1t = motionInv * f1.reconstruct(c->uv0t, iz1w(1));
 
-      if (!f1.camera()->withinImage(c->uv0t, 0.02)) return;
+    c->iz1w = Vec2d(iz1w(0), c->p1t.z());
 
-      Vec2d iz1w = interpolate(f1.I(), f1.Z(), c->uv0t);
+    c->residual = c->iz1w - c->iz0;
 
-      if (!std::isfinite(iz1w(0)) || !std::isfinite(iz1w(1))) return;
+    c->J.row(1) = c->JZJw - computeJacobianSE3z(c->p1t);
 
-      c->p1t = motion.inverse() * f1.reconstruct(c->uv0t, iz1w(1));
-
-      c->iz1w = Vec2d(iz1w(0), c->p1t.z());
-
-      c->residual = c->iz1w - c->iz0;
-      if (!std::isfinite(c->residual.norm())) return;
-
-      c->JZJw_Jtz = c->JZJw - computeJacobianSE3z(c->p1t);
-
-      c->J.row(0) = c->JIJw;
-      c->J.row(1) = c->JZJw_Jtz;
-
-      if (!std::isfinite(c->J.norm())) return;
-
-      c->valid = true;
-    });
-  }
+    c->valid = !(
+      c->p0t.z() <= 0 || !f1.camera()->withinImage(c->uv0t, 0.02) || !std::isfinite(iz1w(0)) ||
+      !std::isfinite(iz1w(1)) || !std::isfinite(c->residual.norm()) || !std::isfinite(c->J.norm()));
+  });
   std::vector<Feature::ShPtr> constraints;
   std::copy_if(features.begin(), features.end(), std::back_inserter(constraints), [](auto c) {
     return c->valid;
@@ -306,7 +310,7 @@ Vec2d DirectIcp::interpolate(const cv::Mat & intensity, const cv::Mat & depth, c
 std::vector<DirectIcp::Feature::ShPtr> DirectIcp::uniformSubselection(
   Camera::ConstShPtr cam, const std::vector<DirectIcp::Feature::ShPtr> & interestPoints) const
 {
-  TIMED_SCOPE_IF(timer, "uniformSubselection", DETAILED_SCOPES);
+  TIMED_SCOPE_IF(timer, format("uniformSubselection{}", _level), DETAILED_SCOPES);
   const size_t nNeeded = std::max<size_t>(20, _maxPoints);
   std::vector<bool> mask(cam->width() * cam->height(), false);
   std::vector<Feature::ShPtr> subset;
