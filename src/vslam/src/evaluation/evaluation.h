@@ -3,7 +3,8 @@
 #include <string>
 namespace vslam::evaluation
 {
-void runPerformanceLogParserpy(const std::string & file);
+void computeRuntimeKPIs(const std::string & file);
+void computeKPIs(const std::string & sequenceId, const std::string & experimentId, bool upload);
 
-}
+}  // namespace vslam::evaluation
 #endif  //VSLAM_EVALUATION_H__

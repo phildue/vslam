@@ -8,7 +8,7 @@ from vslampy.plot.plot_logs import plot_logs
 from vslampy.evaluation.tum import TumRgbd
 from vslampy.evaluation.kitty import Kitti
 from scipy.spatial.transform import Rotation as R
-
+import matplotlib.pyplot as plt
 import wandb
 import os
 import git
@@ -83,19 +83,19 @@ class Evaluation:
                 ])
                 f.writelines(lines)
                 
-            
         self.evaluate_rpe()
-
         self.evaluate_ate()
-        logfile = os.path.join(self.output_dir, "log", "runtime.log")
-        if os.path.exists(logfile):
-            parse_performance_log(logfile,upload=self.upload)
-
-        if os.path.exists(os.path.join(self.output_dir,"log")):
-            plot_logs(self.output_dir)
 
         plot_trajectory(self.filepath_trajectory_algo, self.sequence.gt_filepath(), self.filepath_trajectory_plot, None, upload=self.upload)
 
+        logfile = os.path.join(self.output_dir, "runtime.log")
+        if os.path.exists(logfile):
+            parse_performance_log(logfile, upload=self.upload)
+
+        if os.path.exists(os.path.join(self.output_dir, "log")):
+            plot_logs(self.output_dir)
+
+        plt.close('all')
         if final and self.upload:
             wandb.finish()
 

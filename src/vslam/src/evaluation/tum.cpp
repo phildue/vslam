@@ -112,7 +112,7 @@ void writeTrajectory(const Trajectory & traj, const std::string & path, bool wri
   }
 }
 
-void runEvaluateRPEpy(const std::string & pathAlgo, const std::string & pathGt)
+void computeRPE(const std::string & pathAlgo, const std::string & pathGt)
 {
   const int ret =
     system(format(
@@ -143,11 +143,12 @@ cv::Mat convertDepthMat(const cv::Mat & depth_, float factor)
 DataLoader::DataLoader(const std::string & datasetRoot, const std::string & sequenceId)
 : _datasetRoot(datasetRoot),
   _sequenceId(sequenceId),
-  _datasetPath(format("{}/{}/{}", datasetRoot, sequenceId, sequenceId)),
+  _extractedDataPath(format("{}/{}/{}", datasetRoot, sequenceId, sequenceId)),
+  _sequencePath(format("{}/{}", datasetRoot, sequenceId)),
   _cam(tum::Camera()),
-  _pathGt(_datasetPath + "/groundtruth.txt")
+  _pathGt(_extractedDataPath + "/groundtruth.txt")
 {
-  readAssocTextfile(_datasetPath + "/assoc.txt");
+  readAssocTextfile(_extractedDataPath + "/assoc.txt");
   _trajectoryGt = loadTrajectory(_pathGt, true);
 }
 /*
@@ -163,7 +164,7 @@ Frame::UnPtr DataLoader::loadFrame(std::uint64_t fNo) const
 cv::Mat DataLoader::loadDepth(std::uint64_t fNo) const
 {
   // tum depth format: https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
-  const std::string path = format("{}/{}", datasetPath(), pathsDepth()[fNo]);
+  const std::string path = format("{}/{}", extracteDataPath(), pathsDepth()[fNo]);
   cv::Mat depth = cv::imread(path, cv::IMREAD_ANYDEPTH);
   if (depth.empty()) {
     throw std::runtime_error(format("Could not load depth from [{}]", path));
@@ -178,7 +179,7 @@ cv::Mat DataLoader::loadDepth(std::uint64_t fNo) const
 }
 cv::Mat DataLoader::loadIntensity(std::uint64_t fNo) const
 {
-  const std::string path = format("{}/{}", datasetPath(), pathsImage()[fNo]);
+  const std::string path = format("{}/{}", extracteDataPath(), pathsImage()[fNo]);
   cv::Mat img = cv::imread(path, cv::IMREAD_GRAYSCALE);
 
   if (img.empty()) {

@@ -96,6 +96,7 @@ try:
         f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{args.dataset} --ros-args --params-file {config_file} \
         -p bag_file:={dataset.filepath()} \
         -p gtTrajectoryFile:={dataset.gt_filepath()} \
+        -p outputDirectory:={evaluation.output_dir} \
         -p algoOutputFile:={evaluation.output_dir}/{args.sequence_id}-algo.txt \
         -p replayMode:=True \
         -p sync_topic:={dataset.sync_topic()} \

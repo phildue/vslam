@@ -27,7 +27,7 @@ Trajectory::UnPtr loadTrajectory(const std::string & path, bool invertPoses = fa
 void writeTrajectory(
   const Trajectory & traj, const std::string & path, bool writeCovariance = false);
 
-void runEvaluateRPEpy(const std::string & pathAlgo, const std::string & pathGt);
+void computeRPE(const std::string & pathAlgo, const std::string & pathGt);
 
 cv::Mat convertDepthMat(const cv::Mat & depth, float factor = 0.0002);
 
@@ -53,7 +53,8 @@ public:
   Camera::ConstShPtr cam() const { return _cam; }
   const std::string & pathGt() const { return _pathGt; }
   Trajectory::ConstShPtr trajectoryGt() const { return _trajectoryGt; }
-  std::string datasetPath() const { return _datasetPath; }
+  std::string sequencePath() const { return _sequencePath; }
+  std::string extracteDataPath() const { return _extractedDataPath; }
   std::string sequenceId() const { return _sequenceId; }
   std::string datasetRoot() const { return _datasetRoot; }
 
@@ -64,7 +65,8 @@ public:
 private:
   std::string _datasetRoot;
   std::string _sequenceId;
-  std::string _datasetPath;
+  std::string _extractedDataPath;
+  std::string _sequencePath;
   Camera::ShPtr _cam;
   std::string _pathGt;
   Trajectory::ShPtr _trajectoryGt;

@@ -25,7 +25,7 @@ private:
 
   const rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr _sub;
   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _pub;
-  std::string _algoFileName;
+  std::string _algoFileName, _outputDirectory;
   nav_msgs::msg::Path _pathGt;
   vslam::Trajectory::ShPtr _trajAlgo;
   vslam::Trajectory::ConstShPtr _trajGt;
