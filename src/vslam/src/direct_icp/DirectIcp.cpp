@@ -132,17 +132,21 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
       {
         TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
 
-        Mat6d A = _weightPrior * Mat6d::Identity();
-        Vec6d b = _weightPrior * (motion * prior.inverse()).log();
-        double error_i = b.norm();
-        for (size_t i = 0; i < constraints.size(); i++) {
-          auto c = constraints[i];
-          c->error = c->residual.transpose() * c->weight * c->residual;
-          error_i += c->error;
-          Matd<6, 2> Jw = c->J.transpose() * c->weight;
-          A.noalias() += Jw * c->J;
-          b.noalias() += Jw * c->residual;
-        }
+        std::vector<Mat6d> As(constraints.size());
+        std::vector<Vec6d> bs(constraints.size());
+        VecXd errors = VecXd::Zero(constraints.size());
+        std::for_each(
+          std::execution::par_unseq, constraints.begin(), constraints.end(), [&](auto c) {
+            c->error = c->residual.transpose() * c->weight * c->residual;
+            errors(c->idx) = c->error;
+            As[c->idx] = c->J.transpose() * c->weight * c->J;
+            bs[c->idx] = c->J.transpose() * c->weight * c->residual;
+          });
+        const Mat6d A =
+          std::accumulate(As.begin(), As.end(), (_weightPrior * Mat6d::Identity()).eval());
+        const Vec6d b = std::accumulate(
+          bs.begin(), bs.end(), (_weightPrior * (motion * prior.inverse()).log()).eval());
+        const double error_i = errors.sum();
         if (error_i / error > _maxErrorIncrease) {
           reason = format("Error increased: {:.2f}/{:.2f}", error_i, error);
           motion = SE3d::exp(dx) * motion;
@@ -260,6 +264,8 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
   std::copy_if(features.begin(), features.end(), std::back_inserter(constraints), [](auto c) {
     return c->valid;
   });
+  int idx = 0;
+  std::for_each(constraints.begin(), constraints.end(), [&idx](auto c) { c->idx = idx++; });
   return constraints;
 }
 
