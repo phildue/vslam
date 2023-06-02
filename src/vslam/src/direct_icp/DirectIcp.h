@@ -18,9 +18,9 @@ class DirectIcp
 public:
   typedef std::shared_ptr<DirectIcp> ShPtr;
 
-  struct Feature
+  struct Constraint
   {
-    typedef std::shared_ptr<Feature> ShPtr;
+    typedef std::shared_ptr<Constraint> ShPtr;
     size_t idx;
     Vec2d uv0;
     Vec2d iz0;
@@ -33,7 +33,6 @@ public:
     Vec2d iz1w;
     Vec3d p0t;
     Vec3d p1t;
-    double error;
     bool valid;
   };
 
@@ -53,7 +52,7 @@ public:
   public:
     typedef std::shared_ptr<TDistributionBivariate> ShPtr;
     TDistributionBivariate(double dof, double precision = 1e-3, int maxIterations = 50);
-    void computeWeights(const std::vector<Feature::ShPtr> & r);
+    void computeWeights(const std::vector<Constraint::ShPtr> & r);
     double computeWeight(const Vec2d & r) const;
 
   private:
@@ -87,20 +86,22 @@ private:
 
   int _level, _iteration;
 
-  std::vector<Feature::ShPtr> extractFeatures(const Frame & frame, const SE3d & motion) const;
+  std::vector<Constraint::ShPtr> selectConstraintsAndPrecompute(
+    const Frame & frame, const SE3d & motion) const;
 
-  std::vector<Feature::ShPtr> computeResidualsAndJacobian(
-    const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion) const;
+  std::vector<Constraint::ShPtr> computeResidualsAndJacobian(
+    const std::vector<Constraint::ShPtr> & features, const Frame & f1, const SE3d & motion) const;
 
   NormalEquations computeNormalEquations(
-    const std::vector<Feature::ShPtr> & constraints, const SE3d & motion, const SE3d & prior) const;
+    const std::vector<Constraint::ShPtr> & constraints, const SE3d & motion,
+    const SE3d & prior) const;
 
   Matd<2, 6> computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const;
 
   Vec6d computeJacobianSE3z(const Vec3d & p) const;
   Vec2d interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv) const;
-  std::vector<Feature::ShPtr> uniformSubselection(
-    Camera::ConstShPtr cam, const std::vector<Feature::ShPtr> & features) const;
+  std::vector<Constraint::ShPtr> uniformSubselection(
+    Camera::ConstShPtr cam, const std::vector<Constraint::ShPtr> & features) const;
 };
 
 }  // namespace vslam

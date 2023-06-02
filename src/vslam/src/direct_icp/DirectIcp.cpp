@@ -16,7 +16,8 @@ DirectIcp::TDistributionBivariate::TDistributionBivariate(
 {
 }
 
-void DirectIcp::TDistributionBivariate::computeWeights(const std::vector<Feature::ShPtr> & features)
+void DirectIcp::TDistributionBivariate::computeWeights(
+  const std::vector<Constraint::ShPtr> & features)
 {
   VecXd weights = VecXd::Ones(features.size());
   std::vector<Mat2d> rrT(features.size());
@@ -110,8 +111,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
     TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", _level), DETAILED_SCOPES);
     const Frame f0 = frame0.level(_level);
     const Frame f1 = frame1.level(_level);
-    std::vector<Feature::ShPtr> features = extractFeatures(f0, motion.SE3());
-    features = uniformSubselection(f0.camera(), features);
+    const auto constraintsAll = selectConstraintsAndPrecompute(f0, motion.SE3());
 
     std::string reason = "Max iterations exceeded";
     double error = INFd;
@@ -119,18 +119,20 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
     for (_iteration = 0; _iteration < _maxIterations; _iteration++) {
       TIMED_SCOPE_IF(timerIter, format("computeIteration{}", _level), DETAILED_SCOPES);
 
-      auto constraints = computeResidualsAndJacobian(features, f1, motion.SE3());
+      auto constraintsValid = computeResidualsAndJacobian(constraintsAll, f1, motion.SE3());
 
-      if (constraints.size() < 6) {
-        reason = format("Not enough constraints: {}", constraints.size());
+      if (constraintsValid.size() < 6) {
+        reason = format("Not enough constraints: {}", constraintsValid.size());
         motion = SE3();
         break;
       }
       {
         TIMED_SCOPE_IF(timer3, format("computeWeights{}", _level), DETAILED_SCOPES);
-        _weightFunction->computeWeights(constraints);
+        _weightFunction->computeWeights(constraintsValid);
       }
-      const NormalEquations ne = computeNormalEquations(constraints, motion.SE3(), prior);
+
+      const NormalEquations ne = computeNormalEquations(constraintsValid, motion.SE3(), prior);
+
       if (ne.error / error > _maxErrorIncrease) {
         reason = format("Error increased: {:.2f}/{:.2f}", ne.error, error);
         motion = SE3d::exp(dx) * motion;
@@ -139,11 +141,12 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
       error = ne.error;
 
       dx = ne.A.ldlt().solve(ne.b);
-      //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
 
-      motion.cov() = error / (constraints.size() - 6) * ne.A.inverse();
       motion.SE3() = SE3d::exp(-dx) * motion.SE3();
+      //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
+      motion.cov() = error / (constraintsValid.size() - 6) * ne.A.inverse();
       //_log->update(DirectIcpOverlay::Entry({frame0, frame1, constraints}));
+
       if (dx.norm() < _minParameterUpdate) {
         reason = format("Minimum step size reached: {:5.f}/{:5.f}", dx.norm(), _minParameterUpdate);
         break;
@@ -153,7 +156,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
   return motion;
 }
 
-std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
+std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::selectConstraintsAndPrecompute(
   const Frame & frame, const SE3d & motion) const
 {
   TIMED_SCOPE_IF(timer2, format("extractFeatures{}", _level), DETAILED_SCOPES);
@@ -162,7 +165,7 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
   const cv::Mat & dI = frame.dI();
   const cv::Mat & dZ = frame.dZ();
 
-  std::vector<Feature::ShPtr> constraints;
+  std::vector<Constraint::ShPtr> constraints;
   constraints.reserve(intensity.cols * intensity.rows);
   for (int u = 0; u < intensity.cols; u++) {
     for (int v = 0; v < intensity.rows; v++) {
@@ -177,7 +180,7 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
         std::abs(dZvu[1]) < _maxGradientDepth &&
         (std::abs(dIvu[0]) > _minGradientIntensity || std::abs(dIvu[1]) > _minGradientIntensity ||
          std::abs(dZvu[0]) > _minGradientDepth || std::abs(dZvu[1]) > _minGradientDepth)) {
-        auto c = std::make_shared<Feature>();
+        auto c = std::make_shared<Constraint>();
         c->idx = constraints.size();
         c->uv0 = Vec2d(u, v);
         c->iz0 = Vec2d(i, z);
@@ -190,7 +193,7 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::extractFeatures(
       }
     }
   }
-  return constraints;
+  return uniformSubselection(frame.camera(), constraints);
 }
 Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const
 {
@@ -218,13 +221,13 @@ Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr ca
   return J;
 }
 
-std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
-  const std::vector<DirectIcp::Feature::ShPtr> & features, const Frame & f1,
+std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian(
+  const std::vector<DirectIcp::Constraint::ShPtr> & constraints, const Frame & f1,
   const SE3d & motion) const
 {
   TIMED_SCOPE_IF(timer1, format("computeResidualAndJacobian{}", _level), DETAILED_SCOPES);
   SE3d motionInv = motion.inverse();
-  std::for_each(std::execution::par_unseq, features.begin(), features.end(), [&](auto c) {
+  std::for_each(std::execution::par_unseq, constraints.begin(), constraints.end(), [&](auto c) {
     c->valid = false;
     c->p0t = motion * c->p0;
 
@@ -244,17 +247,18 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
       c->p0t.z() <= 0 || !f1.camera()->withinImage(c->uv0t, 0.02) || !std::isfinite(iz1w(0)) ||
       !std::isfinite(iz1w(1)) || !std::isfinite(c->residual.norm()) || !std::isfinite(c->J.norm()));
   });
-  std::vector<Feature::ShPtr> constraints;
-  std::copy_if(features.begin(), features.end(), std::back_inserter(constraints), [](auto c) {
-    return c->valid;
-  });
+  std::vector<Constraint::ShPtr> constraintsValid;
+  std::copy_if(
+    constraints.begin(), constraints.end(), std::back_inserter(constraintsValid),
+    [](auto c) { return c->valid; });
   int idx = 0;
-  std::for_each(constraints.begin(), constraints.end(), [&idx](auto c) { c->idx = idx++; });
-  return constraints;
+  std::for_each(
+    constraintsValid.begin(), constraintsValid.end(), [&idx](auto c) { c->idx = idx++; });
+  return constraintsValid;
 }
 
 DirectIcp::NormalEquations DirectIcp::computeNormalEquations(
-  const std::vector<DirectIcp::Feature::ShPtr> & constraints, const SE3d & motion,
+  const std::vector<DirectIcp::Constraint::ShPtr> & constraints, const SE3d & motion,
   const SE3d & prior) const
 {
   TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
@@ -314,13 +318,13 @@ Vec2d DirectIcp::interpolate(
   return izw;
 }
 
-std::vector<DirectIcp::Feature::ShPtr> DirectIcp::uniformSubselection(
-  Camera::ConstShPtr cam, const std::vector<DirectIcp::Feature::ShPtr> & interestPoints) const
+std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::uniformSubselection(
+  Camera::ConstShPtr cam, const std::vector<DirectIcp::Constraint::ShPtr> & interestPoints) const
 {
   TIMED_SCOPE_IF(timer, format("uniformSubselection{}", _level), DETAILED_SCOPES);
   const size_t nNeeded = std::max<size_t>(20, _maxPoints);
   std::vector<bool> mask(cam->width() * cam->height(), false);
-  std::vector<Feature::ShPtr> subset;
+  std::vector<Constraint::ShPtr> subset;
   subset.reserve(interestPoints.size());
   if (nNeeded < interestPoints.size()) {
     while (subset.size() < nNeeded) {
