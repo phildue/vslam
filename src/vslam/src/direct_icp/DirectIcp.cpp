@@ -159,7 +159,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
 std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::selectConstraintsAndPrecompute(
   const Frame & frame, const SE3d & motion) const
 {
-  TIMED_SCOPE_IF(timer2, format("extractFeatures{}", _level), DETAILED_SCOPES);
+  TIMED_SCOPE_IF(timer2, format("selectConstraintsAndPrecompute{}", _level), DETAILED_SCOPES);
   const cv::Mat & intensity = frame.intensity();
   const cv::Mat & depth = frame.depth();
   const cv::Mat & dI = frame.dI();
@@ -227,25 +227,25 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian
 {
   TIMED_SCOPE_IF(timer1, format("computeResidualAndJacobian{}", _level), DETAILED_SCOPES);
   SE3d motionInv = motion.inverse();
+  const Camera::ConstShPtr cam = f1.camera();
+  const cv::Mat & I1 = f1.I();
+  const cv::Mat & Z1 = f1.Z();
+
   std::for_each(std::execution::par_unseq, constraints.begin(), constraints.end(), [&](auto c) {
     c->valid = false;
-    c->p0t = motion * c->p0;
 
-    c->uv0t = f1.project(c->p0t);
+    const Vec2d uv0t = cam->project(motion * c->p0);
+    const Vec2d iz1w = interpolate(I1, Z1, uv0t);
 
-    Vec2d iz1w = interpolate(f1.I(), f1.Z(), c->uv0t);
+    const Vec3d p1t = motionInv * cam->reconstruct(uv0t, iz1w(1));
 
-    c->p1t = motionInv * f1.reconstruct(c->uv0t, iz1w(1));
+    c->residual = Vec2d(iz1w(0), p1t.z()) - c->iz0;
 
-    c->iz1w = Vec2d(iz1w(0), c->p1t.z());
+    c->J.row(1) = c->JZJw - computeJacobianSE3z(p1t);
 
-    c->residual = c->iz1w - c->iz0;
-
-    c->J.row(1) = c->JZJw - computeJacobianSE3z(c->p1t);
-
-    c->valid = !(
-      c->p0t.z() <= 0 || !f1.camera()->withinImage(c->uv0t, 0.02) || !std::isfinite(iz1w(0)) ||
-      !std::isfinite(iz1w(1)) || !std::isfinite(c->residual.norm()) || !std::isfinite(c->J.norm()));
+    c->valid =
+      !(!std::isfinite(iz1w(0)) || !std::isfinite(iz1w(1)) || !std::isfinite(c->residual.norm()) ||
+        !std::isfinite(c->J.norm()));
   });
   std::vector<Constraint::ShPtr> constraintsValid;
   std::copy_if(

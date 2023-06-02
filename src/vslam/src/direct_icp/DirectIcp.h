@@ -23,16 +23,12 @@ public:
     typedef std::shared_ptr<Constraint> ShPtr;
     size_t idx;
     Vec2d uv0;
-    Vec2d iz0;
     Vec3d p0;
+    Vec2d iz0;
     Vec6d JZJw;
     Matd<2, 6> J;
     Mat2d weight;
     Vec2d residual;
-    Vec2d uv0t;
-    Vec2d iz1w;
-    Vec3d p0t;
-    Vec3d p1t;
     bool valid;
   };
 
