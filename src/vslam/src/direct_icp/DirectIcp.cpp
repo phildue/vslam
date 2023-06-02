@@ -1,6 +1,7 @@
 
 
 #include <execution>
+#include <numeric>
 
 #include "DirectIcp.h"
 #include "DirectIcpOverlay.h"
@@ -129,37 +130,19 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
         TIMED_SCOPE_IF(timer3, format("computeWeights{}", _level), DETAILED_SCOPES);
         _weightFunction->computeWeights(constraints);
       }
-      {
-        TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
-
-        std::vector<Mat6d> As(constraints.size());
-        std::vector<Vec6d> bs(constraints.size());
-        VecXd errors = VecXd::Zero(constraints.size());
-        std::for_each(
-          std::execution::par_unseq, constraints.begin(), constraints.end(), [&](auto c) {
-            c->error = c->residual.transpose() * c->weight * c->residual;
-            errors(c->idx) = c->error;
-            As[c->idx] = c->J.transpose() * c->weight * c->J;
-            bs[c->idx] = c->J.transpose() * c->weight * c->residual;
-          });
-        const Mat6d A =
-          std::accumulate(As.begin(), As.end(), (_weightPrior * Mat6d::Identity()).eval());
-        const Vec6d b = std::accumulate(
-          bs.begin(), bs.end(), (_weightPrior * (motion * prior.inverse()).log()).eval());
-        const double error_i = errors.sum();
-        if (error_i / error > _maxErrorIncrease) {
-          reason = format("Error increased: {:.2f}/{:.2f}", error_i, error);
-          motion = SE3d::exp(dx) * motion;
-          break;
-        }
-        error = error_i;
-
-        dx = A.ldlt().solve(b);
-        //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
-
-        motion.cov() = error / (constraints.size() - 6) * A.inverse();
-        motion.SE3() = SE3d::exp(-dx) * motion.SE3();
+      const NormalEquations ne = computeNormalEquations(constraints, motion.SE3(), prior);
+      if (ne.error / error > _maxErrorIncrease) {
+        reason = format("Error increased: {:.2f}/{:.2f}", ne.error, error);
+        motion = SE3d::exp(dx) * motion;
+        break;
       }
+      error = ne.error;
+
+      dx = ne.A.ldlt().solve(ne.b);
+      //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
+
+      motion.cov() = error / (constraints.size() - 6) * ne.A.inverse();
+      motion.SE3() = SE3d::exp(-dx) * motion.SE3();
       //_log->update(DirectIcpOverlay::Entry({frame0, frame1, constraints}));
       if (dx.norm() < _minParameterUpdate) {
         reason = format("Minimum step size reached: {:5.f}/{:5.f}", dx.norm(), _minParameterUpdate);
@@ -236,7 +219,8 @@ Matd<2, 6> DirectIcp::computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr ca
 }
 
 std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
-  const std::vector<DirectIcp::Feature::ShPtr> & features, const Frame & f1, const SE3d & motion)
+  const std::vector<DirectIcp::Feature::ShPtr> & features, const Frame & f1,
+  const SE3d & motion) const
 {
   TIMED_SCOPE_IF(timer1, format("computeResidualAndJacobian{}", _level), DETAILED_SCOPES);
   SE3d motionInv = motion.inverse();
@@ -269,6 +253,22 @@ std::vector<DirectIcp::Feature::ShPtr> DirectIcp::computeResidualsAndJacobian(
   return constraints;
 }
 
+DirectIcp::NormalEquations DirectIcp::computeNormalEquations(
+  const std::vector<DirectIcp::Feature::ShPtr> & constraints, const SE3d & motion,
+  const SE3d & prior) const
+{
+  TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
+  const Vec6d diffPrior = (motion * prior.inverse()).log();
+  return std::transform_reduce(
+    std::execution::par_unseq, constraints.begin(), constraints.end(),
+    NormalEquations({_weightPrior * Mat6d::Identity(), _weightPrior * diffPrior, diffPrior.norm()}),
+    std::plus<NormalEquations>{}, [](auto c) {
+      return NormalEquations(
+        {c->J.transpose() * c->weight * c->J, c->J.transpose() * c->weight * c->residual,
+         c->residual.transpose() * c->weight * c->residual});
+    });
+}
+
 Vec6d DirectIcp::computeJacobianSE3z(const Vec3d & p) const
 {
   Vec6d J;
@@ -282,7 +282,8 @@ Vec6d DirectIcp::computeJacobianSE3z(const Vec3d & p) const
   return J;
 }
 
-Vec2d DirectIcp::interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv)
+Vec2d DirectIcp::interpolate(
+  const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv) const
 {
   auto sample = [&](int v, int u) -> Vec2d {
     const double z = depth.at<float>(v, u);

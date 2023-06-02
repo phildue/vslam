@@ -37,6 +37,17 @@ public:
     bool valid;
   };
 
+  struct NormalEquations
+  {
+    Mat6d A;
+    Vec6d b;
+    double error;
+    NormalEquations operator+(const NormalEquations & that) const
+    {
+      return NormalEquations({A + that.A, b + that.b, error + that.error});
+    }
+  };
+
   class TDistributionBivariate
   {
   public:
@@ -76,14 +87,18 @@ private:
 
   int _level, _iteration;
 
-  std::vector<Feature::ShPtr> computeResidualsAndJacobian(
-    const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion);
-
   std::vector<Feature::ShPtr> extractFeatures(const Frame & frame, const SE3d & motion) const;
+
+  std::vector<Feature::ShPtr> computeResidualsAndJacobian(
+    const std::vector<Feature::ShPtr> & features, const Frame & f1, const SE3d & motion) const;
+
+  NormalEquations computeNormalEquations(
+    const std::vector<Feature::ShPtr> & constraints, const SE3d & motion, const SE3d & prior) const;
+
   Matd<2, 6> computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const;
 
   Vec6d computeJacobianSE3z(const Vec3d & p) const;
-  Vec2d interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv);
+  Vec2d interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv) const;
   std::vector<Feature::ShPtr> uniformSubselection(
     Camera::ConstShPtr cam, const std::vector<Feature::ShPtr> & features) const;
 };
