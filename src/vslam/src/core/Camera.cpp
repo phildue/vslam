@@ -45,7 +45,7 @@ Camera::Camera(double fx, double fy, double cx, double cy, int width, int height
 : _w(width), _h(height)
 {
   _K << fx, 0, cx, 0, fy, cy, 0, 0, 1;
-  _Kinv = _K.inverse();
+  _Kinv << 1 / fx, 0, -cx / fx, 0, 1 / fy, -cy / fy, 0, 0, 1;
 }
 
 Camera::ShPtr Camera::resize(Camera::ConstShPtr cam, double s)
