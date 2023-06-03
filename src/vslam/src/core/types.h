@@ -56,7 +56,7 @@ typedef std::vector<DepthMap> DepthMapVec;
 
 typedef std::uint64_t Timestamp;
 typedef Sophus::SE3d SE3d;
-typedef Sophus::SE3d SE3;
+typedef Sophus::SE3f SE3f;
 
 typedef Eigen::Matrix<std::uint8_t, Eigen::Dynamic, Eigen::Dynamic> MatXui8;
 typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic> MatXi;
@@ -66,8 +66,6 @@ typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatXd;
 typedef std::vector<MatXd> MatXdVec;
 
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> MatXf;
-typedef Eigen::Matrix<double, 3, 3> Mat3d;
-typedef Eigen::Matrix<double, 2, 2> Mat2d;
 
 template <typename Derived, int nRows, int nCols>
 using Mat = Eigen::Matrix<Derived, nRows, nCols>;
@@ -76,17 +74,30 @@ template <int nRows, int nCols>
 using Matd = Eigen::Matrix<double, nRows, nCols>;
 
 template <int nRows, int nCols>
-using Matf = Eigen::Matrix<double, nRows, nCols>;
+using Matf = Eigen::Matrix<float, nRows, nCols>;
 
 typedef Eigen::VectorXd VecXd;
 typedef Eigen::Vector2d Vec2d;
 typedef Eigen::Vector2i Vec2i;
 typedef Eigen::Vector3d Vec3d;
 typedef Eigen::Vector4d Vec4d;
+typedef Eigen::Matrix<double, 2, 2> Mat2d;
+typedef Eigen::Matrix<double, 3, 3> Mat3d;
 typedef Eigen::Matrix<double, 6, 1> Vec6d;
 typedef Eigen::Matrix<double, 6, 6> Mat6d;
 typedef Eigen::Matrix<double, 12, 1> Vec12d;
 typedef Eigen::Matrix<double, 12, 12> Mat12d;
+
+typedef Eigen::VectorXf VecXf;
+typedef Eigen::Vector2f Vec2f;
+typedef Eigen::Vector3f Vec3f;
+typedef Eigen::Vector4f Vec4f;
+typedef Eigen::Matrix<float, 2, 2> Mat2f;
+typedef Eigen::Matrix<float, 3, 3> Mat3f;
+typedef Eigen::Matrix<float, 6, 1> Vec6f;
+typedef Eigen::Matrix<float, 6, 6> Mat6f;
+typedef Eigen::Matrix<float, 12, 1> Vec12f;
+typedef Eigen::Matrix<float, 12, 12> Mat12f;
 
 typedef double num_t;
 typedef Eigen::Matrix<num_t, Eigen::Dynamic, Eigen::Dynamic> MatX;

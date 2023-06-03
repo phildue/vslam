@@ -22,21 +22,21 @@ public:
   {
     typedef std::shared_ptr<Constraint> ShPtr;
     size_t idx;
-    Vec2d uv0;
-    Vec3d p0;
-    Vec2d iz0;
-    Vec6d JZJw;
-    Matd<2, 6> J;
-    Mat2d weight;
-    Vec2d residual;
+    Vec2f uv0;
+    Vec3f p0;
+    Vec2f iz0;
+    Vec6f JZJw;
+    Matf<2, 6> J;
+    Mat2f weight;
+    Vec2f residual;
     bool valid;
   };
 
   struct NormalEquations
   {
-    Mat6d A;
-    Vec6d b;
-    double error;
+    Mat6f A;
+    Vec6f b;
+    float error;
     NormalEquations operator+(const NormalEquations & that) const
     {
       return NormalEquations({A + that.A, b + that.b, error + that.error});
@@ -49,12 +49,12 @@ public:
     typedef std::shared_ptr<TDistributionBivariate> ShPtr;
     TDistributionBivariate(double dof, double precision = 1e-3, int maxIterations = 50);
     void computeWeights(const std::vector<Constraint::ShPtr> & r);
-    double computeWeight(const Vec2d & r) const;
+    double computeWeight(const Vec2f & r) const;
 
   private:
     const double _dof, _precision;
     const int _maxIterations;
-    Mat2d _scale;
+    Mat2f _scale;
   };
 
   static std::map<std::string, double> defaultParameters();
@@ -83,19 +83,19 @@ private:
   int _level, _iteration;
 
   std::vector<Constraint::ShPtr> selectConstraintsAndPrecompute(
-    const Frame & frame, const SE3d & motion) const;
+    const Frame & frame, const SE3f & motion) const;
 
   std::vector<Constraint::ShPtr> computeResidualsAndJacobian(
-    const std::vector<Constraint::ShPtr> & features, const Frame & f1, const SE3d & motion) const;
+    const std::vector<Constraint::ShPtr> & features, const Frame & f1, const SE3f & motion) const;
 
   NormalEquations computeNormalEquations(
-    const std::vector<Constraint::ShPtr> & constraints, const SE3d & motion,
-    const SE3d & prior) const;
+    const std::vector<Constraint::ShPtr> & constraints, const SE3f & motion,
+    const SE3f & prior) const;
 
-  Matd<2, 6> computeJacobianWarp(const Vec3d & p, Camera::ConstShPtr cam) const;
+  Matf<2, 6> computeJacobianWarp(const Vec3f & p, Camera::ConstShPtr cam) const;
 
-  Vec6d computeJacobianSE3z(const Vec3d & p) const;
-  Vec2d interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2d & uv) const;
+  Vec6f computeJacobianSE3z(const Vec3f & p) const;
+  Vec2f interpolate(const cv::Mat & intensity, const cv::Mat & depth, const Vec2f & uv) const;
   std::vector<Constraint::ShPtr> uniformSubselection(
     Camera::ConstShPtr cam, const std::vector<Constraint::ShPtr> & features) const;
 };
