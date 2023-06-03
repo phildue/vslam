@@ -15,15 +15,15 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
   auto dl = std::make_unique<evaluation::tum::DataLoader>(
     "/mnt/dataset/tum_rgbd/", "rgbd_dataset_freiburg2_desk");
 
-  const std::string outPath = format("{}/algorithm_results/{}", dl->datasetPath(), experimentId);
-  const std::string trajectoryAlgoPath = format("{}-algo.txt", outPath, dl->sequenceId());
+  const std::string outPath = format("{}/algorithm_results/{}", dl->sequencePath(), experimentId);
+  const std::string trajectoryAlgoPath = format("{}/{}-algo.txt", outPath, dl->sequenceId());
   const int tRmse = 200;
   log::initialize(outPath);
 
   auto directIcp = std::make_shared<DirectIcp>(DirectIcp::defaultParameters());
 
   Trajectory::ShPtr traj = std::make_shared<Trajectory>();
-  const size_t fEnd = 100;  //dl->timestamps().size();
+  const size_t fEnd = dl->timestamps().size();
   Pose motion;
   Pose pose;
   cv::Mat img0 = dl->loadIntensity(0), depth0 = dl->loadDepth(0);
@@ -39,8 +39,10 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
 
       cv::imshow("Frame", colorizedRgbd(img, depth));
       cv::waitKey(1);
-
-      motion = directIcp->computeEgomotion(dl->cam(), img0, depth0, img, depth, motion);
+      {
+        TIMED_SCOPE(timer, "computeFrame");
+        motion = directIcp->computeEgomotion(dl->cam(), img0, depth0, img, depth, motion);
+      }
       pose = motion * pose;
       traj->append(dl->timestamps()[fId], pose.inverse());
       img0 = img;
@@ -51,10 +53,9 @@ int main(int UNUSED(argc), char ** UNUSED(argv))
     }
     if (fId > tRmse && fId % tRmse == 0) {
       evaluation::tum::writeTrajectory(*traj, trajectoryAlgoPath);
-      evaluation::tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
+      evaluation::computeKPIs(dl->sequenceId(), experimentId, false);
     };
   }
   evaluation::tum::writeTrajectory(*traj, trajectoryAlgoPath);
-  evaluation::tum::runEvaluateRPEpy(trajectoryAlgoPath, dl->pathGt());
-  evaluation::runPerformanceLogParserpy(format("{}/runtime.log", outPath));
+  evaluation::computeKPIs(dl->sequenceId(), experimentId, false);
 }
