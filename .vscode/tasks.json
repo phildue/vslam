@@ -12,10 +12,18 @@
 
         },
         {
-            "label": "evaluation pipeline",
-            "detail": "Evaluate ros pipeline on dataset.",
+            "label": "compute kpis",
+            "detail": "Compute kpis on existing algorithm log",
             "type": "shell",
-            "command":"source install/setup.bash && python3 script/evaluate.py --launch_without_algo True --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
+            "command":"python3 ${workspaceFolder}/src/vslam/script/vslampy/evaluation/evaluation.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
+            "problemMatcher": []
+
+        },
+        {
+            "label": "upload kpis",
+            "detail": "Compute kpis on existing algorithm log",
+            "type": "shell",
+            "command":"python3 ${workspaceFolder}/src/vslam/script/vslampy/evaluation/evaluation.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name} --upload",
             "problemMatcher": []
 
         },
@@ -33,15 +41,6 @@
         {
             "label": "build_app",
             "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make -j4",
-            "type": "shell",
-            "problemMatcher": "$gcc",
-            "group": {
-                "kind": "build",
-            }
-        },
-        {
-            "label": "build_app_dvo",
-            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/src/app && make compare_dvo -j4",
             "type": "shell",
             "problemMatcher": "$gcc",
             "group": {

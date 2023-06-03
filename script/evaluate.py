@@ -43,7 +43,7 @@ parser.add_argument(
     default="False",
 )
 parser.add_argument(
-    "--upload", help="Upload results to experiment tracking tool", action="store_false"
+    "--upload", help="Upload results to experiment tracking tool", action="store_true"
 )
 
 parser.add_argument(
@@ -74,7 +74,10 @@ params = yaml.safe_load(
 
 evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
 
-evaluation.prepare_run(parameters=params, upload=args.upload, sha=args.commit_hash, workspace_dir=args.workspace_dir)
+evaluation.prepare_run(parameters=params, sha=args.commit_hash, workspace_dir=args.workspace_dir)
+
+if args.upload:
+    evaluation.prepare_upload()
 
 running = True
 

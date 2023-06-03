@@ -17,6 +17,7 @@ import shutil
 from datetime import datetime
 import numpy as np
 import sys
+from pathlib import Path
 from sophus.sophuspy import SE3
 class Evaluation:
     
@@ -32,21 +33,9 @@ class Evaluation:
         self.output_dir = f"{self.out_root}/{self.experiment_name}"
         self.filepath_trajectory_algo = os.path.join(self.output_dir, sequence.id() + "-algo.txt")
         self.filepath_trajectory_plot = os.path.join(self.output_dir, "trajectory.png")            
+        self.filepath_params = os.path.join(self.output_dir, "params.yaml")
             
     def prepare_run(self, parameters, upload=False, sha=None, workspace_dir="/home/ros/vslam_ros/"):
-        self.upload = upload
-        if upload:
-            os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
-            os.environ[
-                "WANDB_API_KEY"
-            ] = "local-837a2a9d75b14cf1ae7886da28a78394a9a7b053"
-            wandb.init(
-                project="vslam",
-                entity="phild",
-                config=parameters,
-                id = f"{self.sequence.id()}.{self.experiment_name}"
-            )
-            wandb.run.name = f"{self.sequence.id()}.{self.experiment_name}"
 
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
@@ -62,11 +51,23 @@ class Evaluation:
                 ],
                 f,
             )
-        with open(os.path.join(self.output_dir, "params.yaml"), "w") as f:
-            yaml.dump(
-                parameters,
-                f,
-            )
+        with open(self.filepath_params, "w") as f:
+            yaml.dump(parameters, f)
+
+    def prepare_upload(self):
+        self.upload = True
+        os.environ["WANDB_BASE_URL"] = "http://localhost:8080"
+        os.environ[
+            "WANDB_API_KEY"
+        ] = "local-837a2a9d75b14cf1ae7886da28a78394a9a7b053"
+        parameters = yaml.safe_load(Path(self.filepath_params).read_text())
+        wandb.init(
+            project="vslam",
+            entity="phild",
+            config=parameters,
+            id = f"{self.sequence.id()}.{self.experiment_name}"
+        )
+        wandb.run.name = f"{self.sequence.id()}.{self.experiment_name}"
 
     def evaluate(self, trajectory=None, final = True):
         if trajectory:
@@ -318,8 +319,13 @@ if __name__ == "__main__":
         help="Id of the sequence to run on)",
         default="rgbd_dataset_freiburg1_floor",
     )
+    parser.add_argument(
+    "--upload", help="Upload results to experiment tracking tool", action="store_true"
+    )
     args = parser.parse_args()
 
     dataset = (Kitti(args.sequence_id) if args.sequence_id in Kitti.sequences() else TumRgbd(args.sequence_id))
     evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
+    if args.upload:
+        evaluation.prepare_upload()
     evaluation.evaluate()
