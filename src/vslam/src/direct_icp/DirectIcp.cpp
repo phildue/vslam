@@ -7,6 +7,7 @@
 #include "DirectIcpOverlay.h"
 #include "core/random.h"
 #include "utils/log.h"
+
 #define DETAILED_SCOPES true
 namespace vslam
 {
@@ -166,36 +167,48 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::selectConstraintsAndPrecomp
   const cv::Mat & dI = frame.dI();
   const cv::Mat & dZ = frame.dZ();
 
-  std::vector<Constraint::ShPtr> constraints;
-  constraints.reserve(intensity.cols * intensity.rows);
-  for (int u = 0; u < intensity.cols; u++) {
-    for (int v = 0; v < intensity.rows; v++) {
-      const float z = depth.at<float>(v, u);
-      const float i = intensity.at<uint8_t>(v, u);
-      const cv::Vec2f dIvu = dI.at<cv::Vec2f>(v, u);
-      const cv::Vec2f dZvu = dZ.at<cv::Vec2f>(v, u);
-
+  std::vector<int> vs(intensity.rows);
+  for (int v = 0; v < intensity.rows; v++) {
+    vs[v] = v;
+  }
+  //TODO this could be a transform_reduce:
+  // ( transform: (uv) -> (vector<vector<Constraint>>) | accumulate: vector<vector<Constraint>> -> (vector<Constraint>))
+  std::vector<std::vector<Constraint::ShPtr>> cs(intensity.rows);
+  std::transform(std::execution::par_unseq, vs.begin(), vs.end(), cs.begin(), [&](int v) {
+    const float * zv = depth.ptr<float>(v);
+    const uint8_t * iv = intensity.ptr<uint8_t>(v);
+    const cv::Vec2f * dIv = dI.ptr<cv::Vec2f>(v);
+    const cv::Vec2f * dZv = dZ.ptr<cv::Vec2f>(v);
+    std::vector<Constraint::ShPtr> constraints;
+    constraints.reserve(intensity.cols);
+    for (int u = 0; u < intensity.cols; u++) {
       if (
-        std::isfinite(z) && std::isfinite(dZvu[0]) && std::isfinite(dZvu[1]) && 0 < z &&
-        z < _maxDepth && std::abs(dZvu[0]) < _maxGradientDepth &&
-        std::abs(dZvu[1]) < _maxGradientDepth &&
-        (std::abs(dIvu[0]) > _minGradientIntensity || std::abs(dIvu[1]) > _minGradientIntensity ||
-         std::abs(dZvu[0]) > _minGradientDepth || std::abs(dZvu[1]) > _minGradientDepth)) {
+        std::isfinite(zv[u]) && std::isfinite(dZv[u][0]) && std::isfinite(dZv[u][1]) && 0 < zv[u] &&
+        zv[u] < _maxDepth && std::abs(dZv[u][0]) < _maxGradientDepth &&
+        std::abs(dZv[u][1]) < _maxGradientDepth &&
+        (std::abs(dIv[u][0]) > _minGradientIntensity ||
+         std::abs(dIv[u][1]) > _minGradientIntensity || std::abs(dZv[u][0]) > _minGradientDepth ||
+         std::abs(dZv[u][1]) > _minGradientDepth)) {
         auto c = std::make_shared<Constraint>();
         c->idx = constraints.size();
         c->uv0 = Vec2f(u, v);
-        c->iz0 = Vec2f(i, z);
+        c->iz0 = Vec2f(iv[u], zv[u]);
 
         c->p0 = frame.p3d(v, u).cast<float>();
         Mat<float, 2, 6> Jw = computeJacobianWarp(motion * c->p0, frame.camera());
-        c->J.row(0) = dIvu[0] * Jw.row(0) + dIvu[1] * Jw.row(1);
-        c->JZJw = dZvu[0] * Jw.row(0) + dZvu[1] * Jw.row(1);
+        c->J.row(0) = dIv[u][0] * Jw.row(0) + dIv[u][1] * Jw.row(1);
+        c->JZJw = dZv[u][0] * Jw.row(0) + dZv[u][1] * Jw.row(1);
         constraints.push_back(c);
       }
     }
-  }
+    return constraints;
+  });
+  std::vector<Constraint::ShPtr> constraints;
+  std::for_each(cs.begin(), cs.end(), [&](auto c) {
+    constraints.insert(constraints.end(), c.begin(), c.end());
+  });
   return uniformSubselection(frame.camera(), constraints);
-}
+}  // namespace vslam
 Matf<2, 6> DirectIcp::computeJacobianWarp(const Vec3f & p, Camera::ConstShPtr cam) const
 {
   const double & x = p.x();
