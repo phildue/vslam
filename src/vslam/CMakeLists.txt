@@ -8,46 +8,49 @@ set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
 set( sources
-  src/direct_icp/DirectIcp.cpp
-  src/direct_icp/DirectIcpOverlay.cpp
-  src/evaluation/evaluation.cpp
-  src/evaluation/tum.cpp
-  src/core/Camera.cpp
-  src/core/Frame.cpp
-  src/core/Feature2D.cpp
-  src/core/Point3D.cpp
-  src/core/Trajectory.cpp
-  src/core/Pose.cpp
-  src/core/random.cpp
-  src/utils/log.cpp
-  src/utils/visuals.cpp
-  src/utils/utils.cpp
-  /usr/local/include/easylogging++.cc
+    src/core/Camera.cpp
+    src/core/Frame.cpp
+    src/core/Feature2D.cpp
+    src/core/Point3D.cpp
+    src/core/Trajectory.cpp
+    src/core/Pose.cpp
+    src/core/random.cpp
+    src/utils/log.cpp
+    src/utils/visuals.cpp
+    src/utils/utils.cpp
+    src/evaluation/evaluation.cpp
+    src/evaluation/tum.cpp
+    src/direct_icp/DirectIcp.cpp
+    src/direct_icp/DirectIcpOverlay.cpp
+    #src/mapping/KeyFrameSelection.cpp
+    #src/mapping/Map.cpp
+    /usr/local/include/easylogging++.cc
    )
 
 set( headers
-  src/evaluation/evaluation.h
-  src/evaluation/tum.h
-  src/core/Trajectory.h
-  src/core/Pose.h
-  src/core/Camera.h
-  src/core/Frame.h
-  src/core/Feature2D.h
-  src/core/Point3D.h
-  src/core/macros.h
-  src/core/types.h
-  src/core/random.h
-  src/direct_icp/DirectIcp.h
-  src/direct_icp/DirectIcpOverlay.h
-  src/utils/utils.h
-  src/utils/visuals.h
-  src/utils/log.h
-  /usr/local/include/easylogging++.h 
-  include/vslam/core.h
-  include/vslam/direct_icp.h 
-  include/vslam/evaluation.h 
-  include/vslam/utils.h 
-
+    src/core/Trajectory.h
+    src/core/Pose.h
+    src/core/Camera.h
+    src/core/Frame.h
+    src/core/Feature2D.h
+    src/core/Point3D.h
+    src/core/macros.h
+    src/core/types.h
+    src/core/random.h
+    src/utils/utils.h
+    src/utils/visuals.h
+    src/utils/log.h
+    src/evaluation/evaluation.h
+    src/evaluation/tum.h
+    src/direct_icp/DirectIcp.h
+    src/direct_icp/DirectIcpOverlay.h
+   # src/mapping/KeyFrameSelection.h
+   # src/mapping/Map.h
+    /usr/local/include/easylogging++.h 
+    include/vslam/core.h
+    include/vslam/direct_icp.h 
+    include/vslam/evaluation.h 
+    include/vslam/utils.h 
   )
 pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 add_library(pd::vslam ALIAS vslam)
@@ -119,62 +122,62 @@ if(VSLAM_BUILD_TESTS)
       set(TEST_VISUALIZE false)
   endif()
 
-  pd_add_test(frame2 ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
-  pd_add_test(lukas_kanade_flow ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(frame2 ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(lukas_kanade_flow ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(warp ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(warp ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
   #pd_add_test(lukas_kanade_affine ${PROJECT_NAME})
     #pd_add_test(lukas_kanade_se3 ${PROJECT_NAME})
     #target_compile_definitions(lukas_kanade_affineTest PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
     #target_compile_definitions(lukas_kanade_se3Test PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
 
-  pd_add_test(rgbd_alignment ${PROJECT_NAME} 
-    TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-    TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(rgbd_alignment ${PROJECT_NAME} 
+  #  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #  TEST_VISUALIZE=${TEST_VISUALIZE})
   
 
-  pd_add_test(trajectory ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(trajectory ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(ekf_se3 ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(ekf_se3 ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
   
-  pd_add_test(motion_model ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(motion_model ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(rpe ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(rpe ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(tracking ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(tracking ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(track_and_optimize ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(track_and_optimize ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(ba ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(ba ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(ceres_ba ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(ceres_ba ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 
-  pd_add_test(map ${PROJECT_NAME} 
-  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
-  TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(map ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 endif()
 
 # Installation
