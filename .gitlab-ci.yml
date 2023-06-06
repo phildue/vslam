@@ -23,7 +23,7 @@ test:
 evaluate:
   stage: test
   script: 
-    - docker run -v/home/phil/dataset:/mnt/dataset phildue/vslam:runtime python3 /script/evaluate.py --experiment_name ci_$CI_COMMIT_REF_NAME_$CI_COMMIT_TIMESTAMP --sequence_id rgbd_dataset_freiburg2_desk --workspace_dir /app/vslam/ --commit_hash $CI_COMMIT_SHA
+    - docker run -v/home/phil/dataset:/mnt/dataset phildue/vslam:runtime python3 /script/evaluate.py --experiment_name ci_$CI_COMMIT_REF_NAME_$CI_COMMIT_TIMESTAMP --sequence_id rgbd_dataset_freiburg2_desk --upload --workspace_dir /app/vslam/ --commit_hash $CI_COMMIT_SHA
 
 #lint:
 #  stage: test

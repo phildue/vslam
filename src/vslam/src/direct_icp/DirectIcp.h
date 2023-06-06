@@ -74,7 +74,6 @@ public:
   int nLevels() { return _nLevels; }
 
 private:
-  const std::shared_ptr<DirectIcpOverlay> _log;
   const TDistributionBivariate::ShPtr _weightFunction;
   const int _nLevels, _maxPoints;
   const double _weightPrior, _minGradientIntensity, _minGradientDepth, _maxGradientDepth, _maxDepth,

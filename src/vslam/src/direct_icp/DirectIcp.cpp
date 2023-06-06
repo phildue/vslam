@@ -10,48 +10,6 @@
 #define PERFORMANCE_RGBD_ALIGNMENT true
 namespace vslam
 {
-DirectIcp::TDistributionBivariate::TDistributionBivariate(
-  double dof, double precision, int maxIterations)
-: _dof(dof), _precision(precision), _maxIterations(maxIterations)
-{
-}
-
-void DirectIcp::TDistributionBivariate::computeWeights(
-  const std::vector<Constraint::ShPtr> & features)
-{
-  VecXf weights = VecXf::Ones(features.size());
-  std::vector<Mat2f> rrT(features.size());
-  for (size_t n = 0; n < features.size(); n++) {
-    rrT[n] = features[n]->residual * features[n]->residual.transpose();
-  }
-
-  for (int i = 0; i < _maxIterations; i++) {
-    TIMED_SCOPE_IF(timerLevel, format("computeWeightsIteration"), PERFORMANCE_RGBD_ALIGNMENT);
-    std::vector<Mat2f> wrrT(features.size());
-    for (size_t n = 0; n < features.size(); n++) {
-      wrrT[n] = weights(n) * rrT[n];
-    }
-    Mat2f sum = std::accumulate(rrT.begin(), rrT.end(), Mat2f::Zero().eval());
-
-    const Mat2f scale_i = (sum / features.size()).inverse();
-
-    const double diff = (_scale - scale_i).norm();
-    _scale = scale_i;
-    for (size_t n = 0; n < features.size(); n++) {
-      weights(n) = computeWeight(features[n]->residual);
-      features[n]->weight = weights(n) * _scale;
-    }
-
-    if (diff < _precision) {
-      break;
-    }
-  }
-}
-double DirectIcp::TDistributionBivariate::computeWeight(const Vec2f & r) const
-{
-  return (_dof + 2.0) / (_dof + r.transpose() * _scale * r);
-}
-
 std::map<std::string, double> DirectIcp::defaultParameters()
 {
   return {{"nLevels", 4.0},           {"weightPrior", 0.0},         {"minGradientIntensity", 5},
@@ -72,8 +30,7 @@ DirectIcp::DirectIcp(
   int nLevels, double weightPrior, double minGradientIntensity, double minGradientDepth,
   double maxGradientDepth, double maxZ, double maxIterations, double minParameterUpdate,
   double maxErrorIncrease, int maxPoints)
-: _log(std::make_shared<DirectIcpOverlay>()),
-  _weightFunction(std::make_shared<TDistributionBivariate>(5.0, 1e-3, 10)),
+: _weightFunction(std::make_shared<TDistributionBivariate>(5.0, 1e-3, 10)),
   _nLevels(nLevels),
   _maxPoints(maxPoints),
   _weightPrior(weightPrior),
@@ -366,6 +323,48 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::uniformSubselection(
     return subset;
   }
   return interestPoints;
+}
+
+DirectIcp::TDistributionBivariate::TDistributionBivariate(
+  double dof, double precision, int maxIterations)
+: _dof(dof), _precision(precision), _maxIterations(maxIterations)
+{
+}
+
+void DirectIcp::TDistributionBivariate::computeWeights(
+  const std::vector<Constraint::ShPtr> & features)
+{
+  VecXf weights = VecXf::Ones(features.size());
+  std::vector<Mat2f> rrT(features.size());
+  for (size_t n = 0; n < features.size(); n++) {
+    rrT[n] = features[n]->residual * features[n]->residual.transpose();
+  }
+
+  for (int i = 0; i < _maxIterations; i++) {
+    TIMED_SCOPE_IF(timerLevel, format("computeWeightsIteration"), PERFORMANCE_RGBD_ALIGNMENT);
+    std::vector<Mat2f> wrrT(features.size());
+    for (size_t n = 0; n < features.size(); n++) {
+      wrrT[n] = weights(n) * rrT[n];
+    }
+    Mat2f sum = std::accumulate(rrT.begin(), rrT.end(), Mat2f::Zero().eval());
+
+    const Mat2f scale_i = (sum / features.size()).inverse();
+
+    const double diff = (_scale - scale_i).norm();
+    _scale = scale_i;
+    for (size_t n = 0; n < features.size(); n++) {
+      weights(n) = computeWeight(features[n]->residual);
+      features[n]->weight = weights(n) * _scale;
+    }
+
+    if (diff < _precision) {
+      break;
+    }
+  }
+}
+double DirectIcp::TDistributionBivariate::computeWeight(const Vec2f & r) const
+{
+  return (_dof + 2.0) / (_dof + r.transpose() * _scale * r);
 }
 
 }  // namespace vslam
