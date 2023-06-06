@@ -4,11 +4,10 @@
 #include <numeric>
 
 #include "DirectIcp.h"
-#include "DirectIcpOverlay.h"
 #include "core/random.h"
 #include "utils/log.h"
 
-#define DETAILED_SCOPES true
+#define PERFORMANCE_RGBD_ALIGNMENT true
 namespace vslam
 {
 DirectIcp::TDistributionBivariate::TDistributionBivariate(
@@ -27,7 +26,7 @@ void DirectIcp::TDistributionBivariate::computeWeights(
   }
 
   for (int i = 0; i < _maxIterations; i++) {
-    TIMED_SCOPE_IF(timerLevel, format("computeWeightsIteration"), DETAILED_SCOPES);
+    TIMED_SCOPE_IF(timerLevel, format("computeWeightsIteration"), PERFORMANCE_RGBD_ALIGNMENT);
     std::vector<Mat2f> wrrT(features.size());
     for (size_t n = 0; n < features.size(); n++) {
       wrrT[n] = weights(n) * rrT[n];
@@ -110,7 +109,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
   SE3f motion = prior;
   Mat6f covariance;
   for (_level = _nLevels - 1; _level >= 0; _level--) {
-    TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", _level), DETAILED_SCOPES);
+    TIMED_SCOPE_IF(timerLevel, format("computeLevel{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
     const Frame f0 = frame0.level(_level);
     const Frame f1 = frame1.level(_level);
     const auto constraintsAll = selectConstraintsAndPrecompute(f0, motion);
@@ -119,7 +118,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
     double error = INFd;
     Vec6f dx = Vec6f::Zero();
     for (_iteration = 0; _iteration < _maxIterations; _iteration++) {
-      TIMED_SCOPE_IF(timerIter, format("computeIteration{}", _level), DETAILED_SCOPES);
+      TIMED_SCOPE_IF(timerIter, format("computeIteration{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
 
       auto constraintsValid = computeResidualsAndJacobian(constraintsAll, f1, motion);
 
@@ -129,7 +128,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
         break;
       }
       {
-        TIMED_SCOPE_IF(timer3, format("computeWeights{}", _level), DETAILED_SCOPES);
+        TIMED_SCOPE_IF(timer3, format("computeWeights{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
         _weightFunction->computeWeights(constraintsValid);
       }
 
@@ -145,9 +144,7 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
       dx = ne.A.ldlt().solve(ne.b);
 
       motion = SE3f::exp(-dx) * motion;
-      //https://stats.stackexchange.com/questions/482985/non-linear-least-squares-covariance-estimate
-      covariance = error / (constraintsValid.size() - 6) * ne.A.inverse();
-      //_log->update(DirectIcpOverlay::Entry({frame0, frame1, constraints}));
+      covariance = ne.A.inverse();
 
       if (dx.norm() < _minParameterUpdate) {
         reason = format("Minimum step size reached: {:5.f}/{:5.f}", dx.norm(), _minParameterUpdate);
@@ -161,7 +158,8 @@ Pose DirectIcp::computeEgomotion(const Frame & frame0, const Frame & frame1, con
 std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::selectConstraintsAndPrecompute(
   const Frame & frame, const SE3f & motion) const
 {
-  TIMED_SCOPE_IF(timer2, format("selectConstraintsAndPrecompute{}", _level), DETAILED_SCOPES);
+  TIMED_SCOPE_IF(
+    timer2, format("selectConstraintsAndPrecompute{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
   const cv::Mat & intensity = frame.intensity();
   const cv::Mat & depth = frame.depth();
   const cv::Mat & dI = frame.dI();
@@ -208,7 +206,7 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::selectConstraintsAndPrecomp
     constraints.insert(constraints.end(), c.begin(), c.end());
   });
   return uniformSubselection(frame.camera(), constraints);
-}  // namespace vslam
+}
 Matf<2, 6> DirectIcp::computeJacobianWarp(const Vec3f & p, Camera::ConstShPtr cam) const
 {
   const double & x = p.x();
@@ -239,7 +237,8 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian
   const std::vector<DirectIcp::Constraint::ShPtr> & constraints, const Frame & f1,
   const SE3f & motion) const
 {
-  TIMED_SCOPE_IF(timer1, format("computeResidualAndJacobian{}", _level), DETAILED_SCOPES);
+  TIMED_SCOPE_IF(
+    timer1, format("computeResidualAndJacobian{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
 
   /*Cache some constants for faster loop*/
   const SE3f motionInv = motion.inverse();
@@ -254,8 +253,8 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian
   const cv::Mat & Z1 = f1.Z();
   const float h = f1.height();
   const float w = f1.width();
-  const int bh = std::max<int>(0, (int)(0.01f * h));
-  const int bw = std::max<int>(0, (int)(0.01f * w));
+  const int bh = std::max<int>(1, (int)(0.01f * h));
+  const int bw = std::max<int>(1, (int)(0.01f * w));
 
   auto withinImage = [&](const Vec2f & uv) -> bool {
     return (bw < uv(0) && uv(0) < w - bw && bh < uv(1) && uv(1) < h - bh);
@@ -264,7 +263,8 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian
   std::for_each(std::execution::par_unseq, constraints.begin(), constraints.end(), [&](auto c) {
     const Vec3f p0t = K * ((R * c->p0) + t);
     const Vec2f uv0t = Vec2f(p0t(0), p0t(1)) / p0t(2);
-    const Vec2f iz1w = interpolate(I1, Z1, uv0t);
+
+    const Vec2f iz1w = withinImage(uv0t) ? interpolate(I1, Z1, uv0t) : Vec2f::Constant(NANf);
 
     const Vec3f p1t = (Rinv * (iz1w(1) * (Kinv * Vec3f(uv0t(0), uv0t(1), 1.0)))) + tinv;
 
@@ -272,8 +272,8 @@ std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::computeResidualsAndJacobian
 
     c->J.row(1) = c->JZJw - computeJacobianSE3z(p1t);
 
-    c->valid = p0t.z() > 0 && withinImage(uv0t) && std::isfinite(iz1w.norm()) &&
-               std::isfinite(c->residual.norm()) && std::isfinite(c->J.norm());
+    c->valid = p0t.z() > 0 && std::isfinite(iz1w.norm()) && std::isfinite(c->residual.norm()) &&
+               std::isfinite(c->J.norm());
   });
   std::vector<Constraint::ShPtr> constraintsValid;
   std::copy_if(
@@ -289,7 +289,7 @@ DirectIcp::NormalEquations DirectIcp::computeNormalEquations(
   const std::vector<DirectIcp::Constraint::ShPtr> & constraints, const SE3f & motion,
   const SE3f & prior) const
 {
-  TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), DETAILED_SCOPES);
+  TIMED_SCOPE_IF(timer2, format("computeNormalEquations{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
   const Vec6f diffPrior = (motion * prior.inverse()).log().cast<float>();
   return std::transform_reduce(
     std::execution::par_unseq, constraints.begin(), constraints.end(),
@@ -349,7 +349,7 @@ Vec2f DirectIcp::interpolate(
 std::vector<DirectIcp::Constraint::ShPtr> DirectIcp::uniformSubselection(
   Camera::ConstShPtr cam, const std::vector<DirectIcp::Constraint::ShPtr> & interestPoints) const
 {
-  TIMED_SCOPE_IF(timer, format("uniformSubselection{}", _level), DETAILED_SCOPES);
+  TIMED_SCOPE_IF(timer, format("uniformSubselection{}", _level), PERFORMANCE_RGBD_ALIGNMENT);
   const size_t nNeeded = std::max<size_t>(20, _maxPoints);
   std::vector<bool> mask(cam->width() * cam->height(), false);
   std::vector<Constraint::ShPtr> subset;

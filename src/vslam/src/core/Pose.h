@@ -35,7 +35,7 @@ public:
   const Vec3d & translation() const { return _pose.translation(); }
   double totalRotationDegrees() const
   {
-    return _pose.log().block(3, 0, 3, 0).norm() * 180.0 / M_PI;
+    return _pose.log().block(3, 0, 3, 1).norm() * 180.0 / M_PI;
   }
 
   const SE3d & pose() const { return _pose; }

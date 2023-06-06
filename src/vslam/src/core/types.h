@@ -29,7 +29,11 @@
 #include <sophus/se3.hpp>
 
 #define INFd std::numeric_limits<double>::infinity()
+#define INFf std::numeric_limits<float>::infinity()
 #define INFi std::numeric_limits<int>::infinity()
+#define NANd std::numeric_limits<double>::quiet_NaN()
+#define NANf std::numeric_limits<float>::quiet_NaN()
+#define NANi std::numeric_limits<int>::quiet_NaN()
 
 namespace Eigen
 {

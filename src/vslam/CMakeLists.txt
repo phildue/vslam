@@ -21,7 +21,6 @@ set( sources
     src/evaluation/evaluation.cpp
     src/evaluation/tum.cpp
     src/direct_icp/DirectIcp.cpp
-    src/direct_icp/DirectIcpOverlay.cpp
     #src/mapping/KeyFrameSelection.cpp
     #src/mapping/Map.cpp
     /usr/local/include/easylogging++.cc
@@ -43,7 +42,6 @@ set( headers
     src/evaluation/evaluation.h
     src/evaluation/tum.h
     src/direct_icp/DirectIcp.h
-    src/direct_icp/DirectIcpOverlay.h
    # src/mapping/KeyFrameSelection.h
    # src/mapping/Map.h
     /usr/local/include/easylogging++.h 
