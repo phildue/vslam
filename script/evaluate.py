@@ -63,9 +63,9 @@ args = parser.parse_args()
 
 
 dataset = (
-    Kitti(args.sequence_id)
-    if args.sequence_id in Kitti.sequences()
-    else TumRgbd(args.sequence_id)
+    TumRgbd(args.sequence_id)
+    if args.sequence_id in TumRgbd.sequences()
+    else Kitti(args.sequence_id)
 )
 config_file = os.path.join(args.workspace_dir, "config", "node_config.yaml")
 params = yaml.safe_load(

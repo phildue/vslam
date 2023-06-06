@@ -65,6 +65,7 @@ class Evaluation:
             project="vslam",
             entity="phild",
             config=parameters,
+            dir=f"{self.output_dir}/wandb/",
             id = f"{self.sequence.id()}.{self.experiment_name}"
         )
         wandb.run.name = f"{self.sequence.id()}.{self.experiment_name}"

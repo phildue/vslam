@@ -83,8 +83,8 @@ message(STATUS "Found OpenCV version ${OpenCV_VERSION}")
 target_include_directories(${PROJECT_NAME} PUBLIC ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBRARIES})
 
-find_package(Matplot++ REQUIRED)
-target_link_libraries(${PROJECT_NAME} Matplot++::matplot)
+#find_package(Matplot++ REQUIRED)
+#target_link_libraries(${PROJECT_NAME} Matplot++::matplot)
 
 find_package(TBB REQUIRED)
 target_link_libraries(${PROJECT_NAME} TBB::tbb)
