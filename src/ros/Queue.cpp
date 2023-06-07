@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "vslam_ros/Queue.h"
-
 #include "rclcpp/rclcpp.hpp"
+#include "vslam/utils.h"
+#include "vslam_ros/Queue.h"
 namespace vslam_ros
 {
 int Queue::size() const { return std::min<int>(_images.size(), _depths.size()); }
@@ -51,7 +51,7 @@ sensor_msgs::msg::Image::ConstSharedPtr Queue::popClosestImg(std::uint64_t t)
     int minDiff = std::numeric_limits<int>::max();
     sensor_msgs::msg::Image::ConstSharedPtr closestMsg = nullptr;
     std::uint64_t closestT = 0U;
-    for (const auto & t_msg : _images) {
+    for (const auto & t_msg : _depths) {
       int diff = std::abs(static_cast<int>(t_msg.first - t));
       if (diff < minDiff) {
         minDiff = diff;
@@ -59,10 +59,12 @@ sensor_msgs::msg::Image::ConstSharedPtr Queue::popClosestImg(std::uint64_t t)
         closestT = t_msg.first;
       }
     }
-    if (closestMsg == nullptr) {
-      throw std::runtime_error(
-        "Did not find image which is close enough to: " + std::to_string(t) +
-        " closest: " + std::to_string(minDiff));
+    if (minDiff >= _maxDiff) {
+      using vslam::time::to_time_point;
+      throw std::runtime_error(format(
+        "Did not find image which is close enough to: [{:%Y-%m-%d %H:%M:%S}] closest: [{:%Y-%m-%d "
+        "%H:%M:%S}] difference: [{}]s",
+        to_time_point(t), to_time_point(closestT), (t - closestT) / 1e9));
     }
     _images.erase(closestT);
     return closestMsg;
@@ -90,10 +92,12 @@ sensor_msgs::msg::Image::ConstSharedPtr Queue::popClosestDepth(std::uint64_t t)
         closestT = t_msg.first;
       }
     }
-    if (minDiff > _maxDiff) {
-      throw std::runtime_error(
-        "Did not find depth which is close enough to: " + std::to_string(t) +
-        " closest: " + std::to_string(minDiff));
+    if (minDiff >= _maxDiff) {
+      using vslam::time::to_time_point;
+      throw std::runtime_error(format(
+        "Did not find depth which is close enough to: [{:%Y-%m-%d %H:%M:%S}] closest: [{:%Y-%m-%d "
+        "%H:%M:%S}] difference: [{}]s",
+        to_time_point(t), to_time_point(closestT), (t - closestT) / 1e9));
     }
     _depths.erase(closestT);
 

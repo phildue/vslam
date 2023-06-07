@@ -21,7 +21,7 @@ function(pd_setup_lib name version sources headers namespace)
     ${sources}
     ${headers} )
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_compile_features(${name} PUBLIC cxx_std_17)
+  target_compile_features(${name} PUBLIC cxx_std_20)
 
     # Configure alias so there is no difference whether we link from source/from already built
   add_library(${namespace}::${name} ALIAS ${name})

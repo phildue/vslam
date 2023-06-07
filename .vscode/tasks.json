@@ -4,14 +4,56 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "evaluate",
+            "detail": "Evaluate ros pipeline on dataset.",
+            "type": "shell",
+            "command":"source install/setup.bash && python3 script/evaluate.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
+            "problemMatcher": []
+
+        },
+        {
+            "label": "compute kpis",
+            "detail": "Compute kpis on existing algorithm log",
+            "type": "shell",
+            "command":"python3 ${workspaceFolder}/src/vslam/script/vslampy/evaluation/evaluation.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name}",
+            "problemMatcher": []
+
+        },
+        {
+            "label": "upload kpis",
+            "detail": "Compute kpis on existing algorithm log",
+            "type": "shell",
+            "command":"python3 ${workspaceFolder}/src/vslam/script/vslampy/evaluation/evaluation.py --sequence_id ${input:sequence_id} --experiment_name ${input:experiment_name} --upload",
+            "problemMatcher": []
+
+        },
+        {
             "label": "build",
             "detail": "Build workspace (default)",
             "type": "shell",
-            "command": "colcon build --symlink-install --event-handler console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=${input:build_type} -DCMAKE_EXPORT_COMPILE_COMMANDS=On -Wall -Wextra -Wpedantic",
+            "command": "colcon build --symlink-install --event-handler console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=${input:build_type} -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DBUILD_TESTING=${input:build_testing} -Wall -Wextra -Wpedantic",
             "problemMatcher": "$gcc",
             "group": {
                 "kind": "build",
                 "isDefault": true
+            }
+        },
+        {
+            "label": "build_app",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam/ && make -j4",
+            "type": "shell",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+            }
+        },
+        {
+            "label": "build_vslam",
+            "command":"cd ${workspaceFolder}/build/vslam_ros/src/vslam && make ${input:test} -j4",
+            "type": "shell",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
             }
         },
         {
@@ -291,6 +333,33 @@
             ]
         },
         {
+            "id": "sequence_id",
+            "type": "pickString",
+            "description": "sequence",
+            "options": [
+                "rgbd_dataset_freiburg1_desk",
+                "rgbd_dataset_freiburg1_desk_validation",
+                "rgbd_dataset_freiburg1_desk2",
+                "rgbd_dataset_freiburg1_desk2_validation",
+                "rgbd_dataset_freiburg1_floor",
+                "rgbd_dataset_freiburg1_rpy",
+                "rgbd_dataset_freiburg1_xyz",
+                "rgbd_dataset_freiburg1_360",
+                "rgbd_dataset_freiburg2_desk",
+                "rgbd_dataset_freiburg2_desk_validation",
+                "rgbd_dataset_freiburg2_pioneer_360",
+                "rgbd_dataset_freiburg2_pioneer_slam",
+                "rgbd_dataset_freiburg3_long_office_household",
+                "00"
+            ]
+        },
+        {
+            "id": "experiment_name",
+            "type": "promptString",
+            "description": "name of experiment",
+            "default": "test-ros"
+        },
+        {
             "id": "build_type",
             "type": "pickString",
             "description": "build type",
@@ -299,6 +368,31 @@
                 "Release",
                 "Debug"
             ]
-        }
+        },
+        {
+            "id": "build_testing",
+            "type": "pickString",
+            "description": "build tests",
+            "options": [
+                "ON",
+                "OFF"
+            ],
+            "default": "ON"
+        },{
+            "id": "test",
+            "type": "pickString",
+            "description": "vslam unit test",
+            "options":[
+                "frame2Test",
+                "rgbd_alignmentTest",
+                "rpeTest",
+                "motion_modelTest",
+                "ekf_se3Test",
+                "trackingTest",
+              "trajectoryTest",
+              "mapTest",
+              "frameTest",
+            ]
+          },
     ]
 }

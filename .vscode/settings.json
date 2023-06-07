@@ -104,7 +104,8 @@
         "stack": "cpp",
         "cstdbool": "cpp",
         "execution": "cpp",
-        "numericaldiff": "cpp"
+        "numericaldiff": "cpp",
+        "*.txx": "cpp"
     },
     "python.analysis.extraPaths": [
         "/opt/ros/galactic/lib/python3.8/site-packages/"
@@ -180,4 +181,7 @@
     "ros.distro": "galactic",
 "editor.defaultFormatter": "xaver.clang-format",
 "editor.detectIndentation": false,
+"python.linting.flake8Enabled": true,
+"python.linting.enabled": true,
+"cmake.configureOnOpen": false,
 }

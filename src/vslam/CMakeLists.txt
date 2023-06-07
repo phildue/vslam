@@ -4,32 +4,182 @@ project(vslam VERSION 1.0.0)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/tools ${CMAKE_BINARY_DIR}/)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
-
+set(VSLAM_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
 include(Macros)
 
-add_subdirectory(src/core)
-add_subdirectory(src/utils)
-add_subdirectory(src/least_squares)
-add_subdirectory(src/lukas_kanade)
-add_subdirectory(src/kalman)
-add_subdirectory(src/odometry)
+set( sources
+    src/core/Camera.cpp
+    src/core/Frame.cpp
+    src/core/Feature2D.cpp
+    src/core/Point3D.cpp
+    src/core/Trajectory.cpp
+    src/core/Pose.cpp
+    src/core/random.cpp
+    src/utils/log.cpp
+    src/utils/visuals.cpp
+    src/utils/utils.cpp
+    src/evaluation/evaluation.cpp
+    src/evaluation/tum.cpp
+    src/direct_icp/DirectIcp.cpp
+    #src/mapping/KeyFrameSelection.cpp
+    #src/mapping/Map.cpp
+    /usr/local/include/easylogging++.cc
+   )
 
-add_library(vslam INTERFACE)
+set( headers
+    src/core/Trajectory.h
+    src/core/Pose.h
+    src/core/Camera.h
+    src/core/Frame.h
+    src/core/Feature2D.h
+    src/core/Point3D.h
+    src/core/macros.h
+    src/core/types.h
+    src/core/random.h
+    src/utils/utils.h
+    src/utils/visuals.h
+    src/utils/log.h
+    src/evaluation/evaluation.h
+    src/evaluation/tum.h
+    src/direct_icp/DirectIcp.h
+   # src/mapping/KeyFrameSelection.h
+   # src/mapping/Map.h
+    /usr/local/include/easylogging++.h 
+    include/vslam/core.h
+    include/vslam/direct_icp.h 
+    include/vslam/evaluation.h 
+    include/vslam/utils.h 
+  )
+pd_setup_lib(${PROJECT_NAME} ${PROJECT_VERSION} "${sources}" "${headers}" pd)
 add_library(pd::vslam ALIAS vslam)
-target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils kalman odometry)
+#target_link_libraries(${PROJECT_NAME} INTERFACE core lukas_kanade least_squares utils odometry mapping evaluation)
 target_include_directories(${PROJECT_NAME} INTERFACE
 $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/>
 $<INSTALL_INTERFACE:include/vslam>)
+
+if(UNIX)
+  target_link_libraries(${PROJECT_NAME} stdc++fs)
+endif()
+
+find_package(Eigen3 REQUIRED)
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
+
+find_package(Sophus REQUIRED)
+target_link_libraries(${PROJECT_NAME} Sophus::Sophus)
+
+# While format is not implemented in gcc we use this thirdparty
+find_package(fmt)
+target_link_libraries(${PROJECT_NAME} fmt::fmt)
+
+
+# Try for OpenCV 4.X, but settle for whatever is installed
+find_package(OpenCV 4 QUIET)
+if(NOT OpenCV_FOUND)
+  find_package(OpenCV REQUIRED)
+endif()
+message(STATUS "Found OpenCV version ${OpenCV_VERSION}")
+target_include_directories(${PROJECT_NAME} PUBLIC ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBRARIES})
+
+#find_package(Matplot++ REQUIRED)
+#target_link_libraries(${PROJECT_NAME} Matplot++::matplot)
+
+find_package(TBB REQUIRED)
+target_link_libraries(${PROJECT_NAME} TBB::tbb)
+
+
+target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_FEATURE_PERFORMANCE_TRACKING)
+target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_PERFORMANCE_MICROSECONDS)
+option(VSLAM_LOG_PERFORMANCE_TRACKING ON)
+if(NOT VSLAM_LOG_PERFORMANCE_TRACKING)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_PERFORMANCE_TRACKING)
+endif()
+option(VSLAM_LOG_MINIMAL Off)
+if(VSLAM_LOG_MINIMAL)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_PERFORMANCE_TRACKING)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_DEBUG_LOGS)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC ELPP_DISABLE_INFO_LOGS)
+endif()
+
+
+add_executable(evaluate_tum test/main_tum.cpp)
+target_compile_definitions(evaluate_tum PUBLIC "CONFIG_DIR=\"${VSLAM_CONFIG_DIR}\"")
+target_link_libraries(evaluate_tum vslam)
+
+
 
 # Add tests
 option(VSLAM_BUILD_TESTS "Enable to build tests" ON)
 if(VSLAM_BUILD_TESTS)
   enable_testing()
-  add_subdirectory(test)
+  find_package(GTest CONFIG REQUIRED)
+  option(VSLAM_TEST_VISUALIZE "Enable test visualizations." ON)
+  if(VSLAM_TEST_VISUALIZE)
+      set(TEST_VISUALIZE true)
+  else()
+      set(TEST_VISUALIZE false)
+  endif()
+
+  #pd_add_test(frame2 ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+  #pd_add_test(lukas_kanade_flow ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(warp ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(lukas_kanade_affine ${PROJECT_NAME})
+    #pd_add_test(lukas_kanade_se3 ${PROJECT_NAME})
+    #target_compile_definitions(lukas_kanade_affineTest PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
+    #target_compile_definitions(lukas_kanade_se3Test PUBLIC TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource")
+
+  #pd_add_test(rgbd_alignment ${PROJECT_NAME} 
+  #  TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #  TEST_VISUALIZE=${TEST_VISUALIZE})
+  
+
+  #pd_add_test(trajectory ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(ekf_se3 ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+  
+  #pd_add_test(motion_model ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(rpe ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(tracking ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(track_and_optimize ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(ba ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(ceres_ba ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
+
+  #pd_add_test(map ${PROJECT_NAME} 
+  #TEST_RESOURCE="${CMAKE_CURRENT_LIST_DIR}/test/resource"
+  #TEST_VISUALIZE=${TEST_VISUALIZE})
 endif()
 
 # Installation
-install(TARGETS ${PROJECT_NAME} core utils least_squares lukas_kanade kalman odometry
+install(TARGETS ${PROJECT_NAME}
     EXPORT ${PROJECT_NAME}Targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

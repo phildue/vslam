@@ -1,7 +1,8 @@
 // See https://aka.ms/vscode-remote/devcontainer.json for format details.
 {
 	"image": "phildue/vslam:dev",
-	
+	"workspaceMount": "source=${localWorkspaceFolder}/,target=/home/ros/vslam_ros,type=bind",
+    "workspaceFolder": "/home/ros/vslam_ros",
 	"remoteUser": "ros",
 	"runArgs": [
 		"--network=host",
@@ -34,11 +35,13 @@
 		"ms-iot.vscode-ros",
 		"ms-vscode.cpptools-extension-pack",
 		"xaver.clang-format",
-		"notskm.clang-tidy"
+		"notskm.clang-tidy",
+		"wayou.vscode-todo-highlight",
+		"Gruntfuggly.todo-tree",
+		"tomoki1207.pdf"
 	],
 	"mounts":[
-		//"source=/home/phil/record/,target=/record,type=bind,consistency=cached",
-		//"source=/media/data/,target=/media/data,type=bind,consistency=cached"
+		"source=/home/phil/dataset/,target=/mnt/dataset,type=bind,consistency=cached",
 
 	]
 }

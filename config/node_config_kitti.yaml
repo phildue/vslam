@@ -1,0 +1,51 @@
+
+/NodeRgbdAlignment:
+  ros__parameters:
+    direct_icp:
+      nLevels: 4.0
+      maxIterations: 100.0
+      minParameterUpdate: 0.0001
+      maxPoints: 307200.0
+    sync:
+      queue_size: 20
+      max_interval: 0.001
+    tf:
+      base_link_id: world
+      frame_id: odom
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+      /tf:
+        publisher:
+          depth: 100
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+#/NodeResultWriter:
+#/NodeGtLoader:
+/NodeReplayer:
+  ros__parameters:
+    delay: 0.0
+    duration: -10.0
+    timeout: 0.1
+/NodeStereoDepth:
+  ros__parameters:
+  #for kitti: https://www.cvlibs.net/datasets/kitti/eval_scene_flow_detail.php?benchmark=stereo&result=67877bd6fcc43163421fa0108c7df83bbc69fea3
+    stereo_algorithm: 1
+    prefilter_cap: 63
+    correlation_window_size: 5
+    P1: 100.0
+    P2: 800.0
+    min_disparity: 0
+    num_disparities: 128
+    uniqueness_ratio: 10.0
+    speckle_size: 100
+    speckle_range: 32
+    disp12_max_diff: 1
+    full_dp: true
+
+

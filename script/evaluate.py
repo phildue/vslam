@@ -4,74 +4,106 @@ import sys
 import argparse
 import git
 import yaml
+import shutil
+from datetime import datetime
+from vslampy.evaluation.tum import TumRgbd
+from vslampy.evaluation.kitty import Kitti
+
+from vslampy.evaluation.evaluation import Evaluation
+import wandb
+from pathlib import Path
+from vslampy.plot.plot_logs import plot_logs
+from vslampy.plot.parse_performance_log import parse_performance_log
+from threading import Thread
+from time import sleep
 
 script_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(script_dir)
-parser = argparse.ArgumentParser(description='''
-Run evaluation of algorithm''')
-parser.add_argument('experiment_name', help='Name for the experiment')
-parser.add_argument('sequence_id', help='Id of the sequence to run on)',
-                    default='rgbd_dataset_freiburg1_desk2')
-parser.add_argument('--sequence_root',
-                    help='Root folder for sequences',
-                    default='/mnt/dataset/tum_rgbd')
-parser.add_argument('--out_root',
-                    help='Root folder for generating output, defaults to <sequence_root>',
-                    default='')
-parser.add_argument('--run_algo', help='Set to create algorithm results', action="store_true")
-parser.add_argument('--commit_hash',
-                    help='Id to identify algorithm version',
-                    default='')
-parser.add_argument('--workspace_dir',
-                    help='Directory of repository (only applicable if commit_hash not given)',
-                    default='/home/ros/vslam_ros')
+parser = argparse.ArgumentParser(
+    description="""
+Run evaluation of algorithm"""
+)
+parser.add_argument("--experiment_name", help="Name for the experiment", default="test")
+parser.add_argument(
+    "--sequence_id",
+    help="Id of the sequence to run on)",
+    default="rgbd_dataset_freiburg2_desk",
+)
+parser.add_argument(
+    "--sequence_root", help="Root folder for sequences", default="/mnt/dataset/tum_rgbd"
+)
+parser.add_argument(
+    "--out_root",
+    help="Root folder for generating output, defaults to subfolder of sequence",
+    default="",
+)
+parser.add_argument(
+    "--launch_without_algo",
+    help="Start everything without algo for debugging",
+    default="False",
+)
+parser.add_argument(
+    "--upload", help="Upload results to experiment tracking tool", action="store_true"
+)
+
+parser.add_argument(
+    "--commit_hash", help="Id to identify algorithm version", default=""
+)
+parser.add_argument(
+    "--workspace_dir",
+    help="Directory of repository (only applicable if commit_hash not given)",
+    default="/home/ros/vslam_ros",
+)
 args = parser.parse_args()
 
-if not args.out_root:
-    args.out_root = args.sequence_root
-output_dir = os.path.join(args.out_root, args.sequence_id, args.experiment_name)
-algo_traj = os.path.join(output_dir, args.sequence_id+"-algo.txt")
-rpe_plot = os.path.join(output_dir, "rpe.png")
-ate_plot = os.path.join(output_dir, "ate.png")
-xy_plot = os.path.join(output_dir, "xy.png")
-z_plot = os.path.join(output_dir, "z.png")
-rpe_txt = os.path.join(output_dir, 'rpe.txt')
-ate_txt = os.path.join(output_dir, 'ate.txt')
 
-gt_traj = os.path.join(args.sequence_root, args.sequence_id, args.sequence_id + "-groundtruth.txt")
-if not os.path.exists(output_dir):
-    if not args.run_algo:
-        raise ValueError("There is no algorithm output for: {args.experiment_name}. \
-            Create it by setting --run_algo")
-    os.makedirs(output_dir)
+dataset = (
+    TumRgbd(args.sequence_id)
+    if args.sequence_id in TumRgbd.sequences()
+    else Kitti(args.sequence_id)
+)
+config_file = os.path.join(args.workspace_dir, "config", f"node_config_{dataset.name()}.yaml")
+params = yaml.safe_load(
+                Path(os.path.join(config_file)).read_text()
+            )
+evaluation = Evaluation(sequence=dataset, experiment_name=args.experiment_name)
 
-if args.run_algo:
-    print("---------Running Algorithm-----------------")
-    sha = args.commit_hash if args.commit_hash else git.Repo(args.workspace_dir).head.object.hexsha
-    with open(os.path.join(output_dir, 'meta.yaml'), 'w') as f:
-        yaml.dump([
-                {'name': args.experiment_name},
-                {'code_sha': sha}
-                ], f)
-    os.system(f"ros2 launch vslam_ros evaluation.launch.py \
-        sequence_root:={args.sequence_root} sequence_id:={args.sequence_id} \
-        experiment_name:={args.experiment_name}")
-# TODO plot, fix paths
-print("---------Creating Plots-----------------")
-os.system(f"python3 {script_dir}/vslam_evaluation/plot/plot_traj.py \
-    {algo_traj} {gt_traj} --xy_out {xy_plot} --z_out {z_plot}")
+evaluation.prepare_run(parameters=params, sha=args.commit_hash, workspace_dir=args.workspace_dir, override=True)
 
+if args.upload:
+    evaluation.prepare_upload()
 
-print("---------Evaluating Relative Pose Error-----------------")
-os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_rpe.py \
-    {gt_traj} {algo_traj} \
-    --verbose --plot {rpe_plot} --fixed_delta --delta_unit s --save {rpe_plot} \
-        > {output_dir}/rpe_summary.txt && cat {output_dir}/rpe_summary.txt")
+running = True
 
-print("---------Evaluating Average Trajectory Error------------")
-os.system(f"python3 {script_dir}/vslam_evaluation/tum/evaluate_ate.py \
-    {gt_traj} {algo_traj} \
-    --verbose --plot {ate_plot} --save {ate_txt} \
-        > {output_dir}/ate_summary.txt && cat {output_dir}/ate_summary.txt")
+def intermediate_evaluation(t):
+    sleep(20)
+    while running:
+        sleep(t)
+        try:
+            evaluation.evaluate(final=False)
+        except Exception as e:
+            print(e)
 
-# TODO upload to WandB
+thread=Thread(target=intermediate_evaluation, args=(30, ))
+thread.start()
+
+print("---------Running Algorithm-----------------")
+try:
+    os.system(
+        f"{args.workspace_dir}/install/vslam_ros/lib/composition_evaluation_{dataset.name()} --ros-args --params-file {config_file} \
+        -p bag_file:={dataset.filepath()} \
+        -p gtTrajectoryFile:={dataset.gt_filepath()} \
+        -p outputDirectory:={evaluation.folder_results} \
+        -p algoOutputFile:={evaluation.filepath_trajectory_algo} \
+        -p replayMode:=True \
+        -p sync_topic:={dataset.sync_topic()} \
+        -p log.root_dir:={evaluation.folder_logs} \
+        {dataset.remappings()} \
+        2>&1 | tee {evaluation.filepath_console_log}"
+    )
+except Exception as e:
+    print(e)
+running = False
+thread.join()
+evaluation.evaluate(final=True)
+
